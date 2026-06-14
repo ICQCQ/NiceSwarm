@@ -141,13 +141,13 @@ func _pulse(radius: float) -> void:
 	fx.life = 0.3
 	fx.color = Color(0.7, 0.7, 1.0)
 	get_parent().add_child(fx)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(damage, global_position, Enemy.DMG_ENERGY)
 
 
 func _cone(dir: Vector2, reach: float) -> void:
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		var to: Vector2 = e.global_position - global_position
 		if to.length() <= reach + e.radius and absf(dir.angle_to(to)) <= 0.6:
 			e.take_hit(damage, null, Enemy.DMG_FIRE)
@@ -175,7 +175,7 @@ func _run_beam(delta: float) -> void:
 	var length := target_range * 0.7
 	var dir := Vector2.from_angle(angle)
 	_tick_cd(delta)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		var rel: Vector2 = e.global_position - global_position
@@ -190,7 +190,7 @@ func _run_orbit(delta: float) -> void:
 	_tick_cd(delta)
 	var orbit_r := 55.0 * area_mult
 	var blade_r := 11.0 * area_mult
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		for i in 3:
@@ -211,7 +211,7 @@ func _tick_cd(delta: float) -> void:
 func _nearest_unvisited(from: Vector2, visited: Dictionary, rng: float) -> Node2D:
 	var best: Node2D = null
 	var bd := rng * rng
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if visited.has(e.get_instance_id()):
 			continue
 		var d: float = from.distance_squared_to(e.global_position)
@@ -224,7 +224,7 @@ func _nearest_unvisited(from: Vector2, visited: Dictionary, rng: float) -> Node2
 func _find_target() -> Node2D:
 	var best: Node2D = null
 	var best_d := target_range * target_range
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		var d: float = global_position.distance_squared_to(e.global_position)
 		if d < best_d:
 			best_d = d

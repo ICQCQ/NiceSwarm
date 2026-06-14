@@ -46,7 +46,7 @@ func _explode() -> void:
 	fx.color = color
 	get_parent().add_child(fx)
 	Sfx.play("boom", global_position, -8.0)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= explode_radius + e.radius:
 			e.take_hit(explode_damage, global_position)
 

@@ -37,7 +37,7 @@ func _physics_process(delta: float) -> void:
 			return
 	queue_redraw()
 
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if hit_ids.has(e.get_instance_id()):
 			continue
 		if global_position.distance_to(e.global_position) <= hit_radius + e.radius:
@@ -54,7 +54,7 @@ func _physics_process(delta: float) -> void:
 func _arc_from(src: Node2D) -> void:
 	var best: Node2D = null
 	var bd := arc_range * arc_range
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if e == src or hit_ids.has(e.get_instance_id()):
 			continue
 		var d: float = src.global_position.distance_squared_to(e.global_position)

@@ -26,7 +26,7 @@ func _physics_process(delta: float) -> void:
 	if tick > 0.0:
 		return
 	tick = 0.4
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(damage)
 			if burn_dps > 0.0:

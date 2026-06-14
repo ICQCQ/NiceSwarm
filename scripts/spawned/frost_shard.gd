@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 	if life <= 0.0:
 		queue_free()
 		return
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if hit_ids.has(e.get_instance_id()):
 			continue
 		if global_position.distance_to(e.global_position) <= hit_radius + e.radius:

@@ -76,7 +76,10 @@ func _ready() -> void:
 	if not bullet:
 		add_to_group("enemies")
 	collision_layer = 0 if bullet else 2
-	collision_mask = 0 if (phase or bullet) else 2  # phasing bodies pass through everything
+	# enemies no longer collide with each other: 220 mutually-colliding CharacterBody2D
+	# bodies was an O(n^2) contact-solver cost. Projectile hits use collision_layer 2 +
+	# distance checks, and contact damage is distance-based, so nothing else needs this.
+	collision_mask = 0
 	var cs := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = radius

@@ -29,7 +29,7 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 	if arm > 0.0:
 		return
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= trigger_radius + e.radius:
 			_explode()
 			return
@@ -44,7 +44,7 @@ func _explode() -> void:
 	fx.color = Color(1.0, 0.55, 0.2)
 	get_parent().add_child(fx)
 	Sfx.play("boom", global_position, -4.0)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= blast_radius + e.radius:
 			e.take_hit(damage, global_position)
 	for i in spawn_missiles:
