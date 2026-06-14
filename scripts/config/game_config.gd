@@ -43,6 +43,26 @@ const DIFF_SPIKE := 1.0          # weight of heat_spike in the difficulty climb
 const BOSS_KILL_BASE := 60       # total kills before the first boss
 const BOSS_KILL_INTERVAL := 90   # extra kills required for each subsequent boss
 
+# --- online lobby / relay (M7.6 — see NETWORKING.md) ---
+# Defaults are placeholders; point these at your VPS deployment (or override via
+# env for dev). The Lobby Registry is plain HTTP(S); Noray does hole-punch+relay.
+const LOBBY_URL_DEFAULT := "http://127.0.0.1:8088"  # registry base URL
+const NORAY_HOST_DEFAULT := "127.0.0.1"             # Noray server host
+const NORAY_PORT_DEFAULT := 8890                     # Noray registration port
+
+static func lobby_url() -> String:
+	var e := OS.get_environment("NICESWARM_LOBBY_URL")
+	return e if e != "" else LOBBY_URL_DEFAULT
+
+static func noray_host() -> String:
+	var e := OS.get_environment("NICESWARM_NORAY_HOST")
+	return e if e != "" else NORAY_HOST_DEFAULT
+
+static func noray_port() -> int:
+	var e := OS.get_environment("NICESWARM_NORAY_PORT")
+	return int(e) if e != "" else NORAY_PORT_DEFAULT
+
+
 # --- bouncer: special population, separate from the normal pool/desired_pop ---
 const BOUNCER_UNLOCK := 165.0       # bouncers start appearing at this elapsed time
 const BOUNCER_CAP_BASE := 2.0       # bouncer population cap at pace 0
