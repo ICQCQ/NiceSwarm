@@ -114,10 +114,10 @@ func _emit(target: Node2D) -> float:
 			w.damage = damage
 			w.pull = 150.0
 			w.life = 2.5 * dur_mult
-			w.position = target.global_position
+			w.position = global_position
 			w.source_pid = source_pid
 			get_parent().add_child(w)
-			Sfx.play("gravity", target.global_position, -3.0)
+			Sfx.play("gravity", global_position, -3.0)
 			return 3.0
 		"venom":
 			var pud := VenomPuddle.new()
@@ -153,6 +153,7 @@ func _pulse(radius: float) -> void:
 	for e in EnemyGrid.near(global_position, radius):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(damage, global_position, Enemy.DMG_ENERGY, source_pid)
+			e.apply_push(global_position, 50.0 * area_mult)
 
 
 func _cone(dir: Vector2, reach: float) -> void:

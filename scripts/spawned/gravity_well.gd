@@ -8,6 +8,7 @@ var damage := 1.0     # per tick
 var pull := 170.0     # px/s drag, scaled down per-enemy as its pull resistance builds
 var life := 2.5
 var detonate_damage := 0.0  # fused Singularity: collapse blast on expiry
+var push_strength := 0.0    # fused Singularity: shockwave push on the collapse blast
 var freeze := false         # fused Glacier: chills everything inside
 var beam_spokes := 0        # fused Accretion Beam: rotating energy beams within the vortex
 var beam_dmg := 0.0
@@ -103,6 +104,8 @@ func _detonate() -> void:
 	for e in EnemyGrid.near(global_position, radius):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(detonate_damage, global_position, Enemy.DMG_PHYS, source_pid)
+			if push_strength > 0.0:
+				e.apply_push(global_position, push_strength)
 
 
 func _draw() -> void:

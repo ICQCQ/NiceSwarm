@@ -9,6 +9,7 @@ var life := 1.6
 var radius := 5.0  # scaled by the firing weapon's Area stat
 var explode_radius := 0.0  # >0: burst into an AoE on hit (fused Plasma Burst)
 var explode_damage := 0.0
+var push_strength := 0.0   # >0: shockwave push on the explosion (fused Plasma Burst)
 var fire_puddle_radius := 0.0   # >0: drop a burning puddle on hit (Incendiary Rounds)
 var fire_puddle_damage := 0.0
 var fire_puddle_life := 0.0
@@ -78,6 +79,8 @@ func _explode() -> void:
 	for e in EnemyGrid.near(global_position, explode_radius):
 		if global_position.distance_to(e.global_position) <= explode_radius + e.radius:
 			e.take_hit(explode_damage, global_position, Enemy.DMG_PHYS, source_pid)
+			if push_strength > 0.0:
+				e.apply_push(global_position, push_strength)
 
 
 func _drop_fire_puddle() -> void:

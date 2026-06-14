@@ -4,6 +4,7 @@ extends WeaponBase
 
 const TICK_TIME := 0.15
 const HALF_ANGLE := 0.61  # ~35 degrees
+const BURN_STACK_MULT := 1.6  # signature: flame piles burn stacks on faster than other sources
 
 var tick := 0.0
 
@@ -28,7 +29,7 @@ func _physics_process(delta: float) -> void:
 		var to: Vector2 = e.global_position - player.global_position
 		if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF_ANGLE:
 			e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
-			ignite(e, dmg)
+			ignite(e, dmg, BURN_STACK_MULT)
 			hit_any = true
 	if hit_any:
 		Sfx.play("flame", player.global_position)

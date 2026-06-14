@@ -10,6 +10,7 @@ var life := 4.0
 var target: Node2D
 var freeze_slow := 0.0  # >0: slow enemies in splash (Cryo Missile); duration scales with damage
 var freeze_dur := 0.0
+var push_strength := 0.0  # >0: shockwave push on impact (fused Cluster Warhead)
 var fire_dps := 0.0      # fused Phoenix Rocket: leaves a burning pool on impact
 var fire_radius := 0.0
 var fire_dur := 0.0
@@ -67,6 +68,8 @@ func _explode() -> void:
 			e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if freeze_slow > 0.0:
 				e.apply_slow(freeze_slow, freeze_dur)
+			if push_strength > 0.0:
+				e.apply_push(global_position, push_strength)
 	if fire_dps > 0.0:
 		var pud := VenomPuddle.new()
 		pud.source_pid = source_pid

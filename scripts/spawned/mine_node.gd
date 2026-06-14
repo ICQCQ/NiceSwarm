@@ -26,6 +26,7 @@ var chain_dmg := 0.0
 var chain_range := 0.0
 var nova_radius := 0.0   # fused Nova Mine: a second, larger energy pulse on blast
 var nova_dmg := 0.0
+var nova_push := 0.0     # fused Nova Mine: shockwave push from the energy pulse
 var venom_dps := 0.0     # fused Toxic Mine: leaves a toxic pool on blast
 var venom_radius := 0.0
 var venom_dur := 0.0
@@ -157,6 +158,8 @@ func _explode() -> void:
 		for e in EnemyGrid.near(global_position, nova_radius):
 			if global_position.distance_to(e.global_position) <= nova_radius + e.radius:
 				e.take_hit(nova_dmg, global_position, Enemy.DMG_ENERGY, source_pid)
+				if nova_push > 0.0:
+					e.apply_push(global_position, nova_push)
 		var nfx := RingFx.new()
 		nfx.position = global_position
 		nfx.radius = blast_radius

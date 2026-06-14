@@ -27,10 +27,16 @@ Hitscan/contact weapons (nova, orbit, laser, lightning, flame, glaive) have no l
 so they call `WeaponBase.ignite(enemy, dmg)` on hit. That applies a burn DoT whose length
 scales with `duration_mult` and whose dps scales with the hit damage (i.e. Power). This is
 the universal Duration hook — reach for it before inventing a bespoke one.
+`ignite(enemy, dmg, stack_mult)` takes an optional stack multiplier (default 1.0) for
+sources that should pile burn stacks on faster — Flame Cone's signature (`BURN_STACK_MULT`
+in `weapon_flame.gd`) is the only user so far.
 
-`Enemy` supports two status effects, both host-authoritative:
+`Enemy` supports three status effects, all host-authoritative:
 - `apply_slow(mult, duration)` — frost/ice weapons
 - `apply_burn(dps, duration)` — fire/energy weapons, via `ignite()`
+- `apply_push(from_pos, strength)` — knockback impulse away from `from_pos`; nova-family
+  blasts call `WeaponBase.push(e, from_pos)` for a mild extra "shockwave" shove on top of
+  `take_hit`'s normal hit knockback (skipped for `cc_immune` enemies, scales with Area)
 
 ## Checklist for a NEW base weapon
 
@@ -129,7 +135,7 @@ where possible (they already carry Area/Duration fields).
 | glaive + orbit | **Blade Tempest** | a ring of orbiting blades where one periodically breaks formation, flies out as a glaive, and rejoins the ring on return |
 | glaive + venom | **Plague Blade** | boomerangs that poison foes and leave toxic pools where they strike |
 | laser + lightning | **Ion Storm** | rotating beams that arc lightning to nearby foes |
-| laser + missiles | **Beam Battery** | rotating beams backed by homing rocket fire |
+| laser + missiles | **Beam Battery** | harmless rotating beams paint targets; on cooldown a homing missile volley strikes every painted enemy |
 | laser + venom | **Acid Ray** | rotating beams that corrode foes and seed toxic pools |
 | lightning + missiles | **EMP Missile** | homing rockets that chain lightning on impact |
 | missiles + orbit | **Rocket Halo** | orbiting blades that tag whatever they strike, then a homing missile locks onto the marked target |

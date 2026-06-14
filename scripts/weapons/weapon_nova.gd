@@ -23,6 +23,7 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 			ignite(e, dmg)
+			push(e, global_position)
 			hit_any = true
 	if hit_any:
 		cooldown = WeaponConfig.BASE.nova.cd * player.rate_mult

@@ -251,9 +251,7 @@ func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, so
 	hp -= amount
 	flash = 0.12
 	if from_pos != null and not cc_immune:  # can't be knocked back if interrupt-immune
-		var kbr := 0.3 if radius >= 20.0 else 1.0
-		knockback += (global_position - from_pos).normalized() * 130.0 * kbr
-		knockback = knockback.limit_length(280.0)
+		apply_push(from_pos, 130.0)
 
 	# throttle numbers for rapid-tick weapons (flame, venom, laser)
 	if amount >= 1.0 or randf() < 0.35:
@@ -286,6 +284,16 @@ func apply_slow(mult: float, duration: float) -> void:
 	slow_timer = maxf(slow_timer, duration)
 
 
+## Knockback impulse away from from_pos. Used both by take_hit's per-hit
+## knockback and by nova-family blasts that add an extra "shockwave" push.
+func apply_push(from_pos: Vector2, strength: float) -> void:
+	if cc_immune:  # interrupt-immune enemies can't be knocked back
+		return
+	var kbr := 0.3 if radius >= 20.0 else 1.0
+	knockback += (global_position - from_pos).normalized() * strength * kbr
+	knockback = knockback.limit_length(280.0)
+
+
 ## Boss attack: map-wide/pattern telegraphs via main.cast_telegraph, forcing
 ## the player to actually move rather than just tank the hits.
 func _do_slam() -> void:
@@ -308,12 +316,13 @@ func _do_slam() -> void:
 				main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0)
 
 
-func apply_burn(dps: float, duration: float) -> void:
+func apply_burn(dps: float, duration: float, stack_mult: float = 1.0) -> void:
 	# stack onto an active burn — both the heat (dps) and the time left — rather
-	# than just refreshing a single value, so repeated ignites compound
+	# than just refreshing a single value, so repeated ignites compound.
+	# stack_mult > 1 lets a source (Flame Cone's signature) pile on faster.
 	if burn_timer > 0.0:
-		burn_dps += dps
-		burn_timer += duration
+		burn_dps += dps * stack_mult
+		burn_timer += duration * stack_mult
 	else:
 		burn_dps = dps
 		burn_timer = duration

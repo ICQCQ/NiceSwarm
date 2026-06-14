@@ -82,7 +82,7 @@ const INFO := {
 	"glaive|orbit": {"name": "Blade Tempest", "desc": "a ring of blades where one periodically breaks off, strikes as a glaive, and rejoins the ring"},
 	"glaive|venom": {"name": "Plague Blade", "desc": "boomerangs that poison foes and leave toxic pools where they strike"},
 	"laser|lightning": {"name": "Ion Storm", "desc": "rotating beams that arc lightning to nearby foes"},
-	"laser|missiles": {"name": "Beam Battery", "desc": "rotating beams paint a target for a homing, fire-bursting missile"},
+	"laser|missiles": {"name": "Beam Battery", "desc": "harmless rotating beams paint targets; on cooldown, every painted enemy takes a homing, fire-bursting missile"},
 	"laser|venom": {"name": "Acid Ray", "desc": "rotating beams that corrode foes and seed toxic pools"},
 	"lightning|missiles": {"name": "EMP Missile", "desc": "homing rockets that chain lightning on impact"},
 	"missiles|orbit": {"name": "Rocket Halo", "desc": "orbiting blades tag whatever they strike for a homing missile to finish"},
@@ -211,6 +211,7 @@ class PlasmaBurst extends WeaponBase:
 			p.life = 1.6 * player.duration_mult
 			p.explode_radius = 70.0 * player.area_mult
 			p.explode_damage = dmg * 0.8
+			p.push_strength = 50.0 * player.area_mult
 			p.color = Color(1.0, 0.5, 0.9)
 			p.position = player.global_position
 			player.get_parent().add_child(p)
@@ -316,6 +317,7 @@ class Singularity extends WeaponBase:
 		w.pull = 210.0
 		w.life = 2.5 * player.duration_mult
 		w.detonate_damage = 6.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
+		w.push_strength = 50.0 * player.area_mult
 		w.position = target.global_position
 		player.get_parent().add_child(w)
 		Sfx.play("gravity", target.global_position)
@@ -487,6 +489,7 @@ class Supernova extends WeaponBase:
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position, Enemy.DMG_PHYS, player.peer_id)
 				ignite(e, dmg)
+				push(e, global_position)
 				hit_any = true
 		if not hit_any:
 			cooldown = 0.25
@@ -680,6 +683,7 @@ class ClusterWarhead extends WeaponBase:
 			m.source_pid = player.peer_id
 			m.damage = dmg
 			m.splash = 130.0 * player.area_mult  # mini-nova blast
+			m.push_strength = 50.0 * player.area_mult
 			m.life = 4.0 * player.duration_mult
 			m.velocity = Vector2.from_angle(randf() * TAU) * 300.0
 			m.position = player.global_position
@@ -840,6 +844,7 @@ class Pulsar extends WeaponBase:
 					if bp.distance_to(e.global_position) <= pulse_radius + e.radius:
 						e.take_hit(pulse_dmg, bp, Enemy.DMG_ENERGY, player.peer_id)
 						ignite(e, pulse_dmg)
+						push(e, bp)
 						any = true
 				if any:
 					var fx := RingFx.new()
@@ -1122,6 +1127,7 @@ class Cyclone extends WeaponBase:
 				if player.global_position.distance_to(e.global_position) <= radius + e.radius:
 					e.take_hit(ndmg, player.global_position, Enemy.DMG_ENERGY, player.peer_id)
 					ignite(e, ndmg)
+					push(e, player.global_position)
 					any = true
 			if any:
 				var fx := RingFx.new()
@@ -1260,6 +1266,7 @@ class NovaBeam extends WeaponBase:
 			for e in Main.instance.all_enemies():
 				if global_position.distance_to(e.global_position) <= radius + e.radius:
 					e.take_hit(ndmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
+					push(e, global_position)
 					any = true
 			if any:
 				var fx := RingFx.new()
@@ -1341,6 +1348,7 @@ class ToxicNova extends WeaponBase:
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position, Enemy.DMG_PHYS, player.peer_id)
 				e.apply_burn(dmg * 0.3, 1.5 * player.duration_mult)
+				push(e, global_position)
 				any = true
 		if not any:
 			cooldown = 0.25
@@ -1454,6 +1462,7 @@ class AbsoluteZero extends WeaponBase:
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position, Enemy.DMG_ICE, player.peer_id)
 				e.apply_slow(0.3, 2.0 * player.duration_mult)
+				push(e, global_position)
 				any = true
 		if not any:
 			cooldown = 0.25
@@ -1629,6 +1638,7 @@ class Thunderclap extends WeaponBase:
 		for e in Main.instance.all_enemies():
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
+				push(e, global_position)
 				hits.append(e)
 		if hits.is_empty():
 			cooldown = 0.25
@@ -2421,6 +2431,7 @@ class NovaMine extends _MineFusion:
 	func _load(m: MineNode) -> void:
 		m.nova_radius = (160.0 + 22.0 * level) * player.area_mult
 		m.nova_dmg = 2.2 * player.damage_mult * (1.0 + 0.4 * level)
+		m.nova_push = 50.0 * player.area_mult
 
 
 # --- mines + venom: mines leave a toxic pool on blast -------------------------
@@ -2885,12 +2896,10 @@ class IonStorm extends WeaponBase:
 			draw_circle(dir * length, 7.0 * player.area_mult, Color(0.75, 0.7, 1.0))
 
 
-# --- laser + missiles: rotating beams paint targets for homing missiles -----
+# --- laser + missiles: rotating beams paint targets for a missile volley ----
 class BeamBattery extends WeaponBase:
-	const HIT_CD := 0.4
 	const TAG_DUR := 2.0
 	var angle := 0.0
-	var hit_cd := {}
 	var tagged := {}  # enemy instance id -> remaining lock time (painted by a beam)
 	var missile_cd := 0.0
 	func _init() -> void:
@@ -2902,13 +2911,6 @@ class BeamBattery extends WeaponBase:
 			return
 		angle = fmod(angle + 1.6 / player.rate_mult * delta, TAU)
 		queue_redraw()
-		var expired := []
-		for k in hit_cd:
-			hit_cd[k] -= delta
-			if hit_cd[k] <= 0.0:
-				expired.append(k)
-		for k in expired:
-			hit_cd.erase(k)
 		var texpired := []
 		for k in tagged:
 			tagged[k] -= delta
@@ -2918,45 +2920,42 @@ class BeamBattery extends WeaponBase:
 			tagged.erase(k)
 		var beams := 1 + level
 		var length := (160.0 + 22.0 * (level - 1)) * player.area_mult
-		var dmg := 1.1 * player.damage_mult * (1.0 + 0.4 * (level - 1))
+		# beams deal no damage of their own -- they just paint targets
 		for e in get_tree().get_nodes_in_group("enemies"):
-			if hit_cd.has(e.get_instance_id()):
-				continue
 			var rel: Vector2 = e.global_position - global_position
 			for b in beams:
 				var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 				var along := clampf(rel.dot(dir), 0.0, length)
 				if (dir * along).distance_to(rel) <= 9.0 + e.radius:
-					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
-					ignite(e, dmg)
-					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					tagged[e.get_instance_id()] = TAG_DUR * player.duration_mult
 					break
-		# missiles only fire at a target a beam has painted, then leave a burning
-		# pool on impact -- beams paint, missiles snipe and ignite the area
+		# on cooldown, fire a homing missile at every currently-painted enemy
 		missile_cd -= delta
 		if missile_cd <= 0.0:
-			var lock: Node2D = null
-			for e in get_tree().get_nodes_in_group("enemies"):
-				if tagged.has(e.get_instance_id()):
-					lock = e
-					break
-			if lock == null:
+			var locks: Array = []
+			for id in tagged:
+				var e := instance_from_id(id) as Node2D
+				if is_instance_valid(e):
+					locks.append(e)
+			if locks.is_empty():
 				missile_cd = 0.2
 				return
-			var m := MissileProj.new()
-			m.source_pid = player.peer_id
-			m.target = lock
-			m.damage = 2.8 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-			m.splash = (65.0 + 8.0 * (level - 1)) * player.area_mult
-			m.life = 4.0 * player.duration_mult
-			m.velocity = (lock.global_position - global_position).normalized() * 280.0
-			m.fire_dps = 0.7 * player.damage_mult * (1.0 + 0.35 * (level - 1))
-			m.fire_radius = (55.0 + 8.0 * (level - 1)) * player.area_mult
-			m.fire_dur = 1.6 * player.duration_mult
-			m.position = global_position
-			player.get_parent().add_child(m)
+			var dmg := 2.8 * player.damage_mult * (1.0 + 0.4 * (level - 1))
+			for lock in locks:
+				var m := MissileProj.new()
+				m.source_pid = player.peer_id
+				m.target = lock
+				m.damage = dmg
+				m.splash = (65.0 + 8.0 * (level - 1)) * player.area_mult
+				m.life = 4.0 * player.duration_mult
+				m.velocity = (lock.global_position - global_position).normalized() * 280.0
+				m.fire_dps = 0.7 * player.damage_mult * (1.0 + 0.35 * (level - 1))
+				m.fire_radius = (55.0 + 8.0 * (level - 1)) * player.area_mult
+				m.fire_dur = 1.6 * player.duration_mult
+				m.position = global_position
+				player.get_parent().add_child(m)
 			Sfx.play("missile", global_position)
+			tagged.clear()
 			missile_cd = 1.8 * player.rate_mult
 	func _draw() -> void:
 		if player == null or player.downed:
