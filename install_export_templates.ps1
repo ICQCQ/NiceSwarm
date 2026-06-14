@@ -17,9 +17,11 @@ $ProgressPreference = 'SilentlyContinue'
 Invoke-WebRequest -Uri $url -OutFile $tpz -UseBasicParsing
 
 # A .tpz is a zip whose files live under templates/. Extract and flatten into $dest.
+# (Expand-Archive rejects the .tpz extension, so use the extension-agnostic .NET API.)
 $tmp = "$env:TEMP\godot_tpl_extract_$ver"
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
-Expand-Archive -Path $tpz -DestinationPath $tmp -Force
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory($tpz, $tmp)
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item "$tmp\templates\*" $dest -Recurse -Force
 Write-Host "Installed export templates -> $dest"
