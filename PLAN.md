@@ -140,6 +140,33 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-15 — Session 3: balance overhaul + docs + unit tests (branch `balance/curve-waves`)
+- Rebased the balance branch onto the post-`sync-from-master` `publish`, re-grounding the
+  plan against the refactored code (spawning now in `scripts/core/spawner.gd`; two-track
+  `pace`/`difficulty` + heat/heat-spike/bosses/bouncers already exist). Revised
+  [docs/balance/BALANCE_PLAN.md](docs/balance/BALANCE_PLAN.md) accordingly (waves → spawner,
+  walls dropped in favor of the boss system, FF reuses `player.debug_god`).
+- **Docs:** wrote [GAME_DESIGN.md](GAME_DESIGN.md) (holistic design, incl. the new difficulty
+  model) + [README.md](README.md).
+- **Implemented the 4-system overhaul:**
+  1. *Gem cap* — 500-gem ceiling; excess XP condenses into the farthest gem, rendered as a
+     growing red orb (perf). Client value-sync updated each tick.
+  2. *`NICESWARM_FF=<mult>`* fast-forward hook — scales `Engine.time_scale` +
+     `max_physics_steps_per_frame`, immortal players (`debug_god`), auto-picks level-ups,
+     prints level/gems per game-minute. Fixed a pre-existing bomb-pickup freed-instance crash
+     it surfaced.
+  3. *Three-band XP curve* — `GameConfig.xp_for_level` (pure/static/tested); fast early →
+     earned late.
+  4. *Time-based waves* — per-minute intensity/pop in `spawner.run_spawning`, layered over the
+     existing engine; bosses remain the DPS-checkpoints.
+- **Unit tests:** new zero-dependency headless harness `tests/run_tests.gd` + 7 modules,
+  **925 assertions** (config, weapons, enemies, all 78 fusions, spawner math, XP curve, waves,
+  gems). Run: `godot --headless --path . --script res://tests/run_tests.gd`.
+- **Calibrated via FF:** shipped curve+waves land the 10-min win at ~L45–48 (target 40–50).
+  Verified: 925 unit tests + solo/zoo/all_weapons/merge/bomber + co-op host/join all clean.
+- **Next:** real playtest of the new curve/waves/gem-cap; tune wave feel; the XP/wave numbers
+  are calibrated to the *aggressive* FF case, so real play lands a bit lower.
+
 ### 2026-06-14 — Session 2: late-game O(n²) perf fix (branch `perf/game-loop-on2`)
 - User reported late-game crash to <1 fps + attacks "passing through" enemies. Investigated
   and wrote [PERFORMANCE.md](PERFORMANCE.md): **two independent O(n²) costs**, and the
