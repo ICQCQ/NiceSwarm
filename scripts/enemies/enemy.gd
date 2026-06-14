@@ -12,6 +12,12 @@ const DMG_FIRE := 1
 const DMG_ICE := 2
 const DMG_ENERGY := 3
 
+# Newborns ease up to full speed over their first SPAWN_RAMP_TIME seconds (ease-in
+# curve, so they accelerate) — gives players a beat to react to a fresh spawn.
+const SPAWN_RAMP_TIME := 2.0
+const SPAWN_RAMP_FLOOR := 0.15   # speed multiplier at the instant of spawn
+
+var age := 0.0   # seconds alive (host sim only); drives the spawn speed ramp
 var hp := 2.0
 var speed := 90.0
 var radius := 12.0
@@ -95,6 +101,10 @@ func _physics_process(delta: float) -> void:
 		return
 	var target: Node2D = main_ref.nearest_alive_player(global_position)
 	var spd := speed * (slow_mult if slow_timer > 0.0 else 1.0)
+	if not bullet and age < SPAWN_RAMP_TIME:  # newborns accelerate up to full speed
+		age += delta
+		var t := clampf(age / SPAWN_RAMP_TIME, 0.0, 1.0)
+		spd *= lerpf(SPAWN_RAMP_FLOOR, 1.0, t * t)  # t² = ease-in (slow start, speeds up)
 	if life > 0.0:
 		life -= delta
 		if life <= 0.0:
