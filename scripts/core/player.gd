@@ -8,6 +8,7 @@ signal died
 signal health_changed(hp: int, max_hp: int)
 
 const RADIUS := 14.0
+const HURT_RADIUS := RADIUS * 0.8  # forgiving hurtbox — smaller than the drawn body
 const DASH_TIME := 0.18
 const DASH_SPEED_MULT := 3.4
 const COLORS: Array[Color] = [

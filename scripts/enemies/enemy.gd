@@ -205,7 +205,7 @@ func _physics_process(delta: float) -> void:
 		if velocity.length() > 1.0:
 			heading = velocity.normalized()
 	if target != null \
-			and global_position.distance_to(target.global_position) <= radius + Player.RADIUS:
+			and global_position.distance_to(target.global_position) <= radius + Player.HURT_RADIUS:
 		target.take_damage(dmg)
 	# boss mechanics (host-authoritative): periodic map-wide/pattern slam,
 	# rotating elemental immunity, and called-in reinforcements.
