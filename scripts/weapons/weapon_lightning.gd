@@ -45,7 +45,9 @@ func _next_target(from: Vector2, visited: Dictionary) -> Node2D:
 	var best: Node2D = null
 	var jump := 200.0 * player.area_mult
 	var best_d := jump * jump
-	for e in Main.instance.all_enemies():
+	# Broad-phase by jump range around the last hit point (grid); +64 margin covers the
+	# largest enemy radius (38). The nearest-unvisited pick below is unchanged.
+	for e in Main.instance.enemies_in_radius(from, jump + 64.0):
 		if visited.has(e.get_instance_id()):
 			continue
 		var d: float = from.distance_squared_to(e.global_position)

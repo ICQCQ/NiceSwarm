@@ -11,9 +11,21 @@
 > `nearest_enemy_to()`, with `player.nearest_enemy`, orbit and gravity_well on the grid and
 > all other scans on the shared cached list). Verified error-free headless across
 > solo / all_weapons / zoo / merge / bomber / co-op. The real-fps gain still wants the
-> measure-first playtest below. **Remaining follow-ups:** nova/laser/flame/spawned still
-> loop the full cached list (no alloc, but O(n)); throttle continuous scanners to ~10–15 Hz;
-> the `queue_redraw()` cleanup (step 4).
+> measure-first playtest below.
+>
+> **Update (2026-06-15): step 3 finished for the weapon layer.** Every per-frame weapon
+> scanner now uses the radius query instead of looping the full field: the 4 base AoE weapons
+> (`flame` / `laser` / `nova` / `lightning`) and **all 37 enemy-scan sites in
+> `weapon_fusions.gd`** moved from `all_enemies()` / `get_nodes_in_group("enemies")` to
+> `Main.instance.enemies_in_radius(center, reach + 64.0)` (the `+64` margin > the largest enemy
+> radius of 38, so no grazing hit is ever dropped; the precise per-site distance/angle check is
+> unchanged). The one genuinely unbounded scan (RocketHalo's tag-lock search) stays global but
+> now reads the cached `all_enemies()` instead of re-allocating the group. The `spawned/` layer
+> was already on `EnemyGrid.near()`. Measured wins (headless micro-benchmark, N=220, see
+> **Benchmarks** below): 2.5–5.9× for the base weapons, **5.5–18× for the fusion archetypes**
+> (orbit-blade halos gain most — they ran a nested enemy×blade loop every frame).
+> **Remaining follow-ups:** throttle continuous scanners to ~10–15 Hz; the `queue_redraw()`
+> cleanup (step 4).
 
 `n` = live enemy count, hard-capped at **`ENEMY_CAP = 220`** (`scripts/config/game_config.gd:12`).
 The arena is 2400×2400; enemies spawn off-screen in a ring and converge on the player, so
@@ -130,3 +142,30 @@ converged on-screen so culling saves little. The radius grid (step 3) is strictl
 - Replay to late game (or `ENEMY_CAP` high + fast spawn) and confirm framerate holds.
 - Re-confirm hits register at healthy fps (validates the missed-hits-were-a-symptom theory).
 - Co-op smoke test (`NICESWARM_NET=host`/`join`) — keep host damage authoritative.
+
+---
+
+## Benchmarks — weapon enemy-scan cost (step 3)
+
+Headless micro-benchmark `tests/bench_weapon_query.tscn` (run it as a *scene*, not `--script`,
+so autoloads load): a real `Main` grid + a fixed seeded field of **N=220** enemies; each weapon's
+own `_physics_process` is timed for 4000 calls. Enemies are made immune to the weapon's damage
+type so `take_hit` early-returns (no nodes/score), positions are restored each iter (cancel
+knockback drift), and spawned FX are freed each iter — so the timer isolates exactly what the
+change touches: the candidate-set iteration. Run before/after with
+`git stash push -- scripts/weapons/weapon_fusions.gd`.
+
+| Weapon | Archetype | Before (µs/call) | After (µs/call) | Speedup |
+|--------|-----------|-----------------:|----------------:|--------:|
+| flame | cone | 86.9 | 14.6 | 5.9× |
+| laser | sweep beam | 186.0 | 38.5 | 4.8× |
+| nova | radial blast | 95.4 | 35.4 | 2.7× |
+| lightning | chain (per-hop scan) | 372.8 | 152.1 | 2.5× |
+| fus:teslahalo | orbit-blade (enemy×blade) | 497.2 | 27.5 | **18.1×** |
+| fus:novabeam | sweep beam + nova | 237.0 | 43.0 | 5.5× |
+| fus:plasmastorm | burn cone | 86.9 | 15.7 | 5.5× |
+
+The orbit-blade halos win biggest because the old code ran `for e in all_enemies(): for blade in
+n:` — O(n · blades) every frame; the grid cuts the candidate count to the local neighbourhood.
+These are headless CPU-µs deltas; real rendered-fps impact still wants the interactive playtest
+above, but the per-call cost reduction is unambiguous and the hit set is provably identical.
