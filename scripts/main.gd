@@ -171,6 +171,12 @@ var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
 var start_btn: Button
+# online lobby (M7.6) — browse/host with no IP:port
+var lobby: LobbyClient
+var browse_box: VBoxContainer
+var _lobby_room_id := ""
+var _lobby_token := ""
+var _hb_timer: Timer
 var debug_panel: Control
 var debug_god_btn: Button
 var debug_fuse_a: OptionButton
@@ -274,6 +280,7 @@ func _on_join_pressed() -> void:
 
 
 func _on_start_pressed() -> void:
+	_lobby_withdraw()  # started runs leave the browseable list (no mid-game join)
 	var ids: Array = [1]
 	for p in multiplayer.get_peers():
 		ids.append(p)
@@ -282,6 +289,101 @@ func _on_start_pressed() -> void:
 	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
 	net.send_start(PackedInt32Array(ids))
 	start_game(ids)
+
+
+# --- online lobby (M7.6 — see NETWORKING.md) -------------------------------
+
+func _ensure_lobby() -> void:
+	if lobby == null:
+		lobby = LobbyClient.new()
+		add_child(lobby)
+	if _hb_timer == null:
+		_hb_timer = Timer.new()
+		_hb_timer.wait_time = 5.0
+		_hb_timer.timeout.connect(_on_lobby_heartbeat)
+		add_child(_hb_timer)
+
+
+func _on_host_online_pressed() -> void:
+	_ensure_lobby()
+	status_label.text = "Connecting to the relay…"
+	var err: String = await net.host_online()
+	if err != "":
+		status_label.text = err
+		return
+	var res: Dictionary = await lobby.announce("Co-op game", VERSION, net.online_oid, Net.MAX_PLAYERS)
+	if res.ok and res.data is Dictionary:
+		_lobby_room_id = res.data.get("room_id", "")
+		_lobby_token = res.data.get("token", "")
+		_hb_timer.start()
+		status_label.text = "Online — listed in the lobby.\nPlayers: 1 (you)"
+	else:
+		status_label.text = "Hosting online (lobby unavailable: %s)" % res.get("error", "")
+	start_btn.visible = true
+
+
+func _on_lobby_heartbeat() -> void:
+	if _lobby_room_id == "" or lobby == null:
+		return
+	await lobby.heartbeat(_lobby_room_id, _lobby_token, 1 + multiplayer.get_peers().size(), playing)
+
+
+func _on_browse_pressed() -> void:
+	_ensure_lobby()
+	_clear_browse()
+	status_label.text = "Loading games…"
+	var res: Dictionary = await lobby.list_games(VERSION)
+	if not res.ok or not (res.data is Dictionary):
+		status_label.text = "Lobby unavailable: %s" % res.get("error", "no response")
+		return
+	var rooms: Array = res.data.get("rooms", [])
+	if rooms.is_empty():
+		var hint := "No open games"
+		var ov := int(res.data.get("other_versions", 0))
+		if ov > 0:
+			hint += " (%d on other versions)" % ov
+		status_label.text = hint
+		return
+	status_label.text = "%d game(s) — click to join" % rooms.size()
+	for room in rooms:
+		var oid := str(room.get("host_oid", ""))
+		var b := Button.new()
+		b.text = "%s   (%d/%d)" % [str(room.get("name", "Game")),
+			int(room.get("players", 1)), int(room.get("max_players", 4))]
+		b.custom_minimum_size = Vector2(360, 44)
+		b.add_theme_font_size_override("font_size", 18)
+		b.pressed.connect(_on_join_online.bind(oid))
+		browse_box.add_child(b)
+
+
+func _on_join_online(oid: String) -> void:
+	if oid == "":
+		return
+	_ensure_lobby()
+	_clear_browse()
+	status_label.text = "Connecting…"
+	var err: String = await net.join_online(oid)
+	if err != "":
+		status_label.text = err
+
+
+func _clear_browse() -> void:
+	if browse_box == null:
+		return
+	for c in browse_box.get_children():
+		c.queue_free()
+
+
+# Remove our room from the lobby + stop heartbeating. Fire-and-forget network call.
+func _lobby_withdraw() -> void:
+	if _hb_timer != null:
+		_hb_timer.stop()
+	if _lobby_room_id != "" and lobby != null:
+		var rid := _lobby_room_id
+		var tok := _lobby_token
+		_lobby_room_id = ""
+		_lobby_token = ""
+		await lobby.withdraw(rid, tok)
 
 
 func apply_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
@@ -1329,6 +1431,7 @@ func _input(event: InputEvent) -> void:
 ## Leave the current run and return to the main menu. Disconnects from co-op
 ## (host leaving drops everyone; a client leaving just drops itself).
 func _to_menu() -> void:
+	_lobby_withdraw()
 	net.leave()
 	get_tree().paused = false
 	level_panel.visible = false
@@ -1857,6 +1960,26 @@ func _build_menu() -> void:
 	join.add_theme_font_size_override("font_size", 22)
 	join.pressed.connect(_on_join_pressed)
 	row.add_child(join)
+
+	# --- online: relay/hole-punch, no IP needed (M7.6) ---
+	var online_host := Button.new()
+	online_host.text = "Host Online"
+	online_host.custom_minimum_size = Vector2(176, 52)
+	online_host.add_theme_font_size_override("font_size", 22)
+	online_host.pressed.connect(_on_host_online_pressed)
+	var online_browse := Button.new()
+	online_browse.text = "Browse Online"
+	online_browse.custom_minimum_size = Vector2(176, 52)
+	online_browse.add_theme_font_size_override("font_size", 22)
+	online_browse.pressed.connect(_on_browse_pressed)
+	var online_row := HBoxContainer.new()
+	online_row.add_theme_constant_override("separation", 8)
+	online_row.add_child(online_host)
+	online_row.add_child(online_browse)
+	vbox.add_child(online_row)
+	browse_box = VBoxContainer.new()
+	browse_box.add_theme_constant_override("separation", 4)
+	vbox.add_child(browse_box)
 
 	var port_row := HBoxContainer.new()
 	port_row.add_theme_constant_override("separation", 8)

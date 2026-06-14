@@ -49,6 +49,112 @@ func leave() -> void:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	active = false
+	_online_role = OnlineRole.NONE
+	online_oid = ""
+	if Noray.is_connected_to_host():
+		Noray.disconnect_from_host()
+
+
+# --- online: Noray NAT hole-punch + relay fallback -------------------------
+# Lets players connect across NATs with no IP:port. The host shares its `oid`
+# via the Lobby Registry; clients connect by that oid. Mirrors netfox.noray's
+# bootstrapper flow. Once a peer is established the existing host-authoritative
+# RPCs run unchanged. See NETWORKING.md §6 and addons/netfox.noray.
+
+enum OnlineRole { NONE, HOST, CLIENT }
+var _online_role := OnlineRole.NONE
+var _join_oid := ""
+var online_oid := ""        # this host's shareable handle once registered
+var _noray_wired := false
+
+
+func _wire_noray() -> void:
+	if _noray_wired:
+		return
+	Noray.on_connect_nat.connect(_on_connect_nat)
+	Noray.on_connect_relay.connect(_on_connect_relay)
+	_noray_wired = true
+
+
+# Register this peer with the Noray server (shared by host + client).
+func _noray_register() -> String:
+	_wire_noray()
+	if not Noray.is_connected_to_host():
+		var e: int = await Noray.connect_to_host(GameConfig.noray_host(), GameConfig.noray_port())
+		if e != OK:
+			return "Cannot reach the relay server"
+	Noray.register_host()
+	await Noray.on_pid
+	var e2: int = await Noray.register_remote()
+	if e2 != OK:
+		return "Relay registration failed"
+	return ""
+
+
+# Host online: register with Noray, then listen. On success `online_oid` is set
+# (share it via the lobby). Returns "" or a user-facing error string.
+func host_online() -> String:
+	var err := await _noray_register()
+	if err != "":
+		return err
+	var peer := ENetMultiplayerPeer.new()
+	if peer.create_server(Noray.local_port, MAX_PLAYERS - 1) != OK:
+		return "Could not start the host"
+	multiplayer.multiplayer_peer = peer
+	multiplayer.server_relay = true
+	active = true
+	_online_role = OnlineRole.HOST
+	online_oid = Noray.oid
+	return ""
+
+
+# Join an online host by its OID. Returns "" once the attempt has started;
+# success/failure then arrive via the usual connected_to_server / join_failed.
+func join_online(host_oid: String) -> String:
+	var err := await _noray_register()
+	if err != "":
+		return err
+	_online_role = OnlineRole.CLIENT
+	_join_oid = host_oid
+	Noray.connect_nat(host_oid)
+	return ""
+
+
+func _on_connect_nat(address: String, port: int) -> void:
+	var err := await _establish(address, port)
+	# Client: if the NAT punch failed, fall back to the relay.
+	if err != OK and _online_role == OnlineRole.CLIENT:
+		Noray.connect_relay(_join_oid)
+
+
+func _on_connect_relay(address: String, port: int) -> void:
+	await _establish(address, port)
+
+
+# Punch + bring up the ENet peer for whichever role we are.
+func _establish(address: String, port: int) -> int:
+	if _online_role == OnlineRole.CLIENT:
+		var udp := PacketPeerUDP.new()
+		udp.bind(Noray.local_port)
+		udp.set_dest_address(address, port)
+		var herr: int = await PacketHandshake.over_packet_peer(udp)
+		udp.close()
+		if herr != OK and herr != ERR_BUSY:
+			return herr
+		var peer := ENetMultiplayerPeer.new()
+		var cerr := peer.create_client(address, port, 0, 0, 0, Noray.local_port)
+		if cerr != OK:
+			return cerr
+		multiplayer.multiplayer_peer = peer
+		active = true
+		return OK
+	if _online_role == OnlineRole.HOST:
+		# The server peer already exists; just handshake toward the joiner.
+		var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if peer == null:
+			return ERR_UNCONFIGURED
+		return await PacketHandshake.over_enet_peer(peer, address, port)
+	return ERR_UNAVAILABLE
 
 
 # --- senders (no-ops when offline/solo) -----------------------------------
