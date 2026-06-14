@@ -1024,16 +1024,23 @@ func _roll_choices() -> void:
 	if me == null:
 		return
 	var pool := _build_choice_pool(me)
-	# If any fusion (merge) is on offer, guarantee one shows — fusions are the
-	# build payoff and shouldn't be missed to a random shuffle.
+	# Guarantee up to two build-advancing options each roll, both protected from
+	# the random shuffle: (1) a fusion/merge when one is available (the build
+	# payoff), and (2) a level-up of an owned weapon/fusion, so you can always
+	# strengthen what you already run. Remaining slots fill randomly from the rest.
 	var merges := pool.filter(func(e): return e.get("cat", "") in ["fuse", "amalgam"])
-	var rest := pool.filter(func(e): return not (e.get("cat", "") in ["fuse", "amalgam"]))
-	rest.shuffle()
+	var levels := pool.filter(func(e): return e.get("cat", "") == "level")
+	var rest := pool.filter(func(e): return not (e.get("cat", "") in ["fuse", "amalgam", "level"]))
+	merges.shuffle()
+	levels.shuffle()
 	var chosen := []
 	if not merges.is_empty():
-		merges.shuffle()
-		chosen.append(merges[0])
-	for e in rest:
+		chosen.append(merges.pop_back())
+	if not levels.is_empty():
+		chosen.append(levels.pop_back())  # always offer an owned-weapon/fusion level-up
+	var filler: Array = levels + rest  # leftover level-ups stay eligible too
+	filler.shuffle()
+	for e in filler:
 		if chosen.size() >= cfg_choices:
 			break
 		chosen.append(e)
