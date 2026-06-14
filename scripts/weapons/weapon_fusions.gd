@@ -82,7 +82,7 @@ const INFO := {
 	"glaive|orbit": {"name": "Blade Tempest", "desc": "a ring of blades where one periodically breaks off, strikes as a glaive, and rejoins the ring"},
 	"glaive|venom": {"name": "Plague Blade", "desc": "boomerangs that poison foes and leave toxic pools where they strike"},
 	"laser|lightning": {"name": "Ion Storm", "desc": "rotating beams that arc lightning to nearby foes"},
-	"laser|missiles": {"name": "Beam Battery", "desc": "rotating beams backed by homing rocket fire"},
+	"laser|missiles": {"name": "Beam Battery", "desc": "rotating beams paint a target for a homing, fire-bursting missile"},
 	"laser|venom": {"name": "Acid Ray", "desc": "rotating beams that corrode foes and seed toxic pools"},
 	"lightning|missiles": {"name": "EMP Missile", "desc": "homing rockets that chain lightning on impact"},
 	"missiles|orbit": {"name": "Rocket Halo", "desc": "orbiting blades tag whatever they strike for a homing missile to finish"},
@@ -2885,11 +2885,13 @@ class IonStorm extends WeaponBase:
 			draw_circle(dir * length, 7.0 * player.area_mult, Color(0.75, 0.7, 1.0))
 
 
-# --- laser + missiles: rotating beams backed by homing rocket fire -----------
+# --- laser + missiles: rotating beams paint targets for homing missiles -----
 class BeamBattery extends WeaponBase:
 	const HIT_CD := 0.4
+	const TAG_DUR := 2.0
 	var angle := 0.0
 	var hit_cd := {}
+	var tagged := {}  # enemy instance id -> remaining lock time (painted by a beam)
 	var missile_cd := 0.0
 	func _init() -> void:
 		weapon_id = "fus_beambattery"
@@ -2907,6 +2909,13 @@ class BeamBattery extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
+		var texpired := []
+		for k in tagged:
+			tagged[k] -= delta
+			if tagged[k] <= 0.0:
+				texpired.append(k)
+		for k in texpired:
+			tagged.erase(k)
 		var beams := 1 + level
 		var length := (160.0 + 22.0 * (level - 1)) * player.area_mult
 		var dmg := 1.1 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -2921,23 +2930,34 @@ class BeamBattery extends WeaponBase:
 					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
 					ignite(e, dmg)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
+					tagged[e.get_instance_id()] = TAG_DUR * player.duration_mult
 					break
+		# missiles only fire at a target a beam has painted, then leave a burning
+		# pool on impact -- beams paint, missiles snipe and ignite the area
 		missile_cd -= delta
 		if missile_cd <= 0.0:
-			var target := player.nearest_enemy(700.0)
-			if target == null:
+			var lock: Node2D = null
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if tagged.has(e.get_instance_id()):
+					lock = e
+					break
+			if lock == null:
 				missile_cd = 0.2
 				return
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
-			m.damage = 2.4 * player.damage_mult * (1.0 + 0.35 * (level - 1))
+			m.target = lock
+			m.damage = 2.8 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			m.splash = (65.0 + 8.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult
-			m.velocity = Vector2.from_angle(randf() * TAU) * 280.0
+			m.velocity = (lock.global_position - global_position).normalized() * 280.0
+			m.fire_dps = 0.7 * player.damage_mult * (1.0 + 0.35 * (level - 1))
+			m.fire_radius = (55.0 + 8.0 * (level - 1)) * player.area_mult
+			m.fire_dur = 1.6 * player.duration_mult
 			m.position = global_position
 			player.get_parent().add_child(m)
 			Sfx.play("missile", global_position)
-			missile_cd = 2.4 * player.rate_mult
+			missile_cd = 1.8 * player.rate_mult
 	func _draw() -> void:
 		if player == null or player.downed:
 			return

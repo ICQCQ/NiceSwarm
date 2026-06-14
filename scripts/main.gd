@@ -162,7 +162,7 @@ var end_panel: Control
 var end_title: Label
 var end_stats: Label
 var end_hint: Label
-var scoreboard_box: VBoxContainer
+var scoreboard_box: GridContainer
 var pause_panel: Control
 var pause_loadout: Label
 var pause_roster: Label
@@ -1027,25 +1027,26 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 func _fill_scoreboard(scores: PackedFloat32Array) -> void:
 	for c in scoreboard_box.get_children():
 		c.queue_free()
-	var header := Label.new()
-	header.text = "      PLAYER      DAMAGE     XP    REVIVES   DEATHS"
-	header.add_theme_font_size_override("font_size", 18)
-	header.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-	scoreboard_box.add_child(header)
+	for h in ["PLAYER", "DAMAGE", "XP", "REVIVES", "DEATHS"]:
+		var header := Label.new()
+		header.text = h
+		header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if h == "PLAYER" else HORIZONTAL_ALIGNMENT_RIGHT
+		header.add_theme_font_size_override("font_size", 18)
+		header.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
+		scoreboard_box.add_child(header)
 	var i := 0
 	while i + 4 < scores.size():
 		var ci := int(scores[i])
 		var col := Player.COLORS[ci % Player.COLORS.size()]
-		var row := Label.new()
-		row.text = "P%d%s%s%s%s" % [
-			ci + 1,
-			str(int(round(scores[i + 1]))).lpad(14),
-			str(int(scores[i + 2])).lpad(9),
-			str(int(scores[i + 3])).lpad(10),
-			str(int(scores[i + 4])).lpad(9)]
-		row.add_theme_font_size_override("font_size", 20)
-		row.add_theme_color_override("font_color", col)
-		scoreboard_box.add_child(row)
+		var cells := ["P%d" % (ci + 1), str(int(round(scores[i + 1]))), str(int(scores[i + 2])),
+			str(int(scores[i + 3])), str(int(scores[i + 4]))]
+		for j in cells.size():
+			var cell := Label.new()
+			cell.text = cells[j]
+			cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if j == 0 else HORIZONTAL_ALIGNMENT_RIGHT
+			cell.add_theme_font_size_override("font_size", 20)
+			cell.add_theme_color_override("font_color", col)
+			scoreboard_box.add_child(cell)
 		i += 5
 
 
@@ -1525,8 +1526,10 @@ func _build_end_panel() -> void:
 	end_stats.add_theme_font_size_override("font_size", 24)
 	end_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(end_stats)
-	scoreboard_box = VBoxContainer.new()
-	scoreboard_box.add_theme_constant_override("separation", 4)
+	scoreboard_box = GridContainer.new()
+	scoreboard_box.columns = 5
+	scoreboard_box.add_theme_constant_override("h_separation", 24)
+	scoreboard_box.add_theme_constant_override("v_separation", 4)
 	vbox.add_child(scoreboard_box)
 	end_hint = Label.new()
 	end_hint.add_theme_font_size_override("font_size", 20)
