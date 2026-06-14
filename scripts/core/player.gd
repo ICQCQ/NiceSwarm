@@ -41,6 +41,8 @@ var disrupt_timer := 0.0  # Disruptor debuff: slows movement (dash still works)
 var downed := false
 var revive_progress := 0.0
 var debug_god := false  # debug panel: ignore all damage
+var safe := false  # host-authoritative: ignore damage while this player's in-game menu is open
+var menu_frozen := false  # local: hold still while our own in-game menu is open
 var weapons: Array = []
 var cam: Camera2D
 
@@ -75,6 +77,10 @@ func _physics_process(delta: float) -> void:
 	invuln = maxf(invuln - delta, 0.0)
 	queue_redraw()
 	if downed:
+		velocity = Vector2.ZERO
+		_update_cam(delta)
+		return
+	if is_local and menu_frozen:  # our in-game menu is open: hold still (host marks us safe)
 		velocity = Vector2.ZERO
 		_update_cam(delta)
 		return
@@ -190,7 +196,7 @@ func nearest_enemy(max_range: float) -> Node2D:
 func take_damage(amount: int) -> void:
 	if hp <= 0 or downed:
 		return
-	if debug_god:
+	if debug_god or safe:
 		return
 	if invuln > 0.0 or dash_active > 0.0 or remote_dashing:
 		return
