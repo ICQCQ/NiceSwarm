@@ -342,6 +342,9 @@ func spawn_enemy(cls: String, tier: int = -1) -> void:
 	e.position = _enemy_spawn_pos(center)
 	main.enemies_by_id[e.net_id] = e
 	main.world.add_child(e)
+	if cls == "boss" or cls == "elite":
+		var nm: String = EnemyConfig.CLASSES[cls][tier].get("name", cls)
+		main.announce_boss(nm, cls == "boss")
 	if cls == "bouncer":
 		bouncer_live += 1
 

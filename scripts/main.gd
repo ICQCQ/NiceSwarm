@@ -160,6 +160,9 @@ var last_tick := {0: -1, 1: -1, 2: -1, 3: -1}
 
 # --- UI nodes ---
 var ui: CanvasLayer
+const BANNER_LIFE := 2.6  # boss / mini-boss banner duration (seconds)
+var banner_label: Label   # centered boss/mini-boss spawn announcement
+var _banner_t := 0.0      # seconds left on the current banner
 var hp_label: Label
 var timer_label: Label
 var level_label: Label
@@ -1656,6 +1659,15 @@ func _update_hud() -> void:
 	kills_label.text = "Kills %d" % kills
 	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
 	arrows.queue_redraw()
+	if _banner_t > 0.0 and banner_label != null:
+		_banner_t -= get_process_delta_time()
+		var since := BANNER_LIFE - _banner_t
+		var a := 1.0
+		if since < 0.2:
+			a = since / 0.2
+		elif _banner_t < 0.6:
+			a = _banner_t / 0.6
+		banner_label.modulate.a = clampf(a, 0.0, 1.0)
 	# difficulty number + bar, with the live heat accelerator (▲ how fast it's climbing)
 	var heat := spawner.heat()
 	var diff := spawner.diff()
@@ -1765,6 +1777,11 @@ func _build_ui() -> void:
 	hud_root.add_child(weapons_label)
 	var hint := _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	hint.text = "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
+	banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
+	banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner_label.offset_top = 150.0
+	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner_label.modulate.a = 0.0
 
 	arrows = Control.new()
 	arrows.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1815,6 +1832,22 @@ func _fusion_short(dname: String) -> String:
 	if s.length() < 2:
 		s = dname.replace(" ", "")
 	return s.to_upper().substr(0, 3)
+
+
+func show_banner(text: String, is_boss: bool) -> void:
+	if banner_label == null:
+		return
+	banner_label.text = ("BOSS:  %s" % text) if is_boss else ("ELITE:  %s" % text)
+	banner_label.add_theme_color_override("font_color",
+		Color(1.0, 0.3, 0.3) if is_boss else Color(1.0, 0.78, 0.35))
+	banner_label.add_theme_font_size_override("font_size", 54 if is_boss else 42)
+	_banner_t = BANNER_LIFE
+
+
+## Host: announce a boss / mini-boss (elite) spawn — locally and to all clients.
+func announce_boss(text: String, is_boss: bool) -> void:
+	show_banner(text, is_boss)
+	net.send_announce(text, is_boss)
 
 
 func _make_overlay() -> Array:
