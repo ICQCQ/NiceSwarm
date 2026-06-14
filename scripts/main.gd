@@ -418,6 +418,34 @@ func _apply_fast_forward() -> void:
 	print("[ff] fast-forward x%d toward %ds game-time" % [int(mult), int(WIN_TIME)])
 
 
+## NICESWARM_FF instrumentation: walk the live world subtree once and tally spawned
+## nodes by script file, so the per-minute log shows WHICH node types dominate late
+## game (the suspected 8-min cost). Also reports total node count + physics frame time.
+func _ff_census() -> String:
+	if world == null or not is_instance_valid(world):
+		return "no world"
+	var counts := {}
+	var total := 0
+	var stack: Array = [world]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+			total += 1
+			var s = c.get_script()
+			if s != null and s.resource_path != "":
+				var key: String = s.resource_path.get_file().trim_suffix(".gd")
+				counts[key] = int(counts.get(key, 0)) + 1
+	var keys := counts.keys()
+	keys.sort_custom(func(a, b): return counts[a] > counts[b])
+	var parts := PackedStringArray()
+	for k in keys:
+		if int(counts[k]) >= 3:  # drop singletons (player/weapons) — keep the spawn-heavy types
+			parts.append("%s=%d" % [k, counts[k]])
+	var phys := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	return "nodes=%d phys=%.2fms | %s" % [total, phys, ", ".join(parts)]
+
+
 func reset_game() -> void:
 	get_tree().paused = false
 	_clear_world()
@@ -519,6 +547,18 @@ func _grant_starters() -> void:
 					% [p.weapons[0].display_name, p.weapons[0].weapon_id, p.weapons.size()])
 				# regression guard: build the pick pool with a level-1 signature fusion
 				print("[test] pool ok, options=%d" % _build_choice_pool(p).size())
+			"deep":
+				# Synthetic worst case for the late-game regression: every count-scaling
+				# weapon forced far past the Lv3 pool cap — exactly what unbounded fusion
+				# leveling enables. The FF census then shows per-level node-count growth,
+				# and FF auto-merge deepens it into real fusions over the run.
+				for wid in ["frost", "missiles", "lightning", "mines"]:
+					p.add_weapon(wid)
+				for wid in ["bolt", "frost", "missiles", "lightning", "mines"]:
+					var w := p.get_weapon(wid)
+					if w != null:
+						w.level = 10
+				print("[test] deep build: 5 count-weapons forced to L10")
 			"all_fusions":
 				for pair in [["bolt", "nova"], ["frost", "lightning"], ["flame", "venom"],
 						["gravity", "nova"], ["mines", "missiles"], ["laser", "orbit"],
@@ -592,6 +632,13 @@ func _process(delta: float) -> void:
 				_ff_min = m
 				print("[ff] min=%d level=%d xp_need=%d gems=%d enemies=%d diff=%.1f" \
 					% [m, level, _xp_needed(), gems_by_id.size(), enemies_by_id.size(), spawner.difficulty])
+				var p0 = players.get(1)
+				if p0 != null and is_instance_valid(p0):
+					var wl := PackedStringArray()
+					for w in p0.weapons:
+						wl.append("%s:L%d" % [w.weapon_id, w.level])
+					print("[ff]   loadout: %s" % ", ".join(wl))
+				print("[ff]   census: %s" % _ff_census())
 	# NICESWARM_FF: auto-resolve level-up picks headless, else the first level-up pauses forever
 	if Engine.time_scale > 1.0 and leveling and not i_chose and not current_choices.is_empty():
 		_choose_upgrade(0)
