@@ -177,6 +177,9 @@ var ingame_menu_hint: Label      # transient line for stubbed hub tabs
 var countdown_panel: Control     # resume countdown overlay
 var countdown_label: Label
 var menu_panel: Control
+var update_check: UpdateCheck
+var update_banner: Control      # menu "a newer build is available" notice (hidden until found)
+var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
 var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
@@ -203,6 +206,13 @@ func _ready() -> void:
 	spawner.build_type_registry()
 	_build_ui()
 	_show_menu("")
+
+	# Best-effort: compare our exe against the latest published build and offer an update.
+	update_check = UpdateCheck.new()
+	update_check.name = "UpdateCheck"
+	update_check.update_available.connect(_on_update_available)
+	add_child(update_check)
+	update_check.check()
 	match OS.get_environment("NICESWARM_NET"):  # headless test hooks
 		"solo":
 			_on_solo_pressed()
@@ -239,6 +249,23 @@ func _show_menu(message: String) -> void:
 	hud_root.visible = false
 	start_btn.visible = false
 	status_label.text = message
+
+
+func _on_update_available(remote_hash: String) -> void:
+	_update_hash = remote_hash
+	if update_banner != null:
+		update_banner.visible = true
+
+
+func _on_update_get_pressed() -> void:
+	OS.shell_open(UpdateCheck.RELEASES_URL)
+
+
+func _on_update_skip_pressed() -> void:
+	if update_check != null and _update_hash != "":
+		update_check.mark_skipped(_update_hash)  # don't nag again until a newer build appears
+	if update_banner != null:
+		update_banner.visible = false
 
 
 func _apply_menu_config() -> void:
@@ -2087,6 +2114,32 @@ func _build_menu() -> void:
 	sub.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(sub)
+
+	# Update notice (hidden until UpdateCheck finds a newer published build).
+	update_banner = VBoxContainer.new()
+	update_banner.visible = false
+	update_banner.add_theme_constant_override("separation", 4)
+	vbox.add_child(update_banner)
+	var up_label := Label.new()
+	up_label.text = "⬆  A newer build is available on GitHub"
+	up_label.add_theme_font_size_override("font_size", 18)
+	up_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	up_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	update_banner.add_child(up_label)
+	var up_row := HBoxContainer.new()
+	up_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	up_row.add_theme_constant_override("separation", 8)
+	update_banner.add_child(up_row)
+	var up_get := Button.new()
+	up_get.text = "Get Update"
+	up_get.add_theme_font_size_override("font_size", 18)
+	up_get.pressed.connect(_on_update_get_pressed)
+	up_row.add_child(up_get)
+	var up_skip := Button.new()
+	up_skip.text = "Skip"
+	up_skip.add_theme_font_size_override("font_size", 18)
+	up_skip.pressed.connect(_on_update_skip_pressed)
+	up_row.add_child(up_skip)
 
 	var solo := Button.new()
 	solo.text = "Play Solo"
