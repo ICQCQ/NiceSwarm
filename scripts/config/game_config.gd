@@ -31,6 +31,24 @@ const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
 const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
+# --- time-based wave rhythm (layered on top of pace/heat in EnemySpawner.run_spawning) ---
+# Per-game-minute [intensity, pop_mult], lerped between minutes for a smooth peaks/valleys
+# curve. intensity divides the spawn interval (peak = faster); pop_mult scales desired_pop
+# (valley = a real breather, below the normal floor). Bosses own the hard DPS-checks.
+const WAVES := [
+	[0.8, 0.8],   # 0 intro
+	[1.0, 1.0],   # 1 build
+	[1.4, 1.3],   # 2 swarm peak
+	[0.6, 0.6],   # 3 valley (breather)
+	[1.1, 1.1],   # 4 build + elites
+	[1.3, 1.2],   # 5 pressure peak
+	[1.5, 1.4],   # 6 swarm peak
+	[0.65, 0.65], # 7 valley (breather)
+	[1.3, 1.3],   # 8 ramp
+	[1.6, 1.5],   # 9 climax
+]
+const WAVE_POP_FLOOR := 3.0           # valleys can thin the field to this (a genuine lull)
+
 # --- xp gems ---
 const MAX_GEMS := 500                  # hard cap on live ground gems (perf); excess XP condenses
 const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as a big red gem
@@ -43,7 +61,7 @@ const XP_BAND_EARLY := 13     # levels 1..13 use the early step
 const XP_BAND_MID := 33       # levels 14..33 use the mid step; 34+ use the late step
 const XP_STEP_EARLY := 2      # +per level in the early band (fast dopamine)
 const XP_STEP_MID := 4        # +per level in the mid band
-const XP_STEP_LATE := 6       # +per level in the late band (aggressive)
+const XP_STEP_LATE := 7       # +per level in the late band (aggressive; calibrated with waves on)
 
 
 ## Cost AT `lvl` to reach the next level — three-band step curve, divided by `rate`.

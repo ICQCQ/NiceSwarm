@@ -64,5 +64,24 @@ func run(t) -> void:
 	t.eq(sp.difficulty, 0.0, "reset zeroes difficulty")
 	t.eq(sp.boss_next_kill, GameConfig.BOSS_KILL_BASE, "reset arms the first boss")
 
+	# --- wave rhythm (pure function of elapsed) ---
+	t.eq(GameConfig.WAVES.size(), 10, "10 wave minutes")
+	mock.elapsed = 0.0
+	t.approx(sp.wave_intensity(), GameConfig.WAVES[0][0], 0.001, "intensity at min 0")
+	t.approx(sp.wave_pop_mult(), GameConfig.WAVES[0][1], 0.001, "pop_mult at min 0")
+	mock.elapsed = 120.0
+	t.approx(sp.wave_intensity(), GameConfig.WAVES[2][0], 0.001, "intensity at min 2 peak")
+	mock.elapsed = 180.0
+	t.ok(sp.wave_intensity() < 1.0, "min 3 is a valley (intensity < 1)")
+	mock.elapsed = 150.0  # halfway between min 2 and min 3 -> lerp
+	t.approx(sp.wave_intensity(), lerpf(GameConfig.WAVES[2][0], GameConfig.WAVES[3][0], 0.5), 0.001, "intensity lerps between minutes")
+	mock.elapsed = 9999.0
+	t.approx(sp.wave_intensity(), GameConfig.WAVES[GameConfig.WAVES.size() - 1][0], 0.001, "clamps to last minute past the table")
+	var all_pos := true
+	for entry in GameConfig.WAVES:
+		if entry[0] <= 0.0 or entry[1] <= 0.0:
+			all_pos = false
+	t.ok(all_pos, "all wave entries are positive")
+
 	sp.free()
 	mock.free()

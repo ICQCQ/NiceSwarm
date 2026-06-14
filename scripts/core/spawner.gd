@@ -159,15 +159,39 @@ func update_difficulty(delta: float) -> void:
 
 # --- spawning ----------------------------------------------------------------
 
+## Per-minute wave [intensity, pop_mult], lerped between adjacent minutes for a smooth
+## peaks/valleys rhythm. Pure function of elapsed (already synced), so host & clients agree.
+func _wave() -> Vector2:
+	var w: Array = GameConfig.WAVES
+	var tm: float = main.elapsed / 60.0
+	var i := int(floor(tm))
+	if i >= w.size() - 1:
+		var last: Array = w[w.size() - 1]
+		return Vector2(last[0], last[1])
+	var f := tm - float(i)
+	var a: Array = w[i]
+	var b: Array = w[i + 1]
+	return Vector2(lerpf(a[0], b[0], f), lerpf(a[1], b[1], f))
+
+
+func wave_intensity() -> float:  # >1 = faster spawns (peak), <1 = slower (valley)
+	return _wave().x
+
+
+func wave_pop_mult() -> float:   # scales desired_pop; valleys thin the field for a breather
+	return _wave().y
+
+
 func run_spawning(delta: float) -> void:
 	var heat_v := heat()
 	var t := clampf(main.elapsed / 540.0, 0.0, 1.0)
 	var interval: float = lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + 0.6 * (main.peer_ids.size() - 1))
+	interval /= maxf(wave_intensity(), 0.1)  # wave peak = faster spawns, valley = slower
 	# keep the arena populated: if the player clears faster than enemies arrive,
 	# ramp spawns to refill toward a target population. The target starts small
 	# (calm opening) and grows with pace (time only — doesn't spike for a fast party).
 	# (Bouncers have their own population/cap below and don't count toward this.)
-	desired_pop = int(clampf(GameConfig.SPAWN_DESIRED_BASE + pace * GameConfig.SPAWN_DESIRED_PER_DIFF, GameConfig.SPAWN_DESIRED_BASE, GameConfig.ENEMY_CAP - 20))
+	desired_pop = int(clampf((GameConfig.SPAWN_DESIRED_BASE + pace * GameConfig.SPAWN_DESIRED_PER_DIFF) * wave_pop_mult(), GameConfig.WAVE_POP_FLOOR, GameConfig.ENEMY_CAP - 20))
 	if _pool_count() < desired_pop:
 		interval *= GameConfig.SPAWN_REFILL_MULT
 	spawn_rate = 1.0 / interval
