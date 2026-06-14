@@ -663,3 +663,40 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 - Verified headless: import, plain 300-frame run, zoo, bomber, a 10000-frame
   solo run (crosses BOUNCER_UNLOCK and the first boss kill-threshold), and a
   host+join pair — all clean.
+
+### 2026-06-14 — Session 3: sync master with publish, merge origin/publish perf work
+- User: squash the full dev history (`master`, 33 commits) onto a branch off
+  `publish`, since `master` and `origin/publish` had completely diverged (no
+  common ancestor). Chose "master's tree only, parent = publish HEAD": new
+  branch `sync-from-master` off `publish` (b68e835), single commit `2a114ea`
+  whose tree is identical to master's.
+- User: then merge `origin/publish` (a8c649c — perf/CI work unique to that
+  branch: shared `EnemyGrid` spatial index in `main.gd`/`Main.instance`,
+  "safe spawn radius" + newborn-enemy ease-in, no enemy-enemy collision,
+  `SPAWN_RING_MIN/MAX`/`SPAWN_SAFE_RADIUS` consts, GH Actions build workflow,
+  PERFORMANCE.md) into `sync-from-master`. Resolved 19 conflicts across 10
+  files, consistently preferring master's existing equivalents where one
+  existed (master's own `EnemyGrid` spatial index in `scripts/enemies/
+  enemy_grid.gd` for projectile/mine/turret/fusion queries, event-driven mine
+  arming, per-blade Pulsar fusion design) while keeping origin/publish's
+  unique additions that auto-merged cleanly (ease-in, safe-spawn ported into
+  `EnemySpawner._enemy_spawn_pos`, the `Main.instance` grid API still used by
+  ~25 weapon/player call sites, CI workflow, docs). Both spatial-index systems
+  now coexist (redundant but correct) — left as-is rather than unifying.
+- Fixed a resulting GDScript type-inference compile error in
+  `EnemySpawner._enemy_spawn_pos` (needed explicit `Node2D`/`Vector2`
+  annotations since `main` is typed `Node`).
+- **Gotcha discovered**: headless smoke tests run via `/mnt/c/.../godot.exe`
+  from WSL bash don't see `NICESWARM_NET`/`NICESWARM_TEST` unless `WSLENV`
+  lists them (e.g. `WSLENV=NICESWARM_NET:NICESWARM_TEST NICESWARM_TEST=...
+  godot.exe ...`) — otherwise the run silently falls back to plain
+  menu-idle (still "banner only, zero errors", so it looks like a pass).
+  All smoke-test commands in this file/CLAUDE.md need this prefix on this
+  machine.
+- Re-verified with `WSLENV` fix: import, plain/all_weapons/zoo/bomber/merge
+  all print their `[test]` lines and exit clean; host+join pair prints
+  `start_game` on both sides + `first enemy puppet` on the client. Noted a
+  flaky (pre-existing, ~1/3 runs, present on master too) "ObjectDB instances
+  leaked at exit" warning on `all_weapons`/`bomber` — harmless `--quit-after`
+  timing artifact, not a regression.
+- Merge committed as `b29836a` on `sync-from-master`.
