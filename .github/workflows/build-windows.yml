@@ -47,18 +47,32 @@ jobs:
           export/windows/rcedit = "$rcedit"
           "@ | Out-File -Encoding utf8 "$dir\editor_settings-4.tres"
 
-      # First run imports assets/resolves the global class_name cache (see CLAUDE.md);
-      # the second run does the actual export. import can exit non-zero on benign
-      # warnings, so don't gate the build on it.
+      # setup-godot symlinks `godot` to the GUI-subsystem Godot_*_win64.exe. Launched from
+      # PowerShell that binary DETACHES and returns immediately, so a bare `godot ...` call
+      # never blocks: the import races the export on .godot/, and the export hasn't finished
+      # (or even started) when the verify step runs -> no exe, no output, ~1s, looks "silent".
+      # Start-Process -Wait blocks on the process handle regardless of subsystem; redirecting
+      # the streams to files (and printing them) keeps a real export error visible in one run.
+      #
+      # First run imports assets/resolves the global class_name cache (see CLAUDE.md); the
+      # second run does the actual export. import can exit non-zero on benign warnings, so
+      # don't gate the build on it.
       - name: Import project
         shell: pwsh
-        run: godot --headless --path . --import; exit 0
+        run: |
+          $p = Start-Process -FilePath godot -ArgumentList '--headless --path . --import' -NoNewWindow -Wait -PassThru -RedirectStandardOutput godot-import-out.txt -RedirectStandardError godot-import-err.txt
+          Get-Content godot-import-out.txt, godot-import-err.txt -ErrorAction SilentlyContinue
+          Write-Host "godot --import exit code: $($p.ExitCode)"
+          exit 0
 
       - name: Export Windows release
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build | Out-Null
-          godot --headless --path . --export-release "Windows Desktop" "build/NiceSwarm.exe"
+          $p = Start-Process -FilePath godot -ArgumentList '--headless --path . --export-release "Windows Desktop" "build/NiceSwarm.exe"' -NoNewWindow -Wait -PassThru -RedirectStandardOutput godot-export-out.txt -RedirectStandardError godot-export-err.txt
+          Get-Content godot-export-out.txt, godot-export-err.txt -ErrorAction SilentlyContinue
+          Write-Host "godot --export-release exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "godot export failed with exit code $($p.ExitCode)" }
 
       - name: Verify exe was produced
         shell: pwsh
