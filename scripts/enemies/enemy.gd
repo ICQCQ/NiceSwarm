@@ -108,6 +108,9 @@ func _ready() -> void:
 	net_target = global_position
 
 
+var _last_sig := -1  # gate queue_redraw: only re-record _draw when the look changes
+
+
 func _physics_process(delta: float) -> void:
 	flash = maxf(flash - delta, 0.0)
 	slow_timer = maxf(slow_timer - delta, 0.0)
@@ -116,7 +119,13 @@ func _physics_process(delta: float) -> void:
 		if shield_timer <= 0.0:
 			shielded = not shielded
 			shield_timer = shield_time if shielded else shield_cycle
-	queue_redraw()
+	# Only re-record the draw when appearance changes; a plain mover keeps its
+	# cached _draw (the renderer applies the node transform regardless). This is
+	# the big late-game saver — most of the swarm is idle-looking circles.
+	var sig := _appearance_sig()
+	if burn_timer > 0.0 or sig != _last_sig:  # burn embers animate continuously
+		_last_sig = sig
+		queue_redraw()
 	if puppet:
 		global_position = global_position.lerp(net_target, minf(10.0 * delta, 1.0))
 		return
@@ -326,6 +335,21 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0) -> void:
 	else:
 		burn_dps = dps
 		burn_timer = duration
+
+
+## A cheap discrete signature of the enemy's current appearance. _physics_process
+## only re-records the draw when this changes (or burn is animating), so idle
+## movers stop re-running _draw every frame. Heading only matters for directional
+## silhouettes; circles (the common case) are rotation-invariant.
+func _appearance_sig() -> int:
+	var s := 0
+	if flash > 0.0: s |= 1
+	if slow_timer > 0.0: s |= 2
+	if burn_timer > 0.0: s |= 4
+	if shielded: s |= 8
+	if shape == "triangle" or shape == "diamond" or shape == "square" or shape == "hex" or shape == "star":
+		s |= int((heading.angle() + PI) * 6.0) << 4  # ~9.5-degree facing buckets
+	return s
 
 
 ## Enemies sit in a slightly darker, less-saturated band so the bright,
