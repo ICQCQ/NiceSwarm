@@ -1892,7 +1892,7 @@ func _build_menu() -> void:
 	vbox.add_child(title)
 
 	var sub := Label.new()
-	sub.text = "co-op arena survival   ·   v%s" % VERSION
+	sub.text = "co-op arena survival   ·   v%s (%s)" % [VERSION, BuildVersion.COMMIT]
 	sub.add_theme_font_size_override("font_size", 20)
 	sub.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
