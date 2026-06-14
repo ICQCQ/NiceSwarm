@@ -328,8 +328,15 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0) -> void:
 		burn_timer = duration
 
 
+## Enemies sit in a slightly darker, less-saturated band so the bright,
+## fully-saturated player reads clearly even inside a dense swarm. Status tints
+## (slow/burn/flash) and the ring overlays below apply on top and stay vivid.
+func _muted(base: Color) -> Color:
+	return Color.from_hsv(base.h, base.s * 0.8, base.v * 0.9, base.a)
+
+
 func _draw() -> void:
-	var c := color
+	var c := _muted(color)
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)
 	if burn_timer > 0.0:
