@@ -1,0 +1,15 @@
+{
+  "name": "niceswarm-lobby-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lobby registry for NiceSwarm online co-op — browse/join games with no IP:port (companion to Noray). See ../../NETWORKING.md",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
