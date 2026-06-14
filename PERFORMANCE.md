@@ -213,9 +213,10 @@ pass, then lags again past ~8 min (still better than before)."
 - **Node-count soft-cap** — `WeaponBase.count_level() = mini(level,
   MAX_WEAPON_LEVEL)` in every count formula (9 base weapons + 52 fusion sites + 2
   turret deploy caps); damage/area keep scaling. Deep census: frost shards ~24→~10.
-- **Projectile flush fix** — a chaining `on_hit` re-spawned an Area2D mid-flush
-  ("Can't change monitoring state while flushing queries", 4–12/run, pre-existing);
-  Projectile now defers monitoring. FF after: 0 errors, kills unchanged.
+- **Chain-projectile flush fix** — a chaining `on_hit` (`_fire`/`_chain`) re-spawned
+  a `Projectile` (Area2D) synchronously mid-flush ("Can't change monitoring state
+  while flushing queries", 4–12/run, pre-existing); the spawn now uses
+  `add_child.call_deferred`. FF after: 0 errors, kills unchanged (644/816).
 
 Also (visual; parse-verified — feel needs in-window review): player z-above-swarm +
 halo + facing notch, enemy palette mute, 0.8× player hurtbox, boss/mini-boss spawn

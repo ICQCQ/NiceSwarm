@@ -1838,7 +1838,10 @@ class Ricochet extends WeaponBase:
 		if hops_left > 0:
 			p.on_hit = Callable(self, "_chain").bind(hops_left, visited.duplicate(), dmg_scale * 0.7)
 		p.position = from
-		player.get_parent().add_child(p)
+		# _fire is also called from _chain (an on_hit callback) — i.e. during physics
+		# query flush, where a synchronous Area2D add throws "can't change monitoring
+		# state". Defer it; harmless when _fire runs from _physics_process too.
+		player.get_parent().add_child.call_deferred(p)
 	func _chain(enemy: Node2D, hit_pos: Vector2, _world: Node, hops_left: int, visited: Dictionary, dmg_scale: float) -> void:
 		if player == null:
 			return
