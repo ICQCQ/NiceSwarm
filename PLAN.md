@@ -141,6 +141,34 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-15 — M7.6 online lobby + NAT traversal, Phase 1 (branch `net/relay-holepunch`)
+- User: plan a central relay server + NAT hole-punching for the multiplayer lobby; goal is a
+  **lobby list so players join without knowing IP:port**; self-host on their VPS. Worked in a worktree.
+- **Design** ([NETWORKING.md](NETWORKING.md)): split the "central server" into Discovery /
+  Traversal / Relay. Research-&-Reuse → adopt **Noray** (foxssake, MIT, Node/Docker) + its
+  pure-GDScript **netfox.noray** client for hole-punch + relay fallback — **no GDExtension**, so the
+  single-exe `embed_pck` build survives (WebRTC was rejected for exactly that: its `.dll` can't embed
+  in the PCK — verified). Noray has **no lobby**, so the net-new piece is a small **Lobby Registry**.
+- **Built (Phase 1):**
+  - `server/lobby-registry/` — zero-dep Node directory service (announce/heartbeat/withdraw/list,
+    version-gating, TTL eviction, secret-token ownership, rate-limit, input validation). 11 unit
+    tests + Dockerfile + README. Front it with Cloudflare Tunnel (registry only — **not** Noray's UDP).
+  - `scripts/core/lobby_client.gd` (`LobbyClient`) + `GameConfig.lobby_url()/noray_host()/noray_port()`
+    (env-overridable) + `tests/lobby_client_test.gd` headless integration test.
+  - Vendored `addons/netfox.noray` (+ `netfox.internals` dep); registered `Noray`/`PacketHandshake`
+    autoloads. `net.gd` `host_online()` / `join_online(oid)` (Noray register → punch → ENet; client
+    auto-falls-back to relay). `main.gd` "Host Online" + "Browse Online" menu + game list + 5s
+    heartbeat + withdraw-on-start. **LAN direct-IP path kept.**
+- **Verified end-to-end against the public Noray (`tomfol.io`):** host registers + announces →
+  client browses the registry → gets OID → connects via **relay** → ENet `CONNECTED`, all with no
+  IP:port. Unit/integration/import/solo all clean. Fixed two real bugs found via the live run
+  (advisor-flagged): on_pid/on_oid ordering before reading `Noray.oid`; client must await
+  `CONNECTION_CONNECTED` so relay fallback triggers on connect failure.
+- **Status: code-complete + relay-verified.** Not yet exercised: the **direct NAT-punch** path
+  (same code, needs two real different-NAT machines — same-machine test routes via relay as expected).
+- **Next:** deploy Noray + registry to the VPS (set `GameConfig` defaults / env), real 2-machine
+  playtest (direct punch + relay), then UI polish (loading/error states, room codes). See NETWORKING.md §11–12.
+
 ### 2026-06-14 — Session 2: late-game O(n²) perf fix (branch `perf/game-loop-on2`)
 - User reported late-game crash to <1 fps + attacks "passing through" enemies. Investigated
   and wrote [PERFORMANCE.md](PERFORMANCE.md): **two independent O(n²) costs**, and the
