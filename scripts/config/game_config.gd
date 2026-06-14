@@ -31,6 +31,10 @@ const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
 const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
+# --- xp gems ---
+const MAX_GEMS := 500                  # hard cap on live ground gems (perf); excess XP condenses
+const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as a big red gem
+
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
 const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds
 const HEAT_SPIKE_POP_FRAC := 0.2 # live pop below this fraction of desired_pop arms the spike
