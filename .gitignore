@@ -7,6 +7,5 @@ build/
 .code-review-graph/
 .claude
 .gemini
-.github
 .kiro
 .qoder

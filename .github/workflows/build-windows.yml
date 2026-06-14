@@ -1,11 +1,15 @@
 name: Build Windows EXE
 
 # Builds the distributable Windows .exe (same steps as build.ps1) and publishes it.
-# Runs on version tags (v*) -> attaches the exe to a GitHub Release,
-# and on manual dispatch -> uploads the exe as a downloadable artifact.
+# Runs on:
+#   - push to `publish`  -> rolling "latest" prerelease (always-current dev build)
+#   - version tags (v*)  -> attaches the exe to a versioned GitHub Release
+#   - manual dispatch    -> uploads the exe as a downloadable artifact
 
 on:
   push:
+    branches:
+      - publish
     tags:
       - "v*"
   workflow_dispatch:
@@ -25,7 +29,7 @@ jobs:
       - name: Set up Godot 4.6
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.6.0
+          version: 4.6.3
           use-dotnet: false
           include-templates: true
 
@@ -76,9 +80,19 @@ jobs:
           path: build/NiceSwarm.exe
           if-no-files-found: error
 
-      - name: Publish GitHub Release
+      - name: Publish versioned Release (on v* tags)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: build/NiceSwarm.exe
           generate_release_notes: true
+
+      - name: Publish rolling 'latest' prerelease (on publish branch)
+        if: github.ref == 'refs/heads/publish'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build (publish)
+          body: Auto-built from the latest `publish` commit (${{ github.sha }}).
+          prerelease: true
+          files: build/NiceSwarm.exe
