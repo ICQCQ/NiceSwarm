@@ -147,6 +147,23 @@ reaches the late game. Plan:
 
 ---
 
+## Calibration results (measured via `NICESWARM_FF=40`, aggressive god + all-weapons run)
+
+All systems implemented and measured. The FF case is an *upper bound* (immortal player, full
+13-weapon arsenal clearing everything) — realistic play lands somewhat lower.
+
+| Configuration | Level @ 10:00 (FF) | Notes |
+|---------------|--------------------|-------|
+| Old linear curve (`6+(L-1)*4`) | ~37–39 | baseline |
+| 3-band 2/4/6, no waves | ~42–43 | curve alone |
+| **3-band 2/4/7 + waves (shipped)** | **~45–48** | centered on the ~45 target |
+
+- Every FF run reaches `END won=true` at 10:00 with **0 script errors**.
+- Gem cap: the 500 cap isn't hit in a solo FF run (peak ~140 live gems) — condensation is
+  exercised by design/unit tests; it engages in dense co-op / longer fields.
+- Regression: 925 unit tests + solo/zoo/all_weapons/merge/bomber + co-op host/join all clean.
+- A pre-existing freed-instance crash in the bomb pickup was found via FF and fixed.
+
 ## Commit / PR structure
 
 Per-system commits so a curve-calibration miss can't hold the perf win hostage:
