@@ -22,6 +22,13 @@ var homing_turn := 0.0   # >0: fused Flak Battery curves toward the nearest enem
 var homing_range := 0.0
 
 
+func _init() -> void:
+	# Spawn un-monitoring so a Projectile created from inside a physics callback
+	# (a chaining on_hit re-spawns one mid-flush) can't error changing monitoring
+	# state during query flushing; _ready re-enables it deferred (next idle frame).
+	monitoring = false
+
+
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 2
@@ -31,6 +38,7 @@ func _ready() -> void:
 	cs.shape = circle
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
+	set_deferred("monitoring", true)
 
 
 func _physics_process(delta: float) -> void:
