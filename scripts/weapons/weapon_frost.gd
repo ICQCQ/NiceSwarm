@@ -24,6 +24,7 @@ func _physics_process(delta: float) -> void:
 	var count := 2 + level
 	for i in count:
 		var s := FrostShard.new()
+		s.source_pid = player.peer_id
 		s.velocity = base.rotated(deg_to_rad(8.0) * (i - (count - 1) / 2.0)) * 480.0
 		s.damage = WeaponConfig.BASE.frost.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.frost.growth * (level - 1))
 		s.hit_radius = 7.0 * player.area_mult

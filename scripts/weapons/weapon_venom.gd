@@ -20,6 +20,7 @@ func _physics_process(delta: float) -> void:
 		return
 	drop_timer = DROP_TIME * player.rate_mult
 	var p := VenomPuddle.new()
+	p.source_pid = player.peer_id
 	p.radius = (45.0 + 5.0 * (level - 1)) * player.area_mult
 	p.damage = WeaponConfig.BASE.venom.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.venom.growth * (level - 1))
 	p.max_life = 3.0 * player.duration_mult

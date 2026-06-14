@@ -115,9 +115,9 @@ func send_event(type: int, pos: Vector2) -> void:
 		rpc_event.rpc(type, pos)
 
 
-func send_end(won: bool, elapsed: float, level: int, kills: int) -> void:
+func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
 	if active:
-		rpc_end.rpc(won, elapsed, level, kills)
+		rpc_end.rpc(won, elapsed, level, kills, scores)
 
 
 func send_reset() -> void:
@@ -188,8 +188,8 @@ func rpc_event(type: int, pos: Vector2) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_end(won: bool, elapsed: float, level: int, kills: int) -> void:
-	main.apply_end(won, elapsed, level, kills)
+func rpc_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
+	main.apply_end(won, elapsed, level, kills, scores)
 
 
 @rpc("authority", "call_remote", "reliable")

@@ -20,5 +20,7 @@ func _ready() -> void:
 ## Universal Duration hook for instant/continuous weapons: leave a burn whose
 ## length scales with the player's Duration stat and dps with the hit damage
 ## (which already includes Power). Lets every weapon benefit from Duration.
+## Re-igniting an already-burning enemy stacks (Enemy.apply_burn): repeat hits
+## compound into a hotter, longer-lasting burn.
 func ignite(e: Node, dmg: float) -> void:
 	e.apply_burn(dmg * 0.3, 1.2 * player.duration_mult)

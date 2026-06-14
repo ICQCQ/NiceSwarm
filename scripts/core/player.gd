@@ -37,9 +37,10 @@ var shake := 0.0
 var dash_timer := 0.0   # cooldown remaining
 var dash_active := 0.0  # dash duration remaining
 var dash_dir := Vector2.ZERO
-var disrupt_timer := 0.0  # Disruptor debuff: slowed + dash locked
+var disrupt_timer := 0.0  # Disruptor debuff: slows movement (dash still works)
 var downed := false
 var revive_progress := 0.0
+var debug_god := false  # debug panel: ignore all damage
 var weapons: Array = []
 var cam: Camera2D
 
@@ -112,7 +113,7 @@ func _local_move(delta: float) -> void:
 	if dash_active > 0.0:
 		dash_active -= delta
 		velocity = dash_dir * move_speed * DASH_SPEED_MULT
-	elif dash_pressed and dash_timer <= 0.0 and dir != Vector2.ZERO and not disrupted:
+	elif dash_pressed and dash_timer <= 0.0 and dir != Vector2.ZERO:
 		dash_active = DASH_TIME
 		dash_timer = dash_cooldown
 		dash_dir = dir.normalized()
@@ -192,6 +193,8 @@ func nearest_enemy(max_range: float) -> Node2D:
 func take_damage(amount: int) -> void:
 	if hp <= 0 or downed:
 		return
+	if debug_god:
+		return
 	if invuln > 0.0 or dash_active > 0.0 or remote_dashing:
 		return
 	hp -= amount
@@ -254,8 +257,9 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 func apply_disrupt(duration: float) -> void:
 	if invuln > 0.0 or dash_active > 0.0:
 		return  # dashing through a disruptor zone shrugs it off
+	if disrupt_timer <= 0.0:  # only play the hit sound on the initial debuff, not every refresh tick
+		Sfx.play("hurt", global_position)
 	disrupt_timer = maxf(disrupt_timer, duration)
-	Sfx.play("hurt", global_position)
 
 
 func heal(amount: int) -> void:

@@ -18,7 +18,7 @@ var radius := 12.0
 var dmg := 1
 var xp_value := 1
 var elite := false
-var type_id := 0   # network id of this (class, tier); see main._build_type_registry
+var type_id := 0   # network id of this (class, tier); see EnemySpawner.build_type_registry
 var tier := 0
 var resist := 0.0       # Warden: fraction of every hit shrugged off (0..1)
 var immune_type := -1   # Elemental: takes zero damage of this DMG_* type
@@ -50,6 +50,26 @@ var cast_effect := 0    # 0 = damage strike, 1 = Disruptor (slows + dash-locks y
 var cast_timer := 2.5
 var cast_cooldown := 3.0
 var keep_dist := 300.0
+# boss mechanics — independent of `caster` so a boss can chase normally and
+# still periodically unleash a map-wide/pattern attack via cast_telegraph.
+var boss := false
+var max_hp := 0.0
+# slam_pattern: -1 = none, 3 = checkerboard grid centered on self, 4 = rotating
+# sweep radiating from the target (advances `slam_rot` each cast).
+var slam_pattern := -1
+var slam_radius := 100.0
+var slam_damage := 2
+var slam_cooldown := 5.0
+var slam_timer := 0.0
+var slam_rot := 0.0
+var enrage_resist := 0.0  # extra resist as hp drops toward 0 (on top of `resist`)
+var immune_cycle := 0.0   # seconds between immune_type rotations (0 = off)
+var immune_pool: Array = []
+var immune_timer := 0.0
+var summon_cls := ""      # periodically calls in reinforcements of this class
+var summon_count := 0
+var summon_cooldown := 0.0
+var summon_timer := 0.0
 var flash := 0.0
 var knockback := Vector2.ZERO
 var slow_timer := 0.0
@@ -116,9 +136,8 @@ func _physics_process(delta: float) -> void:
 		if cast_timer <= 0.0:
 			cast_timer = cast_cooldown
 			if cast_pattern == 1:
-				# Diviner: paint a line of strikes ahead of where the target is heading
-				var vel: Vector2 = target.velocity
-				var d := vel.normalized() if vel.length() > 30.0 else Vector2.from_angle(randf() * TAU)
+				# Diviner: paint a line of strikes out from the target along a random angle
+				var d := Vector2.from_angle(randf() * TAU)
 				for k in 3:
 					var pp := target.global_position + d * (70.0 + k * 95.0)
 					main_ref.cast_telegraph(pp, cast_radius, cast_damage, cast_effect)
@@ -131,7 +150,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				# Bomber / Disruptor (pattern 0): always somewhat random, more so over time.
 				# There's a jitter floor so it's never trivially dodgeable.
-				var chaos := clampf(0.35 + main_ref.difficulty / 14.0, 0.0, 1.0)
+				var chaos := clampf(0.35 + main_ref.spawner.difficulty / 14.0, 0.0, 1.0)
 				var lead: Vector2 = target.velocity * randf_range(0.4, 1.0 + chaos)
 				var jitter := Vector2.from_angle(randf() * TAU) * (70.0 * chaos + 30.0)
 				main_ref.cast_telegraph(target.global_position + lead + jitter, cast_radius, cast_damage, cast_effect)
@@ -166,7 +185,27 @@ func _physics_process(delta: float) -> void:
 	if target != null \
 			and global_position.distance_to(target.global_position) <= radius + Player.RADIUS:
 		target.take_damage(dmg)
-	# burn DoT (host-authoritative) — Duration extends it, Power feeds its dps
+	# boss mechanics (host-authoritative): periodic map-wide/pattern slam,
+	# rotating elemental immunity, and called-in reinforcements.
+	if slam_pattern >= 0:
+		slam_timer -= delta
+		if slam_timer <= 0.0:
+			slam_timer = slam_cooldown
+			_do_slam()
+	if immune_cycle > 0.0:
+		immune_timer -= delta
+		if immune_timer <= 0.0:
+			immune_timer = immune_cycle
+			var idx := immune_pool.find(immune_type)
+			immune_type = immune_pool[(idx + 1) % immune_pool.size()]
+	if summon_cooldown > 0.0:
+		summon_timer -= delta
+		if summon_timer <= 0.0:
+			summon_timer = summon_cooldown
+			for i in summon_count:
+				main_ref.spawner.spawn_enemy(summon_cls)
+	# burn DoT (host-authoritative) — Duration extends it, Power feeds its dps.
+	# Re-igniting an active burn stacks onto it: hotter (dps) AND longer (time).
 	if burn_timer > 0.0:
 		burn_timer -= delta
 		burn_tick -= delta
@@ -175,14 +214,17 @@ func _physics_process(delta: float) -> void:
 			take_hit(burn_dps * 0.3, null, DMG_FIRE)  # may free self; nothing runs after
 
 
-func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS) -> void:
+func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, source_pid: int = -1) -> void:
 	if bullet:
 		return  # shard bullets can't be destroyed — dodge them
 	if dtype == immune_type or (shielded and not puppet):
 		flash = 0.06  # pings off the shield / immunity — no damage
 		return
-	if resist > 0.0:  # Warden armor reduces every hit (shown + applied consistently)
-		amount *= 1.0 - resist
+	var eff_resist := resist
+	if enrage_resist > 0.0 and max_hp > 0.0:  # enrage: tougher the lower its hp gets
+		eff_resist = clampf(resist + enrage_resist * (1.0 - hp / max_hp), 0.0, 0.9)
+	if eff_resist > 0.0:  # Warden armor / enrage reduces every hit (shown + applied consistently)
+		amount *= 1.0 - eff_resist
 	if puppet:
 		# cosmetic only: real damage happens on the host
 		flash = 0.12
@@ -191,6 +233,8 @@ func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS) ->
 		return
 	if hp <= 0.0:
 		return
+	if source_pid >= 0 and main_ref != null:  # scoreboard: credit the dealer
+		main_ref.add_damage(source_pid, minf(amount, hp))
 	hp -= amount
 	flash = 0.12
 	if from_pos != null and not cc_immune:  # can't be knocked back if interrupt-immune
@@ -229,9 +273,37 @@ func apply_slow(mult: float, duration: float) -> void:
 	slow_timer = maxf(slow_timer, duration)
 
 
+## Boss attack: map-wide/pattern telegraphs via main.cast_telegraph, forcing
+## the player to actually move rather than just tank the hits.
+func _do_slam() -> void:
+	match slam_pattern:
+		3:  # checkerboard grid centered on self — clears safe lanes to dodge into
+			var cell := slam_radius * 1.6
+			for gx in range(-2, 3):
+				for gy in range(-2, 3):
+					if (gx + gy) % 2 != 0:
+						continue
+					var pp := global_position + Vector2(gx, gy) * cell
+					main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0)
+		4:  # rotating sweep — a line of strikes from the target that rotates each cast
+			var target: Node2D = main_ref.nearest_alive_player(global_position)
+			if target == null:
+				return
+			slam_rot += PI / 3.0  # 60° per cast — full rotation every 6 casts
+			for k in 4:
+				var pp := target.global_position + Vector2.from_angle(slam_rot) * (60.0 + k * 90.0)
+				main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0)
+
+
 func apply_burn(dps: float, duration: float) -> void:
-	burn_dps = maxf(burn_dps, dps)
-	burn_timer = maxf(burn_timer, duration)
+	# stack onto an active burn — both the heat (dps) and the time left — rather
+	# than just refreshing a single value, so repeated ignites compound
+	if burn_timer > 0.0:
+		burn_dps += dps
+		burn_timer += duration
+	else:
+		burn_dps = dps
+		burn_timer = duration
 
 
 func _draw() -> void:
@@ -239,10 +311,19 @@ func _draw() -> void:
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)
 	if burn_timer > 0.0:
-		c = c.lerp(Color(1.0, 0.5, 0.15), 0.4)
+		c = c.lerp(Color(1.0, 0.45, 0.1), 0.55)
 	_draw_body(Color.WHITE if flash > 0.0 else c)
+	if burn_timer > 0.0:  # flickering embers — driven by global time, no per-enemy state
+		var t := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.07
+		for i in 2:
+			var a := t * 9.0 + TAU * i / 2.0
+			var p := Vector2.from_angle(a) * radius * 0.5 + Vector2(0.0, -radius * 0.4)
+			var s := 1.6 + 1.3 * (0.5 + 0.5 * sin(t * 14.0 + i * 3.0))
+			draw_circle(p, s, Color(1.0, 0.6, 0.15, 0.85))
 	if elite:
 		draw_arc(Vector2.ZERO, radius + 4.0, 0.0, TAU, 24, Color(1.0, 0.85, 0.3), 3.0)
+	if boss:  # boss: an outer crimson ring of menace
+		draw_arc(Vector2.ZERO, radius + 9.0, 0.0, TAU, 28, Color(1.0, 0.15, 0.15, 0.85), 4.0)
 	if caster:  # bombardier: a targeting reticle
 		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 20, Color(1.0, 0.4, 0.3), 2.0)
 		draw_line(Vector2(-radius - 8.0, 0.0), Vector2(radius + 8.0, 0.0), Color(1.0, 0.4, 0.3), 1.5)

@@ -22,6 +22,7 @@ func _physics_process(delta: float) -> void:
 	var count := 1 + level
 	for i in count:
 		var m := MissileProj.new()
+		m.source_pid = player.peer_id
 		m.damage = WeaponConfig.BASE.missiles.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.missiles.growth * (level - 1))
 		m.splash = 70.0 * player.area_mult
 		m.life = 4.0 * player.duration_mult

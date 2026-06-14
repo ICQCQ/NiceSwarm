@@ -40,7 +40,7 @@ func _physics_process(delta: float) -> void:
 			var dir := Vector2.from_angle(angle + PI * b)
 			var along := clampf(rel.dot(dir), 0.0, length)
 			if (dir * along).distance_to(rel) <= 6.0 + e.radius:
-				e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY)
+				e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
 				ignite(e, dmg)
 				hit_cd[e.get_instance_id()] = HIT_COOLDOWN * player.rate_mult
 				Sfx.play("laser", e.global_position)

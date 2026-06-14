@@ -42,7 +42,7 @@ func _physics_process(delta: float) -> void:
 			var blade_pos: Vector2 = global_position \
 				+ Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 			if blade_pos.distance_to(e.global_position) <= blade_r + e.radius:
-				e.take_hit(dmg, blade_pos)
+				e.take_hit(dmg, blade_pos, Enemy.DMG_PHYS, player.peer_id)
 				ignite(e, dmg)
 				hit_cd[e.get_instance_id()] = HIT_COOLDOWN * player.rate_mult
 				Sfx.play("orbit", blade_pos)

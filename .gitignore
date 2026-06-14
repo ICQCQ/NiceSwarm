@@ -1,4 +1,12 @@
 .godot/
 *.tmp
+.*.json
 
 build/
+# Added by code-review-graph
+.code-review-graph/
+.claude
+.gemini
+.github
+.kiro
+.qoder

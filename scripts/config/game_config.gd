@@ -15,9 +15,9 @@ const NET_PORT := 24565          # default co-op port
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
 const DIFF_BASE := 1.0 / 48.0    # base climb rate (gentler = slower ramp)
-const DIFF_HEAT := 1.8           # how much clear-rate heat accelerates the climb
+const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
-const DIFF_LEVEL_STEP := 0.3     # flat difficulty added on each level-up
+const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
 const DIFF_WARMUP_FLOOR := 0.25  # early-game climb fraction at t=0
 const DIFF_WARMUP_SECS := 80.0   # seconds to ramp warmup to full
 
@@ -27,3 +27,21 @@ const SPAWN_DESIRED_PER_DIFF := 3.0   # +this many target enemies per difficulty
 const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
 const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
+
+# --- heat exponential spike: punishes near-clearing the map once mid-game ---
+const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds
+const HEAT_SPIKE_POP_FRAC := 0.2 # live pop below this fraction of desired_pop arms the spike
+const HEAT_SPIKE_GROWTH := 1.8   # exponential growth rate (/s) while armed
+const HEAT_SPIKE_DECAY := 2.0    # linear decay rate (/s) once the map refills
+const HEAT_SPIKE_MAX := 5.0      # cap on the spike term
+const DIFF_SPIKE := 1.0          # weight of heat_spike in the difficulty climb
+
+# --- boss spawns: a tough "boss" class enemy after enough kills ---
+const BOSS_KILL_BASE := 60       # total kills before the first boss
+const BOSS_KILL_INTERVAL := 90   # extra kills required for each subsequent boss
+
+# --- bouncer: special population, separate from the normal pool/desired_pop ---
+const BOUNCER_UNLOCK := 165.0       # bouncers start appearing at this elapsed time
+const BOUNCER_CAP_BASE := 2.0       # bouncer population cap at pace 0
+const BOUNCER_CAP_PER_PACE := 1.0   # +this many cap per pace point (keeps growing)
+const BOUNCER_SPAWN_INTERVAL := 2.0 # seconds between bouncer population top-ups

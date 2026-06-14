@@ -27,7 +27,7 @@ func _physics_process(delta: float) -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to: Vector2 = e.global_position - player.global_position
 		if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF_ANGLE:
-			e.take_hit(dmg, null, Enemy.DMG_FIRE)
+			e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
 			ignite(e, dmg)
 			hit_any = true
 	if hit_any:

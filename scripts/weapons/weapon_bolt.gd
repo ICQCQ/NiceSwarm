@@ -31,6 +31,7 @@ func _fire() -> bool:
 	for i in level:
 		var spread := deg_to_rad(10.0) * (i - (level - 1) / 2.0)
 		var p := Projectile.new()
+		p.source_pid = player.peer_id
 		p.velocity = base_dir.rotated(spread) * 520.0
 		p.damage = dmg
 		p.radius = 5.0 * player.area_mult

@@ -21,7 +21,7 @@ func _physics_process(delta: float) -> void:
 	var hit_any := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
-			e.take_hit(dmg, global_position, Enemy.DMG_ENERGY)
+			e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 			ignite(e, dmg)
 			hit_any = true
 	if hit_any:

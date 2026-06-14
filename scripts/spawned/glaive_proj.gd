@@ -7,12 +7,15 @@ const DECEL := 700.0
 const RETURN_SPEED := 540.0
 
 var player: Player
+var source_pid := -1  # scoreboard: which player owns this
 var velocity := Vector2.ZERO
 var damage := 2.0
+var burn_dps := 0.0     # bleed/burn applied on hit, independent of direct damage
 var hit_radius := 14.0
 var slow_factor := 1.0  # <1 = fused ice glaive slows on hit
 var arc_damage := 0.0   # fused Storm Disc: arcs lightning to a nearby foe on hit
 var arc_range := 150.0
+var on_hit: Callable    # fused variants: extra effect (e.g. spawn a node) on hit
 var returning := false
 var spin := 0.0
 var hit_ids := {}
@@ -37,24 +40,27 @@ func _physics_process(delta: float) -> void:
 			return
 	queue_redraw()
 
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(global_position, hit_radius):
 		if hit_ids.has(e.get_instance_id()):
 			continue
 		if global_position.distance_to(e.global_position) <= hit_radius + e.radius:
 			hit_ids[e.get_instance_id()] = true
-			e.take_hit(damage, global_position)
-			if player != null:  # Duration: glaive leaves a bleed/burn
-				e.apply_burn(damage * 0.3, 1.2 * player.duration_mult)
+			if damage > 0.0:
+				e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
+			if burn_dps > 0.0:  # Duration: glaive leaves a bleed/burn
+				e.apply_burn(burn_dps, 1.2 * (player.duration_mult if player else 1.0))
 			if slow_factor < 1.0:  # set by fused Glacial variants
 				e.apply_slow(slow_factor, 1.5 * (player.duration_mult if player else 1.0))
 			if arc_damage > 0.0:
 				_arc_from(e)
+			if on_hit.is_valid():  # fused variants: spawn an effect at the hit point
+				on_hit.call(e, global_position)
 
 
 func _arc_from(src: Node2D) -> void:
 	var best: Node2D = null
 	var bd := arc_range * arc_range
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(src.global_position, arc_range):
 		if e == src or hit_ids.has(e.get_instance_id()):
 			continue
 		var d: float = src.global_position.distance_squared_to(e.global_position)
@@ -63,7 +69,7 @@ func _arc_from(src: Node2D) -> void:
 			best = e
 	if best == null:
 		return
-	best.take_hit(arc_damage, src.global_position)
+	best.take_hit(arc_damage, src.global_position, Enemy.DMG_PHYS, source_pid)
 	var fx := LightningFx.new()
 	fx.points = [src.global_position, best.global_position]
 	get_parent().add_child(fx)

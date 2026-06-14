@@ -17,7 +17,6 @@ const MAX_WEAPONS := GameConfig.MAX_WEAPONS
 const MAX_WEAPON_LEVEL := GameConfig.MAX_WEAPON_LEVEL
 const ENEMY_CAP := GameConfig.ENEMY_CAP
 
-const ENEMY_CLASSES := EnemyConfig.CLASSES  # data lives in config/enemy_config.gd
 const PICKUP_KINDS := ["heart", "bomb", "magnet", "chest"]
 const STATE_ENEMIES := 0
 const STATE_GEMS := 1
@@ -55,11 +54,20 @@ const WEAPON_INFO := {
 		"level": "bigger, deadlier puddles"},
 }
 
+# Stat-upgrade ids (apply_choice) -> short label, for the debug panel's stat grid.
+const STAT_INFO := {
+	"st_power": "Power", "st_rate": "Haste", "st_area": "Area", "st_duration": "Duration",
+	"st_speed": "Speed", "st_hp": "Vitality", "st_magnet": "Magnet", "st_dash": "Dash",
+}
+
 # --- session / network ---
 var net: Net
+var spawner: EnemySpawner
 var playing := false
 var peer_ids: Array = []        # all peer ids in the run, sorted
 var players := {}               # peer_id -> Player
+var _score := {}                # peer_id -> {damage, xp, revives, deaths} (host)
+var net_scores: Array = []      # end-game scoreboard rows received by clients
 var local_id := 1
 var auto_start_on_join := false # test hook
 
@@ -102,35 +110,12 @@ const CAT_COLORS := {
 	"starter": Color(0.5, 1.0, 0.6),
 }
 
-# host-only spawning state
-var spawn_accum := 0.0
-var brute_accum := 0.0
-var elite_accum := 0.0
-var bomber_accum := 0.0
-var enemy_seq := 0
-# dynamic difficulty driven by how fast the party clears the swarm
-var _clear_kills := 0       # kills counted in the current 1 s window
-var _clear_t := 0.0
-var _clear_ema := 0.0       # smoothed kills/sec
-var _spawn_rate := 1.0      # current steady spawns/sec (from _run_spawning)
-var heat_cur := 0.0         # smoothed heat (rises fast, decays slowly)
-var net_heat := 0.0         # heat received from host (clients display it)
-var _desired_pop := 18      # target alive-enemy count (grows with difficulty)
-# master difficulty: the single number every enemy stat scales from. It only ever
-# rises; heat and player level accelerate how fast it climbs.
-var difficulty := 0.0
-var net_difficulty := 0.0
-const DIFF_BASE := GameConfig.DIFF_BASE
-const DIFF_HEAT := GameConfig.DIFF_HEAT
-const DIFF_LEVEL := GameConfig.DIFF_LEVEL
-const DIFF_LEVEL_STEP := GameConfig.DIFF_LEVEL_STEP
+# host-only spawning + difficulty state lives in `spawner` (EnemySpawner)
 var item_seq := 0
 var enemies_by_id := {}
 var gems_by_id := {}
 var pickups_by_id := {}
 var telegraphs_by_id := {}
-var _types := []                # flat [{cls, tier, data}] — index is the network type id
-var _type_id := {}              # "cls:tier" -> network type id
 
 # sync timers / buffers
 var t_player := 0.0
@@ -162,6 +147,7 @@ var end_panel: Control
 var end_title: Label
 var end_stats: Label
 var end_hint: Label
+var scoreboard_box: VBoxContainer
 var pause_panel: Control
 var pause_loadout: Label
 var pause_roster: Label
@@ -170,17 +156,25 @@ var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
 var start_btn: Button
+var debug_panel: Control
+var debug_god_btn: Button
+var debug_fuse_a: OptionButton
+var debug_fuse_b: OptionButton
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
-	_build_type_registry()
 	RenderingServer.set_default_clear_color(Color(0.04, 0.04, 0.07))
 	net = Net.new()
 	net.name = "Net"
 	net.main = self
 	add_child(net)
+	spawner = EnemySpawner.new()
+	spawner.name = "Spawner"
+	spawner.main = self
+	add_child(spawner)
+	spawner.build_type_registry()
 	_build_ui()
 	_show_menu("")
 	match OS.get_environment("NICESWARM_NET"):  # headless test hooks
@@ -196,60 +190,6 @@ func _ready() -> void:
 
 func is_host() -> bool:
 	return multiplayer.is_server()
-
-
-## Flattens ENEMY_CLASSES into a stable, index-addressable list. Deterministic
-## (dict insertion order) so host and clients agree on every type id.
-func _build_type_registry() -> void:
-	_types = []
-	_type_id = {}
-	for cls in ENEMY_CLASSES:
-		var tiers: Array = ENEMY_CLASSES[cls]
-		for ti in tiers.size():
-			_type_id["%s:%d" % [cls, ti]] = _types.size()
-			_types.append({"cls": cls, "tier": ti, "data": tiers[ti]})
-
-
-## Dynamic difficulty: 0 when the party is at/below the expected level for the
-## elapsed time, ramping to 1 the further *ahead* of par they are. Drives faster
-## elite/bomber spawns, a chance to upgrade normal spawns to special enemies, and
-## a mild HP/speed bonus — so skilled play gets pushed harder.
-## Dynamic difficulty from clear rate: 0 when you're barely keeping pace with the
-## spawn pressure, ramping to 1 the faster you clear beyond it. Clear the swarm
-## quickly and the game pushes harder (more elites, higher tiers, tougher enemies).
-## Host computes from its kill-rate EMA; clients use the synced value.
-func _heat() -> float:
-	return net_heat if not is_host() else heat_cur
-
-
-func _diff() -> float:
-	return net_difficulty if not is_host() else difficulty
-
-
-## Early-game brake: difficulty climbs (and level-up steps land) at a fraction of
-## full speed for the first ~80 s, then ramps to full. Keeps the opening gentle.
-func _warmup() -> float:
-	return clampf(GameConfig.DIFF_WARMUP_FLOOR + elapsed / GameConfig.DIFF_WARMUP_SECS, GameConfig.DIFF_WARMUP_FLOOR, 1.0)
-
-
-## Host: update the clear-rate heat (smoothed, rises fast / decays slowly) and let
-## it + the party level accelerate the master difficulty climb.
-func _update_difficulty(delta: float) -> void:
-	_clear_t += delta
-	if _clear_t >= 1.0:
-		_clear_ema = lerpf(_clear_ema, _clear_kills / _clear_t, 0.5)
-		_clear_kills = 0
-		_clear_t = 0.0
-	var target := clampf((_clear_ema - _spawn_rate) / (_spawn_rate * 2.0 + 1.0), 0.0, 1.0)
-	# Overwhelmed (field packed + barely clearing)? Bleed heat off fast to ease the
-	# difficulty climb and give the struggling player some breathing room.
-	var overwhelmed := enemies_by_id.size() > _desired_pop * 1.4 and _clear_ema < _spawn_rate * 0.7
-	if overwhelmed:
-		target = 0.0
-	# rise quickly, decay slowly (faster when overwhelmed) so heat lingers in lulls
-	var rate := 0.7 if target > heat_cur else (0.35 if overwhelmed else 0.05)
-	heat_cur = move_toward(heat_cur, target, rate * delta)
-	difficulty += delta * DIFF_BASE * _warmup() * (1.0 + heat_cur * DIFF_HEAT + (level - 1) * DIFF_LEVEL)
 
 
 func nearest_alive_player(pos: Vector2) -> Node2D:
@@ -399,6 +339,8 @@ func reset_game() -> void:
 
 
 func _reset_run_state() -> void:
+	_score = {}
+	net_scores = []
 	elapsed = 0.0
 	kills = 0
 	level = 1
@@ -412,19 +354,7 @@ func _reset_run_state() -> void:
 	picked_ids = {}
 	i_chose = false
 	paused_menu = false
-	spawn_accum = 0.0
-	brute_accum = 0.0
-	elite_accum = 0.0
-	bomber_accum = 0.0
-	_clear_kills = 0
-	_clear_t = 0.0
-	_clear_ema = 0.0
-	_spawn_rate = 1.0
-	heat_cur = 0.0
-	net_heat = 0.0
-	difficulty = 0.0
-	net_difficulty = 0.0
-	enemy_seq = 0
+	spawner.reset()
 	item_seq = 0
 	enemies_by_id = {}
 	gems_by_id = {}
@@ -469,6 +399,7 @@ func _build_world() -> void:
 		p.died.connect(_on_player_downed.bind(p))
 		world.add_child(p)
 		players[pid] = p
+		_score[pid] = {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0}
 	_grant_starters()
 
 
@@ -486,7 +417,7 @@ func _grant_starters() -> void:
 		var p: Player = players[pid]
 		p.add_weapon("bolt")
 		match test:
-			"all_weapons":
+			"all_weapons", "score":
 				for wid in WEAPON_INFO:
 					if p.get_weapon(wid) == null:
 						p.add_weapon(wid)
@@ -512,7 +443,15 @@ func _grant_starters() -> void:
 						["glaive", "turret"], ["lightning", "turret"], ["flame", "turret"],
 						["mines", "turret"], ["gravity", "turret"], ["turret", "venom"],
 						["frost", "nova"], ["flame", "frost"], ["gravity", "orbit"],
-						["glaive", "gravity"], ["lightning", "nova"], ["mines", "orbit"]]:
+						["glaive", "gravity"], ["lightning", "nova"], ["mines", "orbit"],
+						["flame", "gravity"], ["gravity", "laser"], ["gravity", "lightning"],
+						["gravity", "mines"], ["gravity", "missiles"],
+						["glaive", "mines"], ["laser", "mines"], ["lightning", "mines"],
+						["mines", "nova"], ["mines", "venom"],
+						["flame", "glaive"], ["flame", "laser"], ["flame", "missiles"], ["flame", "orbit"],
+						["glaive", "laser"], ["glaive", "missiles"], ["glaive", "orbit"], ["glaive", "venom"],
+						["laser", "lightning"], ["laser", "missiles"], ["laser", "venom"],
+						["lightning", "missiles"], ["missiles", "orbit"], ["missiles", "venom"]]:
 					var fw := Fusions.make(pair[0], pair[1])
 					fw.level = MAX_WEAPON_LEVEL
 					p.add_child(fw)
@@ -520,21 +459,21 @@ func _grant_starters() -> void:
 				print("[test] fusion weapons active: %d" % (p.weapons.size() - 1))
 	if test == "bomber" and is_host():
 		for ti in 3:  # one of every caster tier: Bomber, Diviner, Oracle
-			_spawn_enemy("caster", ti)
-			_spawn_enemy("caster", ti)
+			spawner.spawn_enemy("caster", ti)
+			spawner.spawn_enemy("caster", ti)
 		print("[test] caster tiers spawned")
 	if test == "heat":  # verify dynamic difficulty responds to clear rate
 		for s in [[1.0, 1.0], [3.0, 1.0], [5.0, 1.0], [2.0, 2.0], [6.0, 2.0]]:
-			_clear_ema = s[0]
-			_spawn_rate = s[1]
+			spawner.clear_ema = s[0]
+			spawner.spawn_rate = s[1]
 			print("[test] heat clear=%.0f/s spawn=%.0f/s -> %.2f" \
-				% [_clear_ema, _spawn_rate, clampf((_clear_ema - _spawn_rate) / (_spawn_rate * 2.0 + 1.0), 0.0, 1.0)])
-		_clear_ema = 0.0
-		_spawn_rate = 1.0
+				% [spawner.clear_ema, spawner.spawn_rate, clampf((spawner.clear_ema - spawner.spawn_rate) / (spawner.spawn_rate * 2.0 + 1.0), 0.0, 1.0)])
+		spawner.clear_ema = 0.0
+		spawner.spawn_rate = 1.0
 	if test == "zoo" and is_host():  # spawn one of every class/tier
-		for ty in _types:
-			_spawn_enemy(ty.cls, ty.tier)
-		print("[test] zoo spawned: %d types" % _types.size())
+		for ty in spawner.types:
+			spawner.spawn_enemy(ty.cls, ty.tier)
+		print("[test] zoo spawned: %d types" % spawner.types.size())
 
 
 # --- frame loops -------------------------------------------------------------
@@ -549,8 +488,11 @@ func _process(delta: float) -> void:
 		if elapsed >= WIN_TIME:
 			_end_game(true)
 			return
-		_update_difficulty(delta)
-		_run_spawning(delta)
+		if OS.get_environment("NICESWARM_TEST") == "score" and elapsed > 4.0 and not game_over:
+			_end_game(true)  # headless scoreboard check
+			return
+		spawner.update_difficulty(delta)
+		spawner.run_spawning(delta)
 		_run_revives(delta)
 	_update_hud()
 
@@ -580,145 +522,10 @@ func _physics_process(delta: float) -> void:
 	t_hud += delta
 	if t_hud >= 0.25:
 		t_hud = 0.0
-		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, heat_cur, difficulty)
+		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, spawner.heat_cur, spawner.difficulty)
 
 
 # --- host: spawning ----------------------------------------------------------
-
-func _run_spawning(delta: float) -> void:
-	var heat := _heat()
-	var t := clampf(elapsed / 540.0, 0.0, 1.0)
-	var interval := lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + 0.6 * (peer_ids.size() - 1))
-	# keep the arena populated: if the player clears faster than enemies arrive,
-	# ramp spawns to refill toward a target population. The target starts small
-	# (calm opening) and grows with difficulty.
-	_desired_pop = int(clampf(GameConfig.SPAWN_DESIRED_BASE + difficulty * GameConfig.SPAWN_DESIRED_PER_DIFF, GameConfig.SPAWN_DESIRED_BASE, ENEMY_CAP - 20))
-	if enemies_by_id.size() < _desired_pop:
-		interval *= GameConfig.SPAWN_REFILL_MULT
-	_spawn_rate = 1.0 / interval
-	spawn_accum += delta
-	while spawn_accum >= interval:
-		spawn_accum -= interval
-		if enemies_by_id.size() >= ENEMY_CAP:
-			break
-		# weighted class pick — brawlers stay the staple, others unlock over time
-		var pool := ["brawler", "brawler", "brawler"]
-		if elapsed > 45.0:
-			pool.append("rusher")
-			pool.append("rusher")
-		if elapsed > 90.0:
-			pool.append("wisp")
-		if elapsed > 120.0:
-			pool.append("warden")
-		if elapsed > 150.0:
-			pool.append("sentinel")
-		if elapsed > 165.0:
-			pool.append("bouncer")
-		if elapsed > 180.0:
-			pool.append("burster")
-		if elapsed > 210.0:
-			pool.append("disruptor")  # debuffers stay rare
-		if elapsed > 240.0:
-			pool.append("defiler")
-		if elapsed > 300.0:  # bouncers become more common the deeper the run goes
-			pool.append("bouncer")
-			pool.append("bouncer")
-		_spawn_enemy(pool.pick_random())  # tier escalates with time/level/heat
-	brute_accum += delta
-	if elapsed > 90.0 and brute_accum >= 45.0:
-		brute_accum = 0.0
-		_spawn_enemy("tank")
-	elite_accum += delta
-	if elapsed > 120.0 and elite_accum >= lerpf(75.0, 32.0, heat):  # more elites when ahead
-		elite_accum = 0.0
-		_spawn_enemy("elite")
-	bomber_accum += delta
-	if elapsed > 150.0 and bomber_accum >= lerpf(20.0, 11.0, heat):
-		bomber_accum = 0.0
-		_spawn_enemy("caster")  # Bomber → Diviner → Oracle by tier
-
-
-## Which tier of a class to spawn now: rises with elapsed time, party level, and
-## dynamic-difficulty heat, so harder variants (Diviner, Behemoth, Champion…)
-## show up as the run progresses and faster when the party is doing well.
-func _class_tier(cls: String) -> int:
-	var n: int = ENEMY_CLASSES[cls].size()
-	if n <= 1:
-		return 0
-	# Difficulty raises the tier *ceiling*; the actual tier is sampled below it so
-	# higher ranks just get MORE common while lower ranks keep spawning.
-	var ceiling := clampi(int(_diff() / 3.0), 0, n - 1)
-	var tier := ceiling
-	while tier > 0 and randf() < 0.4:  # ~40% chance to step down each rank
-		tier -= 1
-	return tier
-
-
-func _make_enemy(cls: String, tier: int) -> Enemy:
-	var d: Dictionary = ENEMY_CLASSES[cls][tier]
-	var e := Enemy.new()
-	e.type_id = _type_id["%s:%d" % [cls, tier]]
-	e.tier = tier
-	var dl := _diff()  # master difficulty drives all scaling (was elapsed-minutes)
-	var party := 1.0 + 0.5 * (peer_ids.size() - 1)
-	e.hp = (d.hp0 + dl * d.hpk) * party
-	e.speed = d.spd + dl * d.get("spdk", 0.0)
-	e.radius = d.r
-	e.dmg = d.dmg + int(dl / 12.0)  # enemies hit harder as difficulty climbs
-	e.xp_value = d.xp
-	e.color = d.col
-	e.elite = d.get("elite", false)
-	e.resist = d.get("resist", 0.0)
-	e.immune_type = d.get("immune", -1)
-	e.pull_immune = d.get("pull_imm", false)
-	e.cc_immune = d.get("cc_imm", false)
-	e.bullet = d.get("bullet", false)
-	e.burst_count = d.get("burst", 0)
-	e.move_mode = d.get("move", 0)
-	e.phase = d.get("phase", false)
-	e.life = d.get("life", -1.0)
-	e.shape = d.get("shape", "circle")
-	e.arena = ARENA
-	e.heading = Vector2.from_angle(randf() * TAU)  # random initial facing/travel dir
-	e.shield_cycle = d.get("shield_cycle", 0.0)
-	e.shield_time = d.get("shield_time", 0.0)
-	if d.get("caster", false):
-		e.caster = true
-		e.cast_pattern = d.pattern
-		e.cast_radius = d.cr
-		e.cast_damage = d.cd
-		e.cast_effect = d.get("effect", 0)
-		e.cast_cooldown = d.get("cdt", 3.0)
-		e.cast_timer = e.cast_cooldown
-		e.keep_dist = d.keep
-	# configured enemy-scale multiplier (difficulty is already baked into hp/speed above)
-	e.hp *= cfg_enemy_scale
-	e.speed *= lerpf(1.0, cfg_enemy_scale, 0.4)
-	return e
-
-
-func _make_enemy_by_type(tid: int) -> Enemy:
-	var ty: Dictionary = _types[tid]
-	return _make_enemy(ty.cls, ty.tier)
-
-
-func _spawn_enemy(cls: String, tier: int = -1) -> void:
-	if tier < 0:
-		tier = _class_tier(cls)
-	var e := _make_enemy(cls, tier)
-	e.main_ref = self
-	e.net_id = enemy_seq
-	enemy_seq += 1
-	e.killed.connect(_on_enemy_killed)
-	var around: Node2D = nearest_alive_player(Vector2.ZERO)
-	var center: Vector2 = around.global_position if around != null else Vector2.ZERO
-	var pos := center + Vector2.from_angle(randf() * TAU) * randf_range(700.0, 900.0)
-	pos.x = clampf(pos.x, ARENA.position.x + 30.0, ARENA.end.x - 30.0)
-	pos.y = clampf(pos.y, ARENA.position.y + 30.0, ARENA.end.y - 30.0)
-	e.position = pos
-	enemies_by_id[e.net_id] = e
-	world.add_child(e)
-
 
 ## Host only: a bombardier marks a danger zone; it detonates after TELEGRAPH_WARN
 ## and hits any player still inside. Synced to clients via STATE_TELEGRAPHS so the
@@ -740,35 +547,17 @@ func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0) -
 
 # --- host: drops, pickups, revives -------------------------------------------
 
-## A Burster's death spray: enemy "shard" bullets fired radially. Deferred because
-## the death can fire inside a physics collision callback (adding bodies mid-flush).
-func _spawn_burst(pos: Vector2, count: int) -> void:
-	if not playing or world == null:
-		return
-	var base := randf() * TAU
-	for i in count:
-		if enemies_by_id.size() >= ENEMY_CAP:
-			break
-		var c := _make_enemy("shard", 0)
-		c.main_ref = self
-		c.net_id = enemy_seq
-		enemy_seq += 1
-		c.killed.connect(_on_enemy_killed)
-		c.heading = Vector2.from_angle(base + TAU * i / count)  # even radial spray
-		c.position = pos + c.heading * 16.0
-		enemies_by_id[c.net_id] = c
-		world.add_child(c)
-
-
 func _on_enemy_killed(enemy: Enemy) -> void:
 	enemies_by_id.erase(enemy.net_id)
+	if spawner.types[enemy.type_id].cls == "bouncer":
+		spawner.bouncer_live -= 1
 	if enemy.xp_value <= 0:  # shard bullets: no kill credit, no gem, no drop
 		return
 	kills += 1
-	_clear_kills += 1
-	# bursters spit a ring of shard bullets on death (deferred — see _spawn_burst)
+	spawner.add_kill()
+	# bursters spit a ring of shard bullets on death (deferred — see EnemySpawner.spawn_burst)
 	if enemy.burst_count > 0 and enemies_by_id.size() + enemy.burst_count <= ENEMY_CAP:
-		_spawn_burst.call_deferred(enemy.global_position, enemy.burst_count)
+		spawner.spawn_burst.call_deferred(enemy.global_position, enemy.burst_count)
 	var gem := XpGem.new()
 	gem.value = enemy.xp_value
 	gem.main_ref = self
@@ -845,19 +634,21 @@ func _run_revives(delta: float) -> void:
 	for p in players.values():
 		if not p.downed:
 			continue
-		var helper := false
+		var helper: Player = null
 		for q in players.values():
 			if q != p and not q.downed \
 					and q.global_position.distance_to(p.global_position) <= 70.0:
-				helper = true
+				helper = q
 				break
-		if helper:
+		if helper != null:
 			p.revive_progress += delta / 3.0
 		else:
 			# decay very slowly — progress is mostly kept if the helper steps away
 			# briefly, so an ally doesn't have to hover the whole time
 			p.revive_progress = maxf(p.revive_progress - delta * 0.07, 0.0)
 		if p.revive_progress >= 1.0:
+			if helper != null and _score.has(helper.peer_id):
+				_score[helper.peer_id].revives += 1  # credit the reviver
 			p.revive()  # emits health_changed -> broadcast
 		else:
 			net.send_revive(p.peer_id, p.revive_progress)
@@ -868,6 +659,9 @@ func _run_revives(delta: float) -> void:
 func _on_gem_collected(value: int, gem: XpGem) -> void:
 	gems_by_id.erase(gem.net_id)
 	xp += value
+	var who: Node2D = nearest_alive_player(gem.global_position)  # the gem flew to them
+	if who != null and _score.has(who.peer_id):
+		_score[who.peer_id].xp += value
 	Sfx.play("gem", null, -8.0)
 	_maybe_open_picks()
 
@@ -889,7 +683,7 @@ func _maybe_open_picks() -> void:
 	elif xp >= _xp_needed():
 		xp -= _xp_needed()
 		level += 1
-		difficulty += DIFF_LEVEL_STEP * _warmup()  # leveling up directly raises difficulty
+		spawner.add_level_difficulty()  # leveling up directly raises difficulty
 		_trigger_picks(false)
 
 
@@ -1095,9 +889,17 @@ func _on_player_hp_changed(_hp: int, _max_hp: int, p: Player) -> void:
 		net.send_player_hp(p.peer_id, p.hp, p.max_hp, p.downed)
 
 
-func _on_player_downed(_p: Player) -> void:
+func _on_player_downed(p: Player) -> void:
 	if is_host():
+		if _score.has(p.peer_id):
+			_score[p.peer_id].deaths += 1
 		_check_all_downed()
+
+
+## Host: credit damage a player's weapon dealt (called from enemy.take_hit).
+func add_damage(pid: int, amount: float) -> void:
+	if _score.has(pid):
+		_score[pid].damage += amount
 
 
 func _check_all_downed() -> void:
@@ -1112,11 +914,23 @@ func _check_all_downed() -> void:
 func _end_game(won: bool) -> void:
 	if game_over:
 		return
-	net.send_end(won, elapsed, level, kills)
-	apply_end(won, elapsed, level, kills)
+	# scoreboard rows: [color_idx, damage, xp, revives, deaths] per player, by damage
+	var rows := []
+	for pid in peer_ids:
+		var sc: Dictionary = _score.get(pid, {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0})
+		var ci: int = players[pid].color_idx if players.has(pid) else 0
+		rows.append([ci, sc.damage, sc.xp, sc.revives, sc.deaths])
+	rows.sort_custom(func(a, b): return a[1] > b[1])
+	var packed := PackedFloat32Array()
+	for r in rows:
+		packed.append_array(PackedFloat32Array([r[0], r[1], r[2], r[3], r[4]]))
+	if OS.get_environment("NICESWARM_TEST") == "score":
+		print("[test] scoreboard rows=%d damage(P1)=%d kills=%d" % [rows.size(), int(round(rows[0][1])) if not rows.is_empty() else 0, kills])
+	net.send_end(won, elapsed, level, kills, packed)
+	apply_end(won, elapsed, level, kills, packed)
 
 
-func apply_end(won: bool, elapsed_: float, level_: int, kills_: int) -> void:
+func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array) -> void:
 	if game_over:
 		return
 	game_over = true
@@ -1127,8 +941,35 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int) -> void:
 	var t := int(elapsed_)
 	end_stats.text = "Survived %02d:%02d   •   Level %d   •   %d kills" \
 		% [t / 60, t % 60, level_, kills_]
+	_fill_scoreboard(scores)
 	end_hint.text = "R play again   ·   M main menu" if is_host() else "Waiting for host…   ·   M main menu"
 	end_panel.visible = true
+
+
+## Build the end-screen scoreboard from packed [color_idx, dmg, xp, rev, deaths]×N rows.
+func _fill_scoreboard(scores: PackedFloat32Array) -> void:
+	for c in scoreboard_box.get_children():
+		c.queue_free()
+	var header := Label.new()
+	header.text = "      PLAYER      DAMAGE     XP    REVIVES   DEATHS"
+	header.add_theme_font_size_override("font_size", 18)
+	header.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
+	scoreboard_box.add_child(header)
+	var i := 0
+	while i + 4 < scores.size():
+		var ci := int(scores[i])
+		var col := Player.COLORS[ci % Player.COLORS.size()]
+		var row := Label.new()
+		row.text = "P%d%s%s%s%s" % [
+			ci + 1,
+			str(int(round(scores[i + 1]))).lpad(14),
+			str(int(scores[i + 2])).lpad(9),
+			str(int(scores[i + 3])).lpad(10),
+			str(int(scores[i + 4])).lpad(9)]
+		row.add_theme_font_size_override("font_size", 20)
+		row.add_theme_color_override("font_color", col)
+		scoreboard_box.add_child(row)
+		i += 5
 
 
 func _restart() -> void:
@@ -1159,8 +1000,8 @@ func apply_hud_state(elapsed_: float, xp_: int, needed: int, level_: int, kills_
 	net_xp_needed = needed
 	level = level_
 	kills = kills_
-	net_heat = heat
-	net_difficulty = difficulty_
+	spawner.net_heat = heat
+	spawner.net_difficulty = difficulty_
 
 
 func apply_player_hp(pid: int, hp_: int, max_: int, downed_: bool) -> void:
@@ -1243,7 +1084,7 @@ func _apply_state(kind: int, data: PackedFloat32Array) -> void:
 				if e == null:
 					if enemies_by_id.is_empty() and OS.get_environment("NICESWARM_NET") != "":
 						print("[test] first enemy puppet id=%d at %s" % [id, str(pos)])
-					e = _make_enemy_by_type(int(f) % 1000)
+					e = spawner.make_enemy_by_type(int(f) % 1000)
 					e.puppet = true
 					e.net_id = id
 					e.position = pos
@@ -1383,6 +1224,9 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	var key: int = event.keycode
+	if key == KEY_F1 and debug_panel != null:
+		debug_panel.visible = not debug_panel.visible
+		return
 	if game_over:
 		if key == KEY_R:
 			_restart()
@@ -1429,8 +1273,8 @@ func _update_hud() -> void:
 	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
 	arrows.queue_redraw()
 	# difficulty number + bar, with the live heat accelerator (▲ how fast it's climbing)
-	var heat := _heat()
-	var diff := _diff()
+	var heat := spawner.heat()
+	var diff := spawner.diff()
 	var filled := clampi(int(diff / 4.0), 0, 8)  # one bar pip per ~4 difficulty, capped at 8
 	var bar := "▮".repeat(filled) + "▯".repeat(8 - filled)
 	var accel := ""
@@ -1542,6 +1386,8 @@ func _build_ui() -> void:
 	_build_end_panel()
 	_build_pause_panel()
 	_build_menu()
+	if OS.is_debug_build():
+		_build_debug_panel()
 
 
 func _make_label(pos: Vector2, size: int, color: Color) -> Label:
@@ -1581,8 +1427,10 @@ func _build_level_panel() -> void:
 	vbox.add_child(panel_title)
 	for i in MAX_CHOICES:
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(520, 56)
+		b.custom_minimum_size = Vector2(640, 56)
 		b.add_theme_font_size_override("font_size", 21)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.clip_text = false
 		b.pressed.connect(_choose_upgrade.bind(i))
 		vbox.add_child(b)
 		choice_buttons.append(b)
@@ -1600,6 +1448,9 @@ func _build_end_panel() -> void:
 	end_stats.add_theme_font_size_override("font_size", 24)
 	end_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(end_stats)
+	scoreboard_box = VBoxContainer.new()
+	scoreboard_box.add_theme_constant_override("separation", 4)
+	vbox.add_child(scoreboard_box)
 	end_hint = Label.new()
 	end_hint.add_theme_font_size_override("font_size", 20)
 	end_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1644,6 +1495,182 @@ func _build_pause_panel() -> void:
 	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(foot)
+
+
+## Debug-build-only testing panel: F1 toggles it. God mode + one-click weapon
+## grant/level-up for the local player, routed through the normal upgrade-pick
+## RPC so co-op peers stay in sync.
+func _build_debug_panel() -> void:
+	debug_panel = Control.new()
+	debug_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	debug_panel.offset_left = -260.0
+	debug_panel.offset_right = -16.0
+	debug_panel.offset_top = 100.0
+	debug_panel.offset_bottom = 640.0
+	debug_panel.visible = false
+	ui.add_child(debug_panel)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.6)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	debug_panel.add_child(bg)
+
+	var vbox := VBoxContainer.new()
+	vbox.position = Vector2(8, 8)
+	debug_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "DEBUG (F1)"
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
+	vbox.add_child(title)
+
+	debug_god_btn = Button.new()
+	debug_god_btn.text = "God Mode: OFF"
+	debug_god_btn.pressed.connect(_debug_toggle_god)
+	vbox.add_child(debug_god_btn)
+
+	var levelup_btn := Button.new()
+	levelup_btn.text = "Instant Level Up"
+	levelup_btn.pressed.connect(_debug_level_up)
+	vbox.add_child(levelup_btn)
+
+	var reset_btn := Button.new()
+	reset_btn.text = "Reset Weapons + Stats"
+	reset_btn.pressed.connect(_debug_reset_loadout)
+	vbox.add_child(reset_btn)
+
+	var grant_head := Label.new()
+	grant_head.text = "Grant / level weapon"
+	grant_head.add_theme_font_size_override("font_size", 14)
+	grant_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vbox.add_child(grant_head)
+
+	var grid := GridContainer.new()
+	grid.columns = 4
+	vbox.add_child(grid)
+	for wid in WEAPON_INFO:
+		var b := Button.new()
+		b.text = wid
+		b.add_theme_font_size_override("font_size", 12)
+		b.custom_minimum_size = Vector2(56, 26)
+		b.pressed.connect(_debug_grant_weapon.bind(wid))
+		grid.add_child(b)
+
+	var fuse_head := Label.new()
+	fuse_head.text = "Grant fusion"
+	fuse_head.add_theme_font_size_override("font_size", 14)
+	fuse_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vbox.add_child(fuse_head)
+
+	var fuse_row := HBoxContainer.new()
+	vbox.add_child(fuse_row)
+	debug_fuse_a = OptionButton.new()
+	debug_fuse_b = OptionButton.new()
+	for wid in WEAPON_INFO:
+		debug_fuse_a.add_item(wid)
+		debug_fuse_b.add_item(wid)
+	debug_fuse_b.selected = 1
+	fuse_row.add_child(debug_fuse_a)
+	fuse_row.add_child(debug_fuse_b)
+	var fuse_btn := Button.new()
+	fuse_btn.text = "Fuse"
+	fuse_btn.pressed.connect(_debug_grant_fusion)
+	vbox.add_child(fuse_btn)
+
+	var stat_head := Label.new()
+	stat_head.text = "Stat up"
+	stat_head.add_theme_font_size_override("font_size", 14)
+	stat_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vbox.add_child(stat_head)
+
+	var stat_grid := GridContainer.new()
+	stat_grid.columns = 4
+	vbox.add_child(stat_grid)
+	for sid in STAT_INFO:
+		var sb := Button.new()
+		sb.text = STAT_INFO[sid]
+		sb.add_theme_font_size_override("font_size", 12)
+		sb.custom_minimum_size = Vector2(56, 26)
+		sb.pressed.connect(_debug_stat_up.bind(sid))
+		stat_grid.add_child(sb)
+
+
+func _debug_toggle_god() -> void:
+	var p: Player = players.get(local_id)
+	if p == null:
+		return
+	p.debug_god = not p.debug_god
+	debug_god_btn.text = "God Mode: ON" if p.debug_god else "God Mode: OFF"
+
+
+## Grants the weapon if the local player doesn't have it yet, otherwise
+## levels it up (capped at MAX_WEAPON_LEVEL) — handy for testing fusions.
+func _debug_grant_weapon(id: String) -> void:
+	var p: Player = players.get(local_id)
+	if p == null:
+		return
+	var w := p.get_weapon(id)
+	if w == null:
+		net.submit_choice(local_id, "learn_" + id)
+	elif w.level < MAX_WEAPON_LEVEL:
+		net.submit_choice(local_id, "lv_" + id)
+
+
+func _debug_stat_up(id: String) -> void:
+	if players.get(local_id) == null:
+		return
+	net.submit_choice(local_id, id)
+
+
+## Strips the local player of every weapon (including the starting bolt) and
+## resets every stat multiplier to its starting value — a clean slate for
+## re-testing weapons without restarting the run.
+func _debug_reset_loadout() -> void:
+	var p: Player = players.get(local_id)
+	if p == null:
+		return
+	for w in p.weapons:
+		w.queue_free()
+	p.weapons.clear()
+	p.damage_mult = 1.0
+	p.rate_mult = 1.0
+	p.area_mult = 1.0
+	p.duration_mult = 1.0
+	p.move_speed = 220.0
+	p.pickup_range = 90.0
+	p.dash_cooldown = 2.5
+	p.max_hp = 5
+	p.hp = mini(p.hp, p.max_hp)
+	p.health_changed.emit(p.hp, p.max_hp)
+
+
+## Force the party to its next level-up pick immediately (host-only — the
+## same path real XP gain uses, so picks/sync behave normally).
+func _debug_level_up() -> void:
+	if not is_host() or leveling or game_over:
+		return
+	xp = _xp_needed()
+	_maybe_open_picks()
+
+
+## Maxes both selected weapons (granting them first if missing) and fuses
+## them — signature recipe if one exists, otherwise the generic WeaponFused.
+func _debug_grant_fusion() -> void:
+	var a := debug_fuse_a.get_item_text(debug_fuse_a.selected)
+	var b := debug_fuse_b.get_item_text(debug_fuse_b.selected)
+	if a == b:
+		return
+	var p: Player = players.get(local_id)
+	if p == null:
+		return
+	for id in [a, b]:
+		_debug_grant_weapon(id)
+		var w := p.get_weapon(id)
+		while w != null and w.level < MAX_WEAPON_LEVEL:
+			net.submit_choice(local_id, "lv_" + id)
+			w = p.get_weapon(id)
+	net.submit_choice(local_id, "merge_" + Fusions.key(a, b))
 
 
 func _refresh_pause_roster() -> void:

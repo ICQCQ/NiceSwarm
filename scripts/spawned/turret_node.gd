@@ -5,6 +5,8 @@ extends Node2D
 ## (nova/mines/gravity/venom) act around themselves; beam/orbit run continuously.
 
 var life := 5.0
+var source_pid := -1  # scoreboard: credited to the turret's deployer
+var owner_weapon_id := -1  # instance id of the deploying weapon; caps per-weapon, not global
 var damage := 1.2
 var target_range := 480.0  # Area
 var fire_mult := 1.0   # Haste (lower = faster)
@@ -57,6 +59,7 @@ func _emit(target: Node2D) -> float:
 			m.life = 4.0 * dur_mult
 			m.velocity = dir * 320.0
 			m.position = here
+			m.source_pid = source_pid
 			get_parent().add_child(m)
 			Sfx.play("missile", here, -5.0)
 			return 0.9
@@ -68,6 +71,7 @@ func _emit(target: Node2D) -> float:
 			s.life = 1.4 * dur_mult
 			s.slow_dur = 1.5 * dur_mult
 			s.position = here
+			s.source_pid = source_pid
 			get_parent().add_child(s)
 			Sfx.play("frost", here, -4.0)
 			return 0.55
@@ -77,6 +81,7 @@ func _emit(target: Node2D) -> float:
 			g.damage = damage
 			g.hit_radius = 14.0 * area_mult
 			g.position = here
+			g.source_pid = source_pid
 			get_parent().add_child(g)
 			Sfx.play("glaive", here, -4.0)
 			return 1.1
@@ -100,6 +105,7 @@ func _emit(target: Node2D) -> float:
 				mn.trigger_radius = 50.0 * area_mult
 				mn.life = 10.0 * dur_mult
 				mn.position = here + Vector2(randf_range(-24.0, 24.0), randf_range(-24.0, 24.0))
+				mn.source_pid = source_pid
 				get_parent().add_child(mn)
 			return 1.4
 		"gravity":
@@ -109,6 +115,7 @@ func _emit(target: Node2D) -> float:
 			w.pull = 150.0
 			w.life = 2.5 * dur_mult
 			w.position = target.global_position
+			w.source_pid = source_pid
 			get_parent().add_child(w)
 			Sfx.play("gravity", target.global_position, -3.0)
 			return 3.0
@@ -119,6 +126,7 @@ func _emit(target: Node2D) -> float:
 			pud.max_life = 3.0 * dur_mult
 			pud.life = pud.max_life
 			pud.position = here + Vector2(randf_range(-20.0, 20.0), randf_range(-20.0, 20.0))
+			pud.source_pid = source_pid
 			get_parent().add_child(pud)
 			Sfx.play("venom", here, -4.0)
 			return 1.2
@@ -128,6 +136,7 @@ func _emit(target: Node2D) -> float:
 			p.damage = damage
 			p.radius = proj_radius
 			p.position = here
+			p.source_pid = source_pid
 			get_parent().add_child(p)
 			Sfx.play("turret", here, -4.0)
 			return 0.45
@@ -141,16 +150,16 @@ func _pulse(radius: float) -> void:
 	fx.life = 0.3
 	fx.color = Color(0.7, 0.7, 1.0)
 	get_parent().add_child(fx)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(global_position, radius):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
-			e.take_hit(damage, global_position, Enemy.DMG_ENERGY)
+			e.take_hit(damage, global_position, Enemy.DMG_ENERGY, source_pid)
 
 
 func _cone(dir: Vector2, reach: float) -> void:
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(global_position, reach):
 		var to: Vector2 = e.global_position - global_position
 		if to.length() <= reach + e.radius and absf(dir.angle_to(to)) <= 0.6:
-			e.take_hit(damage, null, Enemy.DMG_FIRE)
+			e.take_hit(damage, null, Enemy.DMG_FIRE, source_pid)
 
 
 func _chain(first: Node2D) -> void:
@@ -161,7 +170,7 @@ func _chain(first: Node2D) -> void:
 	while cur != null and hops > 0:
 		visited[cur.get_instance_id()] = true
 		pts.append(cur.global_position)
-		cur.take_hit(damage, null, Enemy.DMG_ENERGY)
+		cur.take_hit(damage, null, Enemy.DMG_ENERGY, source_pid)
 		hops -= 1
 		cur = _nearest_unvisited(pts[pts.size() - 1], visited, 190.0)
 	var fx := LightningFx.new()
@@ -175,13 +184,13 @@ func _run_beam(delta: float) -> void:
 	var length := target_range * 0.7
 	var dir := Vector2.from_angle(angle)
 	_tick_cd(delta)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(global_position, length):
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		var rel: Vector2 = e.global_position - global_position
 		var along := clampf(rel.dot(dir), 0.0, length)
 		if (dir * along).distance_to(rel) <= 7.0 + e.radius:
-			e.take_hit(damage, global_position + dir * along, Enemy.DMG_ENERGY)
+			e.take_hit(damage, global_position + dir * along, Enemy.DMG_ENERGY, source_pid)
 			hit_cd[e.get_instance_id()] = 0.3 * fire_mult
 
 
@@ -190,13 +199,13 @@ func _run_orbit(delta: float) -> void:
 	_tick_cd(delta)
 	var orbit_r := 55.0 * area_mult
 	var blade_r := 11.0 * area_mult
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(global_position, orbit_r + blade_r):
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		for i in 3:
 			var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * i / 3.0) * orbit_r
 			if bp.distance_to(e.global_position) <= blade_r + e.radius:
-				e.take_hit(damage, bp)
+				e.take_hit(damage, bp, Enemy.DMG_PHYS, source_pid)
 				hit_cd[e.get_instance_id()] = 0.4 * fire_mult
 				break
 
@@ -211,7 +220,7 @@ func _tick_cd(delta: float) -> void:
 func _nearest_unvisited(from: Vector2, visited: Dictionary, rng: float) -> Node2D:
 	var best: Node2D = null
 	var bd := rng * rng
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(from, rng):
 		if visited.has(e.get_instance_id()):
 			continue
 		var d: float = from.distance_squared_to(e.global_position)
@@ -224,7 +233,7 @@ func _nearest_unvisited(from: Vector2, visited: Dictionary, rng: float) -> Node2
 func _find_target() -> Node2D:
 	var best: Node2D = null
 	var best_d := target_range * target_range
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in EnemyGrid.near(global_position, target_range):
 		var d: float = global_position.distance_squared_to(e.global_position)
 		if d < best_d:
 			best_d = d

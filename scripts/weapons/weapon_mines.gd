@@ -20,6 +20,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.2
 		return
 	var m := MineNode.new()
+	m.source_pid = player.peer_id
 	m.damage = WeaponConfig.BASE.mines.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.mines.growth * (level - 1))
 	m.blast_radius = (100.0 + 15.0 * (level - 1)) * player.area_mult
 	m.trigger_radius = 55.0 * player.area_mult
