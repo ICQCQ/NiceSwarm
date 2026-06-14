@@ -87,18 +87,31 @@ jobs:
           $mb = [math]::Round((Get-Item "build/NiceSwarm.exe").Length / 1MB, 1)
           Write-Host "Built build/NiceSwarm.exe ($mb MB)"
 
+      # Sidecar checksum the game reads at launch to detect a newer build (GitHub's release
+      # API does not expose asset hashes). Format: "<lowercase-sha256>  NiceSwarm.exe".
+      - name: Compute exe SHA256 sidecar
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "build/NiceSwarm.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  NiceSwarm.exe" | Out-File -Encoding ascii -NoNewline "build/NiceSwarm.exe.sha256"
+          Write-Host "sha256: $hash"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: NiceSwarm-windows
-          path: build/NiceSwarm.exe
+          path: |
+            build/NiceSwarm.exe
+            build/NiceSwarm.exe.sha256
           if-no-files-found: error
 
       - name: Publish versioned Release (on v* tags)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/NiceSwarm.exe
+          files: |
+            build/NiceSwarm.exe
+            build/NiceSwarm.exe.sha256
           generate_release_notes: true
 
       - name: Publish rolling 'latest' prerelease (on publish branch)
@@ -109,4 +122,6 @@ jobs:
           name: Latest build (publish)
           body: Auto-built from the latest `publish` commit (${{ github.sha }}).
           prerelease: true
-          files: build/NiceSwarm.exe
+          files: |
+            build/NiceSwarm.exe
+            build/NiceSwarm.exe.sha256
