@@ -84,11 +84,27 @@ func _noray_register() -> String:
 		if e != OK:
 			return "Cannot reach the relay server"
 	Noray.register_host()
-	await Noray.on_pid
+	# on_pid and on_oid arrive as separate server commands with no guaranteed
+	# order, so wait for BOTH before host_online() reads Noray.oid (else we'd
+	# announce an empty oid and the lobby would reject it).
+	if not await _await_with_timeout(Noray.on_pid, 8.0):
+		return "Relay registration timed out"
+	if Noray.oid == "" and not await _await_with_timeout(Noray.on_oid, 4.0):
+		return "Relay registration timed out"
 	var e2: int = await Noray.register_remote()
 	if e2 != OK:
 		return "Relay registration failed"
 	return ""
+
+
+# Await a signal but give up after `secs`. Returns true if it fired in time.
+func _await_with_timeout(sig: Signal, secs: float) -> bool:
+	var hit := [false]
+	sig.connect(func(_a = null): hit[0] = true, CONNECT_ONE_SHOT)
+	var timer := get_tree().create_timer(secs)
+	while not hit[0] and timer.time_left > 0.0:
+		await get_tree().process_frame
+	return hit[0]
 
 
 # Host online: register with Noray, then listen. On success `online_oid` is set
@@ -146,6 +162,14 @@ func _establish(address: String, port: int) -> int:
 		if cerr != OK:
 			return cerr
 		multiplayer.multiplayer_peer = peer
+		# Don't report success until ENet actually connects — so a connect
+		# failure (not just a punch failure) still triggers the relay fallback.
+		while peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTING:
+			await get_tree().process_frame
+		if peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+			multiplayer.multiplayer_peer = null
+			active = false
+			return ERR_CANT_CONNECT
 		active = true
 		return OK
 	if _online_role == OnlineRole.HOST:

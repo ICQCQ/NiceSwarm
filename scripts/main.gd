@@ -208,6 +208,10 @@ func _ready() -> void:
 		"join":
 			ip_edit.text = "127.0.0.1"
 			_on_join_pressed()
+		"host_online":
+			_test_host_online()
+		"join_online":
+			_test_join_online()
 
 
 func is_host() -> bool:
@@ -384,6 +388,39 @@ func _lobby_withdraw() -> void:
 		_lobby_room_id = ""
 		_lobby_token = ""
 		await lobby.withdraw(rid, tok)
+
+
+# --- headless online test hooks (NICESWARM_NET=host_online / join_online) ---
+
+func _test_host_online() -> void:
+	await _on_host_online_pressed()
+	print("[test] host_online oid='%s' room='%s' status='%s'"
+		% [net.online_oid, _lobby_room_id, status_label.text.replace("\n", " ")])
+
+
+func _test_join_online() -> void:
+	_ensure_lobby()
+	for i in 30:
+		var res: Dictionary = await lobby.list_games(VERSION)
+		if res.ok and res.data is Dictionary:
+			var rooms: Array = res.data.get("rooms", [])
+			if not rooms.is_empty():
+				var oid := str(rooms[0].get("host_oid", ""))
+				print("[test] join_online found oid='%s', connecting" % oid)
+				await _on_join_online(oid)
+				# poll up to ~20 s — internet relay/punch needs several round-trips
+				for j in 40:
+					await get_tree().create_timer(0.5).timeout
+					if net.active and multiplayer.has_multiplayer_peer() \
+							and multiplayer.multiplayer_peer.get_connection_status() \
+							== MultiplayerPeer.CONNECTION_CONNECTED:
+						print("[test] join_online CONNECTED uid=%d" % multiplayer.get_unique_id())
+						return
+				print("[test] join_online NOT connected active=%s status='%s'"
+					% [str(net.active), status_label.text.replace("\n", " ")])
+				return
+		await get_tree().create_timer(0.5).timeout
+	printerr("[test] join_online: no room appeared in the lobby")
 
 
 func apply_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
