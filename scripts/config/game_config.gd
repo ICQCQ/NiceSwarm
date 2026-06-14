@@ -35,6 +35,27 @@ const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired 
 const MAX_GEMS := 500                  # hard cap on live ground gems (perf); excess XP condenses
 const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as a big red gem
 
+# --- xp level curve: three-band step curve (cost at level L to reach L+1), /cfg_xp_rate ---
+# Replaces the old flat-linear curve. Steepening shape (fast early → earned late);
+# absolute steps calibrated via a NICESWARM_FF run to land the 10-min win near level ~45.
+const XP_BASE := 5            # cost to reach level 2
+const XP_BAND_EARLY := 13     # levels 1..13 use the early step
+const XP_BAND_MID := 33       # levels 14..33 use the mid step; 34+ use the late step
+const XP_STEP_EARLY := 2      # +per level in the early band (fast dopamine)
+const XP_STEP_MID := 4        # +per level in the mid band
+const XP_STEP_LATE := 6       # +per level in the late band (aggressive)
+
+
+## Cost AT `lvl` to reach the next level — three-band step curve, divided by `rate`.
+## Closed form (no loop). Pure + static so it's unit-testable without a Main instance.
+static func xp_for_level(lvl: int, rate: float) -> int:
+	var n := lvl - 1  # levels gained so far
+	var e := mini(n, XP_BAND_EARLY - 1)
+	var m := clampi(n - (XP_BAND_EARLY - 1), 0, XP_BAND_MID - XP_BAND_EARLY)
+	var l := maxi(n - (XP_BAND_MID - 1), 0)
+	var need := XP_BASE + XP_STEP_EARLY * e + XP_STEP_MID * m + XP_STEP_LATE * l
+	return maxi(1, int(round(float(need) / maxf(rate, 0.0001))))
+
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
 const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds
 const HEAT_SPIKE_POP_FRAC := 0.2 # live pop below this fraction of desired_pop arms the spike

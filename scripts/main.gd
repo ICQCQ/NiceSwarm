@@ -801,8 +801,9 @@ func _on_gem_collected(value: int, gem: XpGem) -> void:
 	_maybe_open_picks()
 
 
+## Cost at the current level to reach the next (three-band curve in GameConfig).
 func _xp_needed() -> int:
-	return maxi(1, int(round((6 + (level - 1) * 4) / cfg_xp_rate)))
+	return GameConfig.xp_for_level(level, cfg_xp_rate)
 
 
 func _current_needed() -> int:
