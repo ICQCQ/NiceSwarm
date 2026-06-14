@@ -35,7 +35,7 @@ func _physics_process(delta: float) -> void:
 	var dmg := WeaponConfig.BASE.orbit.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.orbit.growth * (level - 1))
 	var orbit_r := ORBIT_R * player.area_mult
 	var blade_r := BLADE_R * player.area_mult
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		for i in n:

@@ -30,7 +30,7 @@ func _physics_process(delta: float) -> void:
 	var do_damage := tick <= 0.0
 	if do_damage:
 		tick = 0.35
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		var d := global_position.distance_to(e.global_position)
 		if d <= radius + e.radius:
 			# gradual pull, but each enemy builds resistance — grip fades from 1 to 0
@@ -56,7 +56,7 @@ func _detonate() -> void:
 	fx.color = Color(0.8, 0.4, 1.0)
 	get_parent().add_child(fx)
 	Sfx.play("boom", global_position)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(detonate_damage, global_position)
 

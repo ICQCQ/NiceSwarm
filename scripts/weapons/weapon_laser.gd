@@ -32,7 +32,7 @@ func _physics_process(delta: float) -> void:
 	var beams := level
 	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.laser.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.laser.growth * (level - 1))
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		var rel: Vector2 = e.global_position - global_position

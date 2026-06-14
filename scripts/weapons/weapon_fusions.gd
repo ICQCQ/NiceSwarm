@@ -185,7 +185,7 @@ class Cryoshock extends WeaponBase:
 	func _next(from: Vector2, visited: Dictionary, jump: float) -> Node2D:
 		var best: Node2D = null
 		var bd := jump * jump
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if visited.has(e.get_instance_id()):
 				continue
 			var d: float = from.distance_squared_to(e.global_position)
@@ -301,7 +301,7 @@ class PrismHalo extends WeaponBase:
 		var spokes := 1 + level
 		var length := (150.0 + 20.0 * (level - 1)) * player.area_mult
 		var dmg := 1.6 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			var rel: Vector2 = e.global_position - global_position
@@ -378,7 +378,7 @@ class Railgun extends WeaponBase:
 		var width := 12.0 * player.area_mult
 		var dmg := 3.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var origin := player.global_position
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			var rel: Vector2 = e.global_position - origin
 			var along := rel.dot(dir)
 			if along >= 0.0 and along <= length and (dir * along).distance_to(rel) <= width + e.radius:
@@ -406,7 +406,7 @@ class Supernova extends WeaponBase:
 		var radius := (150.0 + 30.0 * (level - 1)) * player.area_mult
 		var dmg := 3.5 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		var hit_any := false
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position)
 				ignite(e, dmg)
@@ -462,7 +462,7 @@ class FrostHalo extends WeaponBase:
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			for i in n:
@@ -669,7 +669,7 @@ class ToxicHalo extends WeaponBase:
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			for i in n:
@@ -719,7 +719,7 @@ class Pulsar extends WeaponBase:
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			for i in n:
@@ -733,7 +733,7 @@ class Pulsar extends WeaponBase:
 			var radius := (120.0 + 25.0 * (level - 1)) * player.area_mult
 			var ndmg := 2.5 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			var any := false
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in Main.instance.all_enemies():
 				if global_position.distance_to(e.global_position) <= radius + e.radius:
 					e.take_hit(ndmg, global_position, Enemy.DMG_ENERGY)
 					ignite(e, ndmg)
@@ -830,7 +830,7 @@ class PlagueArc extends WeaponBase:
 	func _next(from: Vector2, visited: Dictionary) -> Node2D:
 		var best: Node2D = null
 		var bd := 210.0 * 210.0
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if visited.has(e.get_instance_id()):
 				continue
 			var d: float = from.distance_squared_to(e.global_position)
@@ -867,7 +867,7 @@ class TeslaHalo extends WeaponBase:
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			for i in n:
@@ -881,7 +881,7 @@ class TeslaHalo extends WeaponBase:
 	func _zap(src: Node2D, dmg: float) -> void:
 		var best: Node2D = null
 		var bd := 170.0 * 170.0
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if e == src:
 				continue
 			var d: float = src.global_position.distance_squared_to(e.global_position)
@@ -924,7 +924,7 @@ class PlasmaStorm extends WeaponBase:
 		if tick <= 0.0:
 			tick = TICK * player.rate_mult
 			var dmg := 0.7 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in Main.instance.all_enemies():
 				var to: Vector2 = e.global_position - player.global_position
 				if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF:
 					e.take_hit(dmg, null, Enemy.DMG_FIRE)
@@ -955,7 +955,7 @@ class PlasmaStorm extends WeaponBase:
 	func _next(from: Vector2, visited: Dictionary) -> Node2D:
 		var best: Node2D = null
 		var bd := 200.0 * 200.0
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if visited.has(e.get_instance_id()):
 				continue
 			var d: float = from.distance_squared_to(e.global_position)
@@ -1008,7 +1008,7 @@ class Cyclone extends WeaponBase:
 			var radius := (120.0 + 22.0 * (level - 1)) * player.area_mult
 			var ndmg := 2.5 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			var any := false
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in Main.instance.all_enemies():
 				if player.global_position.distance_to(e.global_position) <= radius + e.radius:
 					e.take_hit(ndmg, player.global_position, Enemy.DMG_ENERGY)
 					ignite(e, ndmg)
@@ -1104,7 +1104,7 @@ class NovaBeam extends WeaponBase:
 		var beams := 1 + level
 		var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 		var dmg := 1.4 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			var rel: Vector2 = e.global_position - global_position
@@ -1121,7 +1121,7 @@ class NovaBeam extends WeaponBase:
 			var radius := (110.0 + 22.0 * (level - 1)) * player.area_mult
 			var ndmg := 2.5 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			var any := false
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in Main.instance.all_enemies():
 				if global_position.distance_to(e.global_position) <= radius + e.radius:
 					e.take_hit(ndmg, global_position, Enemy.DMG_ENERGY)
 					any = true
@@ -1206,7 +1206,7 @@ class ToxicNova extends WeaponBase:
 		var radius := (130.0 + 28.0 * (level - 1)) * player.area_mult
 		var dmg := 3.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var any := false
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position)
 				e.apply_burn(dmg * 0.3, 1.5 * player.duration_mult)
@@ -1312,7 +1312,7 @@ class AbsoluteZero extends WeaponBase:
 		var radius := (140.0 + 28.0 * (level - 1)) * player.area_mult
 		var dmg := 3.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		var any := false
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position, Enemy.DMG_ICE)
 				e.apply_slow(0.3, 2.0 * player.duration_mult)
@@ -1350,7 +1350,7 @@ class ThermalShock extends WeaponBase:
 		var reach := (150.0 + 12.0 * (level - 1)) * player.area_mult
 		var dmg := 0.8 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var any := false
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			var to: Vector2 = e.global_position - player.global_position
 			if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF:
 				e.take_hit(dmg, null, Enemy.DMG_FIRE)
@@ -1390,7 +1390,7 @@ class EventHorizon extends WeaponBase:
 		queue_redraw()
 		var orbit_r := ORBIT_R * player.area_mult
 		var pull_r := orbit_r * 2.4
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if e.pull_immune:
 				continue
 			var off: Vector2 = e.global_position - global_position
@@ -1407,7 +1407,7 @@ class EventHorizon extends WeaponBase:
 		var n := 2 + level
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.2 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			for i in n:
@@ -1481,7 +1481,7 @@ class Thunderclap extends WeaponBase:
 		var radius := (130.0 + 25.0 * (level - 1)) * player.area_mult
 		var dmg := 3.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var hits: Array = []
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
 				e.take_hit(dmg, global_position, Enemy.DMG_ENERGY)
 				hits.append(e)
@@ -1508,7 +1508,7 @@ class Thunderclap extends WeaponBase:
 	func _nearest_beyond(from: Vector2, rng: float) -> Node2D:
 		var best: Node2D = null
 		var bd := rng * rng
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if from.distance_to(e.global_position) < 12.0:
 				continue
 			var d: float = from.distance_squared_to(e.global_position)
@@ -1546,7 +1546,7 @@ class MineHalo extends WeaponBase:
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in Main.instance.all_enemies():
 			if hit_cd.has(e.get_instance_id()):
 				continue
 			for i in n:

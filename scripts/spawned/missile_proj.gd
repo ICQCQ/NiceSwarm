@@ -30,7 +30,7 @@ func _physics_process(delta: float) -> void:
 func _find_target() -> Node2D:
 	var best: Node2D = null
 	var best_d := 800.0 * 800.0
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		var d: float = global_position.distance_squared_to(e.global_position)
 		if d < best_d:
 			best_d = d
@@ -47,7 +47,7 @@ func _explode() -> void:
 	fx.color = Color(1.0, 0.6, 0.3)
 	get_parent().add_child(fx)
 	Sfx.play("boom", global_position, -10.0)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= splash + e.radius:
 			e.take_hit(damage, global_position)
 	queue_free()
