@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var max_turrets := 1 if level < 3 else level - 1  # Lv1-2: one, Lv3: two, +1 per level beyond
+	var max_turrets := 1 if level < 3 else count_level() - 1  # Lv1-2: one, Lv3+: two (count frozen past Lv3)
 	var mine := 0
 	for tn in get_tree().get_nodes_in_group("turrets"):
 		if tn.owner_weapon_id == get_instance_id():

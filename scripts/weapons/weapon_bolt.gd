@@ -28,8 +28,9 @@ func _fire() -> bool:
 		return false
 	var base_dir := (target.global_position - player.global_position).normalized()
 	var dmg := WeaponConfig.BASE.bolt.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.bolt.growth * (level - 1))
-	for i in level:
-		var spread := deg_to_rad(10.0) * (i - (level - 1) / 2.0)
+	var count := count_level()
+	for i in count:
+		var spread := deg_to_rad(10.0) * (i - (count - 1) / 2.0)
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
 		p.velocity = base_dir.rotated(spread) * 520.0
