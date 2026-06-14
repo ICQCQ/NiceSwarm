@@ -62,7 +62,9 @@ the dict array in `_apply_state`, and add a `_send_state`/`_apply_state` case.
 - `scripts/pickup.gd` — heart/bomb/magnet/chest; effects applied in `main._on_pickup_taken`.
 - `scripts/projectile.gd`, `scripts/xp_gem.gd`, `scripts/ring_fx.gd`, `scripts/float_text.gd`, `scripts/background.gd` — small, self-contained.
 
-Collision layers: 1 = player, 2 = enemies. Projectiles are Area2D with mask 2; gems/pickups use distance checks, no physics. Groups: `"enemies"`, `"gems"`.
+Collision layers: 1 = player, 2 = enemies (enemy `collision_layer = 2`). Projectiles are Area2D with mask 2; gems/pickups use distance checks, no physics. Groups: `"enemies"`, `"gems"`. **Enemies do NOT collide with each other** (`collision_mask = 0`) — 220 mutually-colliding bodies was an O(n²) cliff; they overlap freely, VS-style.
+
+**Finding enemies (perf — do NOT call `get_tree().get_nodes_in_group("enemies")` in per-frame code):** `Main` builds a shared enemy spatial index once per physics tick (`_rebuild_enemy_grid`, runs before any child processes). Query it instead: `Main.instance.enemies_in_radius(pos, r)` (O(local) uniform-grid query — keep your own precise `dist <= reach + e.radius` check), `Main.instance.nearest_enemy_to(pos, range)` (or `player.nearest_enemy(range)` which delegates to it), or `Main.instance.all_enemies()` (cached `Array[Node]`, no alloc) when you genuinely need every enemy. Helpers return `Array[Node]` so loop-var inference matches the old group scans. Rationale + remaining follow-ups in [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Conventions
 

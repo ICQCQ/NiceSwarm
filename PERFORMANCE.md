@@ -5,6 +5,15 @@
 > **Verdict:** there are **two independent O(n²) cost centers**, plus the missed-hits are a
 > *downstream symptom* of the frame collapse — not a separate collision bug.
 > Branch: `perf/game-loop-on2`. Investigated 2026-06-14.
+>
+> **Status (2026-06-14): fix implemented** — cost A (enemy `collision_mask = 0`) + cost B
+> (shared per-tick enemy grid: `Main.all_enemies()` / `enemies_in_radius()` /
+> `nearest_enemy_to()`, with `player.nearest_enemy`, orbit and gravity_well on the grid and
+> all other scans on the shared cached list). Verified error-free headless across
+> solo / all_weapons / zoo / merge / bomber / co-op. The real-fps gain still wants the
+> measure-first playtest below. **Remaining follow-ups:** nova/laser/flame/spawned still
+> loop the full cached list (no alloc, but O(n)); throttle continuous scanners to ~10–15 Hz;
+> the `queue_redraw()` cleanup (step 4).
 
 `n` = live enemy count, hard-capped at **`ENEMY_CAP = 220`** (`scripts/config/game_config.gd:12`).
 The arena is 2400×2400; enemies spawn off-screen in a ring and converge on the player, so
