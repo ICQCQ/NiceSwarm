@@ -103,7 +103,11 @@ var pending_chests := 0
 var picks_starter := false      # current pick is the start-of-run weapon choice
 var picked_ids := {}            # host: peers that picked this round
 var i_chose := false
-var paused_menu := false
+var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
+var ingame_menu := false        # our own in-game menu/hub is open (host: global pause; client: local + safe)
+const RESUME_COUNTDOWN := 2.0   # seconds of "get ready" before a resume actually un-freezes the run
+var countdown_time := 0.0       # >0 while the resume countdown is ticking
+var _countdown_done := Callable()  # runs when the countdown reaches zero (the real resume)
 var _ff_min := -1               # NICESWARM_FF: last game-minute printed during a fast-forward run
 
 # upgrade-category accent colors (option buttons + descriptions)
@@ -168,6 +172,10 @@ var scoreboard_box: GridContainer
 var pause_panel: Control
 var pause_loadout: Label
 var pause_roster: Label
+var ingame_menu_panel: Control   # in-run menu/hub (resume · codex · settings · leave)
+var ingame_menu_hint: Label      # transient line for stubbed hub tabs
+var countdown_panel: Control     # resume countdown overlay
+var countdown_label: Label
 var menu_panel: Control
 var ip_edit: LineEdit
 var port_edit: LineEdit
@@ -394,6 +402,7 @@ func _reset_run_state() -> void:
 	picked_ids = {}
 	i_chose = false
 	paused_menu = false
+	_force_close_ingame_menu()
 	spawner.reset()
 	item_seq = 0
 	enemies_by_id = {}
@@ -520,6 +529,9 @@ func _grant_starters() -> void:
 
 func _process(delta: float) -> void:
 	if not playing:
+		return
+	if countdown_time > 0.0:  # resume countdown holds the world until it reaches zero
+		_tick_countdown(delta)
 		return
 	var running := not (game_over or leveling or get_tree().paused)
 	if running:
@@ -830,6 +842,9 @@ func _trigger_picks(free: bool, starter: bool = false) -> void:
 
 
 func open_picks(free: bool, starter: bool = false) -> void:
+	if ingame_menu:
+		_force_close_ingame_menu()  # a level-up pre-empts an open menu (clears safe/freeze)
+	_cancel_countdown()  # a (chained) pick supersedes any in-flight resume countdown
 	leveling = true
 	free_choice = free
 	picks_starter = starter
@@ -1013,9 +1028,13 @@ func resume_after_picks() -> void:
 	leveling = false
 	picks_starter = false
 	level_panel.visible = false
-	get_tree().paused = false
-	if is_host():
-		_maybe_open_picks()  # banked XP or queued chests chain immediately
+	# Host with banked levels/chests: chain straight into the next pick — no countdown mid-chain.
+	if is_host() and (pending_chests > 0 or xp >= _xp_needed()):
+		get_tree().paused = false
+		_maybe_open_picks()
+		return
+	# Final return to gameplay — count it in (cosmetic; the world stays paused until it ends).
+	_begin_resume_countdown(func() -> void: get_tree().paused = false)
 
 
 # --- HP / downed / end ---------------------------------------------------------
@@ -1070,6 +1089,7 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 	if game_over:
 		return
 	game_over = true
+	_force_close_ingame_menu()  # never end a run with a player stuck frozen/invulnerable
 	if Engine.time_scale > 1.0:  # NICESWARM_FF: final calibration line, then drop the clock back
 		print("[ff] END won=%s min=%.1f level=%d kills=%d gems=%d" \
 			% [str(won), elapsed_ / 60.0, level_, kills_, gems_by_id.size()])
@@ -1173,10 +1193,14 @@ func apply_revive(pid: int, ratio: float) -> void:
 
 
 func apply_pause(pause: bool) -> void:
+	if pause and not is_host() and ingame_menu:
+		_force_close_ingame_menu()  # an incoming host pause supersedes our own local menu
 	paused_menu = pause
 	get_tree().paused = pause
 	if pause:
 		_refresh_pause_roster()
+	else:
+		_cancel_countdown()  # authoritative unpause arrived — end any cosmetic countdown
 	pause_panel.visible = pause
 
 
@@ -1371,6 +1395,8 @@ func _input(event: InputEvent) -> void:
 	if key == KEY_F1 and debug_panel != null:
 		debug_panel.visible = not debug_panel.visible
 		return
+	if countdown_time > 0.0:
+		return  # swallow input while the resume countdown is running
 	if game_over:
 		if key == KEY_R:
 			_restart()
@@ -1379,18 +1405,22 @@ func _input(event: InputEvent) -> void:
 	elif leveling:
 		if key >= KEY_1 and key < KEY_1 + MAX_CHOICES:  # 1..6 select dynamically
 			_choose_upgrade(key - KEY_1)
-	elif paused_menu:  # while paused, M leaves to the main menu
+	elif ingame_menu:  # our own in-run menu/hub is open
+		if key == KEY_ESCAPE:
+			_resume_from_ingame_menu()
+		elif key == KEY_L:
+			_leave_from_menu()  # leaving is deliberate — never a stray single key
+		elif key == KEY_C:
+			ingame_menu_hint.text = "Skill codex — coming soon"
+		elif key == KEY_V:
+			ingame_menu_hint.text = "Monster codex — coming soon"
+		elif key == KEY_O:
+			ingame_menu_hint.text = "Settings — coming soon"
+	elif paused_menu:  # a host paused us (client): wait for resume, or leave with M
 		if key == KEY_M:
 			_to_menu()
-		elif key == KEY_ESCAPE and is_host():
-			apply_pause(false)
-			net.send_set_paused(false)
 	elif key == KEY_ESCAPE:
-		if is_host():
-			apply_pause(true)
-			net.send_set_paused(true)
-		else:
-			_to_menu()  # clients can't pause the host — ESC just leaves the run
+		_open_ingame_menu()  # universal: ESC opens the menu (host pauses for all; client goes safe)
 
 
 ## Leave the current run and return to the main menu. Disconnects from co-op
@@ -1402,8 +1432,127 @@ func _to_menu() -> void:
 	end_panel.visible = false
 	pause_panel.visible = false
 	paused_menu = false
+	_force_close_ingame_menu()
 	_clear_world()
 	_show_menu("")
+
+
+# --- in-run menu / hub ---------------------------------------------------------
+
+## ESC during play. The hub is the same for everyone; only the freeze mechanic differs:
+## the host (and solo) globally pause the run; a client can't pause the shared sim, so it
+## holds its own avatar still and asks the host to make it invulnerable (auto-safe).
+func _open_ingame_menu() -> void:
+	if not is_host() and get_tree().paused:
+		return  # already frozen by a host pause — don't stack a local menu on top
+	ingame_menu = true
+	ingame_menu_hint.text = ""
+	ingame_menu_panel.visible = true
+	if is_host():
+		get_tree().paused = true
+		net.send_set_paused(true)  # clients show the remote "PAUSED" panel + freeze
+	else:
+		var me: Player = players.get(local_id)
+		if me != null:
+			me.menu_frozen = true
+		net.send_set_safe(local_id, true)
+
+
+## Close the hub and return to play behind a short countdown (never an instant resume).
+func _resume_from_ingame_menu() -> void:
+	ingame_menu = false
+	ingame_menu_panel.visible = false
+	if is_host():
+		net.send_resume_countdown()  # clients run the same cosmetic countdown
+		_begin_resume_countdown(func() -> void:
+			get_tree().paused = false
+			net.send_set_paused(false))
+	else:
+		# stay safe through the countdown; clear on completion (idempotent teardown)
+		_begin_resume_countdown(_clear_local_safe)
+
+
+## Deliberate "leave game" from inside the hub (the L key) — the old accidental ESC path.
+func _leave_from_menu() -> void:
+	_to_menu()
+
+
+## Drop all in-menu state immediately (no countdown) — used on leave / game over / reset so a
+## menu-open player never gets stuck frozen or invulnerable.
+func _force_close_ingame_menu() -> void:
+	ingame_menu = false
+	_cancel_countdown()
+	if ingame_menu_panel != null:
+		ingame_menu_panel.visible = false
+	_clear_local_safe()
+
+
+## Drop our local "menu safe" state and tell the host we're vulnerable + mobile again.
+## Idempotent and the single teardown for safe/freeze, so any exit (resume, leave, game over,
+## reset, a level-up pre-empting the menu) can call it without leaving a stuck flag.
+func _clear_local_safe() -> void:
+	var me: Player = players.get(local_id)
+	if me != null:
+		me.menu_frozen = false
+		me.safe = false
+	if net.active and not is_host():
+		net.send_set_safe(local_id, false)
+
+
+# --- resume countdown ----------------------------------------------------------
+
+## Host: a client (pid) opened/closed its menu — toggle its host-side invulnerability.
+func apply_set_safe(pid: int, safe: bool) -> void:
+	# Host-only, and only the sender may mark itself safe (no spoofing other players).
+	if not is_host() or not players.has(pid):
+		return
+	if pid != multiplayer.get_remote_sender_id():
+		return
+	players[pid].safe = safe
+
+
+## Cosmetic-only countdown shown on a remote peer; the host drives the real unpause.
+func begin_resume_countdown_remote() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	pause_panel.visible = false
+	_begin_resume_countdown(Callable())
+
+
+func _begin_resume_countdown(on_complete: Callable) -> void:
+	# Headless / fast-forward: no UI and no 2s stall (keeps smoke tests + FF fast).
+	if DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0:
+		if on_complete.is_valid():
+			on_complete.call()
+		return
+	_countdown_done = on_complete
+	countdown_time = RESUME_COUNTDOWN
+	countdown_label.text = str(int(ceil(RESUME_COUNTDOWN)))
+	countdown_panel.visible = true
+	Sfx.play("clock")
+
+
+func _tick_countdown(delta: float) -> void:
+	var prev := countdown_time
+	countdown_time -= delta
+	# tick on each whole-second crossing (e.g. 2 -> 1)
+	if int(ceil(prev)) != int(ceil(maxf(countdown_time, 0.0))) and countdown_time > 0.0:
+		Sfx.play("clock")
+	countdown_label.text = str(maxi(int(ceil(maxf(countdown_time, 0.0))), 1))
+	if countdown_time <= 0.0:
+		countdown_time = 0.0
+		countdown_panel.visible = false
+		var cb := _countdown_done
+		_countdown_done = Callable()
+		if cb.is_valid():
+			cb.call()
+
+
+func _cancel_countdown() -> void:
+	countdown_time = 0.0
+	_countdown_done = Callable()
+	if countdown_panel != null:
+		countdown_panel.visible = false
 
 
 # --- HUD -------------------------------------------------------------------------
@@ -1529,6 +1678,8 @@ func _build_ui() -> void:
 	_build_level_panel()
 	_build_end_panel()
 	_build_pause_panel()
+	_build_ingame_menu_panel()
+	_build_countdown_panel()
 	_build_menu()
 	if OS.is_debug_build():
 		_build_debug_panel()
@@ -1641,6 +1792,45 @@ func _build_pause_panel() -> void:
 	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(foot)
+
+
+func _build_ingame_menu_panel() -> void:
+	var parts := _make_overlay()
+	ingame_menu_panel = parts[0]
+	var vbox: VBoxContainer = parts[1]
+	var l := Label.new()
+	l.text = "MENU"
+	l.add_theme_font_size_override("font_size", 40)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(l)
+	# transient line used by the (stubbed) codex / settings tabs
+	ingame_menu_hint = Label.new()
+	ingame_menu_hint.add_theme_font_size_override("font_size", 18)
+	ingame_menu_hint.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	ingame_menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(ingame_menu_hint)
+	var foot := Label.new()
+	foot.text = "ESC resume   ·   C skill codex   ·   V monster codex   ·   O settings   ·   L leave game"
+	foot.add_theme_font_size_override("font_size", 16)
+	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(foot)
+
+
+func _build_countdown_panel() -> void:
+	var parts := _make_overlay()
+	countdown_panel = parts[0]
+	var vbox: VBoxContainer = parts[1]
+	var head := Label.new()
+	head.text = "RESUMING"
+	head.add_theme_font_size_override("font_size", 24)
+	head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(head)
+	countdown_label = Label.new()
+	countdown_label.add_theme_font_size_override("font_size", 96)
+	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(countdown_label)
 
 
 ## Debug-build-only testing panel: F1 toggles it. God mode + one-click weapon

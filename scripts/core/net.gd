@@ -110,6 +110,18 @@ func send_set_paused(p: bool) -> void:
 		rpc_set_paused.rpc(p)
 
 
+# Client -> host: "my in-game menu is open, mark me safe (invulnerable + held still)".
+func send_set_safe(pid: int, safe: bool) -> void:
+	if active:
+		rpc_set_safe_flag.rpc(pid, safe)
+
+
+# Host -> clients: show the cosmetic resume countdown (the real unpause follows via set_paused).
+func send_resume_countdown() -> void:
+	if active:
+		rpc_resume_countdown.rpc()
+
+
 func send_event(type: int, pos: Vector2) -> void:
 	if active:
 		rpc_event.rpc(type, pos)
@@ -180,6 +192,16 @@ func rpc_resume() -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_set_paused(p: bool) -> void:
 	main.apply_pause(p)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_set_safe_flag(pid: int, safe: bool) -> void:
+	main.apply_set_safe(pid, safe)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_resume_countdown() -> void:
+	main.begin_resume_countdown_remote()
 
 
 @rpc("authority", "call_remote", "reliable")
