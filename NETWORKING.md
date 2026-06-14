@@ -319,6 +319,57 @@ entities/packet; clients send pos/facing 20 Hz.
 4. **Public vs. invite-only rooms** — current plan lists all same-version rooms
    publicly; add a private flag later if needed.
 
+## 13. Deployment plan (decided 2026-06-15) & status
+
+**Status: BLOCKED — waiting on a fixed/static public IP from the home ISP.**
+Online co-op is built, verified (relay path), and in PR #8. Deploy is paused
+until the home network has a static-IP package (today the public IP is dynamic
+and the free-VPS fallback was unavailable when checked). Resume from here.
+
+**Chosen architecture — port-forward path (NOT tunnel-only):**
+- **Lobby Registry → docker-server (`192.168.1.36`), behind the Cloudflare
+  Tunnel** at `niceswarm.hh.coffee` (proxied / orange-cloud → Traefik
+  `http://traefik:80` on the `proxy` network — mirrors the `auction.hh.coffee`
+  stack). HTTP only; no port-forward.
+- **Noray → docker-server, exposed via home-router port-forwards** to
+  `192.168.1.36`, reachable at `noray.hh.coffee` (**DNS-only / grey-cloud** A
+  record → the home public IP; Noray's raw UDP/TCP must bypass the tunnel).
+
+**Why not tunnel-only:** a Cloudflare Tunnel carries only HTTP/WebSocket and
+hides the real source address — it cannot carry Noray's UDP or its hole-punch.
+Tunnel-only would force a WebSocket *always-relay* (no P2P) + replacing the
+Noray transport; rejected in favour of keeping the built-and-verified UDP path.
+
+**Port-forwards (home router → `192.168.1.36`):**
+
+| Proto | Port(s) | Noray role |
+| --- | --- | --- |
+| TCP | 8890 | client registration / orchestration |
+| UDP | 8809 | remote-address registration (NAT discovery) |
+| UDP | 49152–51200 (narrow to ~200 in Noray config) | relay data ports |
+
+(8891 metrics stays internal — do not forward.)
+
+**Confirm before/at deploy:**
+1. **Static public IP** (the package being waited on). With a static IP there is
+   **no DDNS** — set the `noray.hh.coffee` A record once. (If the IP stays
+   dynamic, add a Cloudflare-API DDNS updater, grey-cloud record.)
+2. **Not behind CGNAT** — a real fixed IP should settle this, but verify the
+   router WAN IP equals `curl ifconfig.me` and isn't in `100.64.0.0/10`. If
+   CGNAT persists, port-forward can't work → fall back to a public VPS for Noray
+   (Oracle Always Free / LightNode) or the WebSocket-via-tunnel rewrite (§3 alt).
+
+**Then point the client** (`GameConfig`): `LOBBY_URL=https://niceswarm.hh.coffee`,
+`NORAY_HOST=noray.hh.coffee`, `NORAY_PORT=8890`.
+
+**Remaining build work (when unblocked):**
+- Compose stacks: registry (Traefik labels for `niceswarm.hh.coffee` on the
+  `proxy` network) + Noray (host port publishes, relay range pinned in config).
+- Owner Cloudflare-dashboard actions: add the proxied `niceswarm.hh.coffee`
+  tunnel hostname; add the grey-cloud `noray.hh.coffee` A record.
+- Real **2-machine playtest** — the direct NAT-punch path is the one piece not
+  yet exercised (same-machine testing routes via relay).
+
 ## References
 
 - Noray (server, MIT, Node/Docker): <https://github.com/foxssake/noray>

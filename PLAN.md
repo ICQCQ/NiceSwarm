@@ -166,8 +166,13 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   `CONNECTION_CONNECTED` so relay fallback triggers on connect failure.
 - **Status: code-complete + relay-verified.** Not yet exercised: the **direct NAT-punch** path
   (same code, needs two real different-NAT machines — same-machine test routes via relay as expected).
-- **Next:** deploy Noray + registry to the VPS (set `GameConfig` defaults / env), real 2-machine
-  playtest (direct punch + relay), then UI polish (loading/error states, room codes). See NETWORKING.md §11–12.
+- **Deploy decided** (NETWORKING.md §13): registry on **docker-server behind the Cloudflare Tunnel**
+  at `niceswarm.hh.coffee`; **Noray on docker-server via home-router port-forwards** (TCP 8890,
+  UDP 8809, UDP relay range) at grey-cloud `noray.hh.coffee`. Tunnel-only was rejected (a tunnel
+  can't carry Noray's UDP/hole-punch). **BLOCKED: waiting on a fixed/static-IP ISP package** (current
+  home IP is dynamic; free-VPS fallback was unavailable). Confirm no-CGNAT once the package lands.
+- **Next (when unblocked):** build the two compose stacks + owner CF-dashboard records, set
+  `GameConfig` hostnames, then the real 2-machine playtest (direct NAT-punch — the one unexercised path).
 
 ### 2026-06-14 — Session 2: late-game O(n²) perf fix (branch `perf/game-loop-on2`)
 - User reported late-game crash to <1 fps + attacks "passing through" enemies. Investigated
