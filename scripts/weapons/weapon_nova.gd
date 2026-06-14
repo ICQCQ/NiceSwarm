@@ -19,7 +19,7 @@ func _physics_process(delta: float) -> void:
 	var radius := (130.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.nova.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.nova.growth * (level - 1))
 	var hit_any := false
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 			ignite(e, dmg)

@@ -180,14 +180,11 @@ func get_weapon(id: String) -> Node2D:
 
 
 func nearest_enemy(max_range: float) -> Node2D:
-	var best: Node2D = null
-	var best_d := max_range * max_range
-	for e in get_tree().get_nodes_in_group("enemies"):
-		var d: float = global_position.distance_squared_to(e.global_position)
-		if d < best_d:
-			best_d = d
-			best = e
-	return best
+	# Delegates to the shared per-tick spatial grid (Main) instead of scanning the whole
+	# "enemies" group every call — this covers most weapon/fusion targeting at one site.
+	if Main.instance == null:
+		return null
+	return Main.instance.nearest_enemy_to(global_position, max_range)
 
 
 func take_damage(amount: int) -> void:

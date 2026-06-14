@@ -140,6 +140,25 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-14 — Session 2: late-game O(n²) perf fix (branch `perf/game-loop-on2`)
+- User reported late-game crash to <1 fps + attacks "passing through" enemies. Investigated
+  and wrote [PERFORMANCE.md](PERFORMANCE.md): **two independent O(n²) costs**, and the
+  missed-hits are a *symptom* of the frame collapse (Godot time-dilation past
+  `max_physics_steps_per_frame`), not tunneling (bolt 520 px/s = 8.7 px/step < 17 px radius).
+- **Cost A (engine):** 220 enemies (`CharacterBody2D`) all had `collision_mask = 2` → mutual
+  `move_and_slide()` contact solving. Set enemy `collision_mask = 0` (overlap freely, VS-style).
+- **Cost B (script):** ~70 `get_tree().get_nodes_in_group("enemies")` calls/tick, each
+  allocating a fresh ≤220 array. Added `Main`'s shared per-tick enemy index (`class_name Main`
+  + `static instance`, built once in `_physics_process` before children): `all_enemies()`,
+  `enemies_in_radius()` (uniform 128px grid, O(local)), `nearest_enemy_to()`. Routed
+  `player.nearest_enemy` + orbit + gravity_well through the grid; swapped the rest to the
+  shared cached list. Helpers return `Array[Node]` to preserve call-site inference.
+- Verified headless (a same-version Godot binary; user's `godot` wasn't on the automation
+  PATH): import clean + solo/all_weapons/zoo/merge/bomber/co-op all error-free.
+- **Next:** measure the real fps gain in a playtest (the doc's bisect); optionally do the
+  follow-ups (throttle continuous scanners, migrate nova/laser/flame/spawned to the radius
+  query, `queue_redraw` cleanup). Pushed to fork for a PR to the original repo.
+
 ### 2026-06-13 — Session 1
 - Chose concept (action roguelike) + stack (Godot 4) with user; installed Godot 4.6.3 via Scoop.
 - Built entire first playable (M0–M5): all scripts under `scripts/`, one minimal `scenes/main.tscn`.

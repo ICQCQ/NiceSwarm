@@ -315,14 +315,42 @@ func spawn_enemy(cls: String, tier: int = -1) -> void:
 	e.killed.connect(main._on_enemy_killed)
 	var around: Node2D = main.nearest_alive_player(Vector2.ZERO)
 	var center: Vector2 = around.global_position if around != null else Vector2.ZERO
-	var pos := center + Vector2.from_angle(randf() * TAU) * randf_range(700.0, 900.0)
-	pos.x = clampf(pos.x, GameConfig.ARENA.position.x + 30.0, GameConfig.ARENA.end.x - 30.0)
-	pos.y = clampf(pos.y, GameConfig.ARENA.position.y + 30.0, GameConfig.ARENA.end.y - 30.0)
-	e.position = pos
+	e.position = _enemy_spawn_pos(center)
 	main.enemies_by_id[e.net_id] = e
 	main.world.add_child(e)
 	if cls == "bouncer":
 		bouncer_live += 1
+
+
+## Pick a spawn point on the [SPAWN_RING_MIN, SPAWN_RING_MAX] ring around `center`,
+## clamped to the arena. Because the per-axis clamp can drag a point back toward a
+## player parked near an edge/corner, we retry a few angles and reject any result
+## that lands within SPAWN_SAFE_RADIUS of ANY alive player. If every try is blocked
+## (player boxed into a corner), nudge the best candidate straight away from the
+## nearest player so an enemy never materialises on top of someone.
+func _enemy_spawn_pos(center: Vector2) -> Vector2:
+	var safe_sq := GameConfig.SPAWN_SAFE_RADIUS * GameConfig.SPAWN_SAFE_RADIUS
+	var best := center
+	var best_d := -1.0
+	for _i in 8:
+		var pos := center + Vector2.from_angle(randf() * TAU) * randf_range(GameConfig.SPAWN_RING_MIN, GameConfig.SPAWN_RING_MAX)
+		pos.x = clampf(pos.x, GameConfig.ARENA.position.x + 30.0, GameConfig.ARENA.end.x - 30.0)
+		pos.y = clampf(pos.y, GameConfig.ARENA.position.y + 30.0, GameConfig.ARENA.end.y - 30.0)
+		var near: Node2D = main.nearest_alive_player(pos)
+		var nd: float = INF if near == null else pos.distance_squared_to(near.global_position)
+		if nd >= safe_sq:
+			return pos
+		if nd > best_d:
+			best_d = nd
+			best = pos
+	var fallback: Node2D = main.nearest_alive_player(best)
+	if fallback != null:
+		var away: Vector2 = best - fallback.global_position
+		away = Vector2.from_angle(randf() * TAU) if away.length() < 1.0 else away.normalized()
+		best = fallback.global_position + away * GameConfig.SPAWN_SAFE_RADIUS
+		best.x = clampf(best.x, GameConfig.ARENA.position.x + 30.0, GameConfig.ARENA.end.x - 30.0)
+		best.y = clampf(best.y, GameConfig.ARENA.position.y + 30.0, GameConfig.ARENA.end.y - 30.0)
+	return best
 
 
 ## Live enemy count excluding the bouncer population (which has its own cap

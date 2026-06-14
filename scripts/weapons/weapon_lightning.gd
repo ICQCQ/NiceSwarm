@@ -45,7 +45,7 @@ func _next_target(from: Vector2, visited: Dictionary) -> Node2D:
 	var best: Node2D = null
 	var jump := 200.0 * player.area_mult
 	var best_d := jump * jump
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		if visited.has(e.get_instance_id()):
 			continue
 		var d: float = from.distance_squared_to(e.global_position)

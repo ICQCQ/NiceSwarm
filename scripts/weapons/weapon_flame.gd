@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	var reach := (150.0 + 12.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.flame.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.flame.growth * (level - 1))
 	var hit_any := false
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in Main.instance.all_enemies():
 		var to: Vector2 = e.global_position - player.global_position
 		if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF_ANGLE:
 			e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)

@@ -1,3 +1,4 @@
+class_name Main
 extends Node2D
 ## NiceSwarm game controller: menu/lobby, world setup, host-authoritative
 ## simulation (spawning, XP, pickups, revives, win/lose), upgrade flow, HUD.
@@ -16,6 +17,9 @@ const WIN_TIME := GameConfig.WIN_TIME
 const MAX_WEAPONS := GameConfig.MAX_WEAPONS
 const MAX_WEAPON_LEVEL := GameConfig.MAX_WEAPON_LEVEL
 const ENEMY_CAP := GameConfig.ENEMY_CAP
+const SPAWN_RING_MIN := GameConfig.SPAWN_RING_MIN
+const SPAWN_RING_MAX := GameConfig.SPAWN_RING_MAX
+const SPAWN_SAFE_RADIUS := GameConfig.SPAWN_SAFE_RADIUS
 
 const PICKUP_KINDS := ["heart", "bomb", "magnet", "chest"]
 const STATE_ENEMIES := 0
@@ -117,6 +121,17 @@ var gems_by_id := {}
 var pickups_by_id := {}
 var telegraphs_by_id := {}
 
+# --- shared enemy spatial index (perf: built once per physics tick) ---
+# Every weapon/projectile used to call get_tree().get_nodes_in_group("enemies") each
+# frame (~70 sites), allocating a fresh array of up to ENEMY_CAP and scanning it all —
+# an O(emitters * n) cliff late game. Instead we snapshot the group once per tick into
+# _enemy_list and bucket it into a uniform grid; emitters query all_enemies() (no alloc)
+# or enemies_in_radius()/nearest_enemy_to() (O(local)).
+static var instance: Main
+const GRID_CELL := 128.0
+var _enemy_list: Array[Node] = []   # typed so callers keep Node inference (matches get_nodes_in_group)
+var _enemy_grid: Dictionary = {}  # Vector2i cell -> Array[Node]
+
 # sync timers / buffers
 var t_player := 0.0
 var t_enemy := 0.0
@@ -163,6 +178,7 @@ var debug_fuse_b: OptionButton
 
 
 func _ready() -> void:
+	instance = self
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
 	RenderingServer.set_default_clear_color(Color(0.04, 0.04, 0.07))
@@ -498,7 +514,13 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not playing or not net.active:
+	if not playing:
+		return
+	# Rebuild the shared enemy index first, every tick, in EVERY mode (solo returns
+	# below at the net.active guard, but weapons/projectiles still query the grid).
+	# Main is the scene root, so this runs before any weapon/enemy _physics_process.
+	_rebuild_enemy_grid()
+	if not net.active:
 		return
 	t_player += delta
 	if t_player >= 0.05:
@@ -523,6 +545,61 @@ func _physics_process(delta: float) -> void:
 	if t_hud >= 0.25:
 		t_hud = 0.0
 		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, spawner.heat_cur, spawner.difficulty)
+
+
+# --- shared enemy spatial index ----------------------------------------------
+
+func _rebuild_enemy_grid() -> void:
+	_enemy_list = get_tree().get_nodes_in_group("enemies")
+	_enemy_grid.clear()
+	for e in _enemy_list:
+		var c := _cell(e.global_position)
+		var bucket: Array = _enemy_grid.get(c, [])
+		if bucket.is_empty():
+			_enemy_grid[c] = bucket
+		bucket.append(e)
+
+
+func _cell(p: Vector2) -> Vector2i:
+	return Vector2i(int(floor(p.x / GRID_CELL)), int(floor(p.y / GRID_CELL)))
+
+
+## All live enemies, snapshotted once this tick — no per-call allocation or group scan.
+func all_enemies() -> Array[Node]:
+	return _enemy_list
+
+
+## Enemies whose center is within `r` of `pos`. Broad-phase: callers keep their own
+## precise `distance <= reach + e.radius` check, so pass `reach + a small margin`.
+func enemies_in_radius(pos: Vector2, r: float) -> Array[Node]:
+	var out: Array[Node] = []
+	var rr := r * r
+	var cmin := _cell(pos - Vector2(r, r))
+	var cmax := _cell(pos + Vector2(r, r))
+	for cx in range(cmin.x, cmax.x + 1):
+		for cy in range(cmin.y, cmax.y + 1):
+			var bucket: Array = _enemy_grid.get(Vector2i(cx, cy), [])
+			for e in bucket:
+				if pos.distance_squared_to(e.global_position) <= rr:
+					out.append(e)
+	return out
+
+
+## Nearest enemy to `pos` within `max_range`, via the grid (replaces full-group scans).
+func nearest_enemy_to(pos: Vector2, max_range: float) -> Node2D:
+	var best: Node2D = null
+	var best_d := max_range * max_range
+	var cmin := _cell(pos - Vector2(max_range, max_range))
+	var cmax := _cell(pos + Vector2(max_range, max_range))
+	for cx in range(cmin.x, cmax.x + 1):
+		for cy in range(cmin.y, cmax.y + 1):
+			var bucket: Array = _enemy_grid.get(Vector2i(cx, cy), [])
+			for e in bucket:
+				var d: float = pos.distance_squared_to(e.global_position)
+				if d < best_d:
+					best_d = d
+					best = e
+	return best
 
 
 # --- host: spawning ----------------------------------------------------------
@@ -599,7 +676,7 @@ func _on_pickup_taken(kind: String, by: Node2D, pickup: Pickup) -> void:
 		"bomb":
 			_bomb_fx(by.global_position)
 			net.send_event(EVENT_BOMB, by.global_position)
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in Main.instance.all_enemies():
 				if by.global_position.distance_to(e.global_position) <= 850.0:
 					e.take_hit(30.0, by.global_position)
 		"magnet":
