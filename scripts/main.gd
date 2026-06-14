@@ -17,6 +17,7 @@ const WIN_TIME := GameConfig.WIN_TIME
 const MAX_WEAPONS := GameConfig.MAX_WEAPONS
 const MAX_WEAPON_LEVEL := GameConfig.MAX_WEAPON_LEVEL
 const ENEMY_CAP := GameConfig.ENEMY_CAP
+const MAX_GEMS := GameConfig.MAX_GEMS
 const SPAWN_RING_MIN := GameConfig.SPAWN_RING_MIN
 const SPAWN_RING_MAX := GameConfig.SPAWN_RING_MAX
 const SPAWN_SAFE_RADIUS := GameConfig.SPAWN_SAFE_RADIUS
@@ -103,6 +104,7 @@ var picks_starter := false      # current pick is the start-of-run weapon choice
 var picked_ids := {}            # host: peers that picked this round
 var i_chose := false
 var paused_menu := false
+var _ff_min := -1               # NICESWARM_FF: last game-minute printed during a fast-forward run
 
 # upgrade-category accent colors (option buttons + descriptions)
 const CAT_COLORS := {
@@ -342,8 +344,30 @@ func start_game(ids: Array) -> void:
 	playing = true
 	menu_panel.visible = false
 	hud_root.visible = true
+	_apply_fast_forward()
 	if OS.get_environment("NICESWARM_NET") != "":
 		print("[test] start_game peers=%s local=%d host=%s" % [str(peer_ids), local_id, str(is_host())])
+
+
+## NICESWARM_FF=<mult>: scale the engine clock so a headless host run reaches minute 10 in
+## seconds, faithfully (enemies, weapons, spawning, gems all see the scaled delta). Host
+## only; players are made immortal (reusing player.debug_god) so the run survives to 10:00,
+## and _process prints level/gems each game-minute + auto-resolves level-up picks (no input).
+func _apply_fast_forward() -> void:
+	var ff := OS.get_environment("NICESWARM_FF")
+	if ff == "" or not is_host():
+		return
+	var mult := maxf(ff.to_float(), 1.0)
+	if mult <= 1.0:
+		return
+	Engine.time_scale = mult
+	Engine.max_physics_steps_per_frame = int(ceil(mult)) + 8  # let physics keep pace with the clock
+	for id in players:
+		var p = players[id]
+		if is_instance_valid(p):
+			p.debug_god = true
+	_ff_min = -1
+	print("[ff] fast-forward x%d toward %ds game-time" % [int(mult), int(WIN_TIME)])
 
 
 func reset_game() -> void:
@@ -510,6 +534,15 @@ func _process(delta: float) -> void:
 		spawner.update_difficulty(delta)
 		spawner.run_spawning(delta)
 		_run_revives(delta)
+		if Engine.time_scale > 1.0:  # NICESWARM_FF: log progress at each game-minute
+			var m := int(elapsed / 60.0)
+			if m != _ff_min:
+				_ff_min = m
+				print("[ff] min=%d level=%d xp_need=%d gems=%d enemies=%d diff=%.1f" \
+					% [m, level, _xp_needed(), gems_by_id.size(), enemies_by_id.size(), spawner.difficulty])
+	# NICESWARM_FF: auto-resolve level-up picks headless, else the first level-up pauses forever
+	if Engine.time_scale > 1.0 and leveling and not i_chose and not current_choices.is_empty():
+		_choose_upgrade(0)
 	_update_hud()
 
 
@@ -635,15 +668,20 @@ func _on_enemy_killed(enemy: Enemy) -> void:
 	# bursters spit a ring of shard bullets on death (deferred — see EnemySpawner.spawn_burst)
 	if enemy.burst_count > 0 and enemies_by_id.size() + enemy.burst_count <= ENEMY_CAP:
 		spawner.spawn_burst.call_deferred(enemy.global_position, enemy.burst_count)
-	var gem := XpGem.new()
-	gem.value = enemy.xp_value
-	gem.main_ref = self
-	gem.net_id = item_seq
-	item_seq += 1
-	gem.position = enemy.global_position
-	gem.collected.connect(_on_gem_collected.bind(gem))
-	gems_by_id[gem.net_id] = gem
-	world.add_child(gem)
+	# At the gem cap, don't spawn another ground gem (they're _process-d, drawn and synced
+	# every frame). Funnel the XP into the gem farthest from any player instead.
+	if gems_by_id.size() >= MAX_GEMS:
+		_condense_gem(enemy.xp_value)
+	else:
+		var gem := XpGem.new()
+		gem.value = enemy.xp_value
+		gem.main_ref = self
+		gem.net_id = item_seq
+		item_seq += 1
+		gem.position = enemy.global_position
+		gem.collected.connect(_on_gem_collected.bind(gem))
+		gems_by_id[gem.net_id] = gem
+		world.add_child(gem)
 
 	if enemy.elite:
 		_spawn_pickup("chest", enemy.global_position + Vector2(20.0, 0.0))
@@ -653,6 +691,26 @@ func _on_enemy_killed(enemy: Enemy) -> void:
 			_spawn_pickup(kinds.pick_random(), enemy.global_position + Vector2(20.0, 0.0))
 	elif randf() < 0.015:
 		_spawn_pickup("heart", enemy.global_position)
+
+
+## At the gem cap, add `value` to the existing gem farthest from its nearest player (the
+## one least likely to be collected soon). It auto-renders red/large once its value crosses
+## GEM_CONDENSED_THRESHOLD; clients pick the new value up from the gem sync.
+func _condense_gem(value: int) -> void:
+	var best: XpGem = null
+	var best_d := -1.0
+	for id in gems_by_id:
+		var g = gems_by_id[id]
+		if not is_instance_valid(g):
+			continue
+		var p: Node2D = nearest_alive_player(g.global_position)
+		var d: float = 0.0 if p == null else g.global_position.distance_squared_to(p.global_position)
+		if d > best_d:
+			best_d = d
+			best = g
+	if best != null:
+		best.value += value
+		best.queue_redraw()
 
 
 func _spawn_pickup(kind: String, pos: Vector2) -> void:
@@ -677,7 +735,7 @@ func _on_pickup_taken(kind: String, by: Node2D, pickup: Pickup) -> void:
 			_bomb_fx(by.global_position)
 			net.send_event(EVENT_BOMB, by.global_position)
 			for e in Main.instance.all_enemies():
-				if by.global_position.distance_to(e.global_position) <= 850.0:
+				if is_instance_valid(e) and by.global_position.distance_to(e.global_position) <= 850.0:
 					e.take_hit(30.0, by.global_position)
 		"magnet":
 			Sfx.play("gem", by.global_position)
@@ -743,8 +801,9 @@ func _on_gem_collected(value: int, gem: XpGem) -> void:
 	_maybe_open_picks()
 
 
+## Cost at the current level to reach the next (three-band curve in GameConfig).
 func _xp_needed() -> int:
-	return maxi(1, int(round((6 + (level - 1) * 4) / cfg_xp_rate)))
+	return GameConfig.xp_for_level(level, cfg_xp_rate)
 
 
 func _current_needed() -> int:
@@ -1011,6 +1070,10 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 	if game_over:
 		return
 	game_over = true
+	if Engine.time_scale > 1.0:  # NICESWARM_FF: final calibration line, then drop the clock back
+		print("[ff] END won=%s min=%.1f level=%d kills=%d gems=%d" \
+			% [str(won), elapsed_ / 60.0, level_, kills_, gems_by_id.size()])
+		Engine.time_scale = 1.0
 	get_tree().paused = true
 	end_title.text = "YOU SURVIVED THE NIGHT" if won else "THE PARTY HAS FALLEN"
 	end_title.add_theme_color_override("font_color",
@@ -1183,6 +1246,9 @@ func _apply_state(kind: int, data: PackedFloat32Array) -> void:
 					g.position = pos
 					gems_by_id[id] = g
 					world.add_child(g)
+				elif g.value != int(f):  # condensed on the host -> update value + recolor
+					g.value = int(f)
+					g.queue_redraw()
 				g.net_target = pos
 			STATE_PICKUPS:
 				var pk = pickups_by_id.get(id)
