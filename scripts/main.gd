@@ -16,6 +16,9 @@ const WIN_TIME := GameConfig.WIN_TIME
 const MAX_WEAPONS := GameConfig.MAX_WEAPONS
 const MAX_WEAPON_LEVEL := GameConfig.MAX_WEAPON_LEVEL
 const ENEMY_CAP := GameConfig.ENEMY_CAP
+const SPAWN_RING_MIN := GameConfig.SPAWN_RING_MIN
+const SPAWN_RING_MAX := GameConfig.SPAWN_RING_MAX
+const SPAWN_SAFE_RADIUS := GameConfig.SPAWN_SAFE_RADIUS
 
 const ENEMY_CLASSES := EnemyConfig.CLASSES  # data lives in config/enemy_config.gd
 const PICKUP_KINDS := ["heart", "bomb", "magnet", "chest"]
@@ -712,12 +715,40 @@ func _spawn_enemy(cls: String, tier: int = -1) -> void:
 	e.killed.connect(_on_enemy_killed)
 	var around: Node2D = nearest_alive_player(Vector2.ZERO)
 	var center: Vector2 = around.global_position if around != null else Vector2.ZERO
-	var pos := center + Vector2.from_angle(randf() * TAU) * randf_range(700.0, 900.0)
-	pos.x = clampf(pos.x, ARENA.position.x + 30.0, ARENA.end.x - 30.0)
-	pos.y = clampf(pos.y, ARENA.position.y + 30.0, ARENA.end.y - 30.0)
-	e.position = pos
+	e.position = _enemy_spawn_pos(center)
 	enemies_by_id[e.net_id] = e
 	world.add_child(e)
+
+
+## Pick a spawn point on the [SPAWN_RING_MIN, SPAWN_RING_MAX] ring around `center`,
+## clamped to the arena. Because the per-axis clamp can drag a point back toward a
+## player parked near an edge/corner, we retry a few angles and reject any result
+## that lands within SPAWN_SAFE_RADIUS of ANY alive player. If every try is blocked
+## (player boxed into a corner), nudge the best candidate straight away from the
+## nearest player so an enemy never materialises on top of someone.
+func _enemy_spawn_pos(center: Vector2) -> Vector2:
+	var safe_sq := SPAWN_SAFE_RADIUS * SPAWN_SAFE_RADIUS
+	var best := center
+	var best_d := -1.0
+	for _i in 8:
+		var pos := center + Vector2.from_angle(randf() * TAU) * randf_range(SPAWN_RING_MIN, SPAWN_RING_MAX)
+		pos.x = clampf(pos.x, ARENA.position.x + 30.0, ARENA.end.x - 30.0)
+		pos.y = clampf(pos.y, ARENA.position.y + 30.0, ARENA.end.y - 30.0)
+		var near := nearest_alive_player(pos)
+		var nd: float = INF if near == null else pos.distance_squared_to(near.global_position)
+		if nd >= safe_sq:
+			return pos
+		if nd > best_d:
+			best_d = nd
+			best = pos
+	var fallback := nearest_alive_player(best)
+	if fallback != null:
+		var away := best - fallback.global_position
+		away = Vector2.from_angle(randf() * TAU) if away.length() < 1.0 else away.normalized()
+		best = fallback.global_position + away * SPAWN_SAFE_RADIUS
+		best.x = clampf(best.x, ARENA.position.x + 30.0, ARENA.end.x - 30.0)
+		best.y = clampf(best.y, ARENA.position.y + 30.0, ARENA.end.y - 30.0)
+	return best
 
 
 ## Host only: a bombardier marks a danger zone; it detonates after TELEGRAPH_WARN

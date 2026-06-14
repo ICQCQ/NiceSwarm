@@ -22,6 +22,9 @@ const DIFF_WARMUP_FLOOR := 0.25  # early-game climb fraction at t=0
 const DIFF_WARMUP_SECS := 80.0   # seconds to ramp warmup to full
 
 # --- spawning ---
+const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor player...
+const SPAWN_RING_MAX := 900.0         # ...up to this far (random within the ring)
+const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player
 const SPAWN_DESIRED_BASE := 6.0       # target live-enemy count at difficulty 0
 const SPAWN_DESIRED_PER_DIFF := 3.0   # +this many target enemies per difficulty point
 const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
