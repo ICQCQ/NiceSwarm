@@ -75,6 +75,16 @@ var _score := {}                # peer_id -> {damage, xp, revives, deaths} (host
 var net_scores: Array = []      # end-game scoreboard rows received by clients
 var local_id := 1
 var auto_start_on_join := false # test hook
+var rejoin_pending := false     # we have a saved session: check on the next Join whether it's resumable
+var rejoin_old_id := 0          # our peer id in the run we're trying to rejoin
+
+# Persists rejoin_old_id + host address across a full app restart (e.g. the player
+# closed the game after disconnecting), so the next "Join" can still resume the run.
+const REJOIN_SAVE_PATH := "user://rejoin.cfg"
+
+# Remembers the last server a client successfully joined, so the address/port
+# fields are prefilled next launch instead of defaulting to 127.0.0.1.
+const LAST_JOIN_SAVE_PATH := "user://last_join.cfg"
 
 # --- lobby (pre-game roster + appearance) ---
 var lobby_players := {}         # peer_id -> {name, color, shape}; synced host<->clients
@@ -108,6 +118,8 @@ var free_choice := false
 var pending_chests := 0
 var picks_starter := false      # current pick is the start-of-run weapon choice
 var picked_ids := {}            # host: peers that picked this round
+var choice_history := {}        # peer_id -> Array[String] of upgrade ids applied, in order
+                                 # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
 var ingame_menu := false        # our own in-game menu/hub is open (host: global pause; client: local + safe)
@@ -218,6 +230,8 @@ func _ready() -> void:
 	spawner.build_type_registry()
 	_build_ui()
 	_show_menu("")
+	_load_last_join_address()
+	_load_rejoin_state()
 
 	# Best-effort: compare our exe against the latest published build and offer an update.
 	update_check = UpdateCheck.new()
@@ -244,7 +258,7 @@ func nearest_alive_player(pos: Vector2) -> Node2D:
 	var best: Node2D = null
 	var best_d := INF
 	for p in players.values():
-		if p.downed:
+		if p.downed or p.disconnected:  # ghosts are invisible to enemy targeting
 			continue
 		var d: float = pos.distance_squared_to(p.global_position)
 		if d < best_d:
@@ -255,8 +269,18 @@ func nearest_alive_player(pos: Vector2) -> Node2D:
 
 # --- menu / session flow ----------------------------------------------------
 
+## Single entry point for "return to the main menu" -- always leaves a clean
+## slate, regardless of what was on screen (mid-run leave, host disconnect
+## while a level-up/pause/end panel was up, failed join, etc.).
 func _show_menu(message: String) -> void:
 	playing = false
+	get_tree().paused = false
+	level_panel.visible = false
+	end_panel.visible = false
+	pause_panel.visible = false
+	paused_menu = false
+	leveling = false
+	_force_close_ingame_menu()
 	menu_panel.visible = true
 	lobby_panel.visible = false
 	lobby_players = {}
@@ -302,6 +326,8 @@ func _menu_port() -> int:
 
 
 func _on_host_pressed() -> void:
+	if net.active:
+		net.leave()
 	var port := _menu_port()
 	var err := net.host_game(port)
 	if err != "":
@@ -311,7 +337,13 @@ func _on_host_pressed() -> void:
 	_show_lobby("Hosting\nPlayers: 1 (you)")
 
 
+## Join always does the same thing, whether or not we have a saved session to
+## resume: connect, then (if rejoin_pending) ask the host -- non-mutating,
+## right now on click, never in the background -- whether our old slot is
+## still available. on_join_ok/on_rejoin_check_result take it from there.
 func _on_join_pressed() -> void:
+	if net.active:
+		net.leave()
 	var port := _menu_port()
 	var err := net.join_game(ip_edit.text.strip_edges(), port)
 	if err != "":
@@ -325,7 +357,8 @@ func _on_start_pressed() -> void:
 	var ids: Array = [1]
 	for p in multiplayer.get_peers():
 		ids.append(p)
-	net.lock_session()
+	# Connections stay open after start (unlike a session lock) so a disconnected
+	# player can reconnect and rejoin via handle_rejoin_request.
 	_apply_menu_config()
 	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
 	net.send_start(PackedInt32Array(ids))
@@ -340,13 +373,20 @@ func apply_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 		_refresh_lobby_config_display()
 
 
+## Replace the last line of the lobby status label with the current player count
+## (host-only). Used on both join and leave so the text reflects the current
+## roster instead of accumulating stale "(a player left)" notices.
+func _refresh_lobby_player_count() -> void:
+	lobby_status_label.text = lobby_status_label.text.rsplit("\n", true, 1)[0] \
+		+ "\nPlayers: %d (you + %d)" % [1 + multiplayer.get_peers().size(),
+			multiplayer.get_peers().size()]
+
+
 func on_peer_connected(id: int) -> void:
 	if playing:
 		return
 	if is_host():
-		lobby_status_label.text = lobby_status_label.text.rsplit("\n", true, 1)[0] \
-			+ "\nPlayers: %d (you + %d)" % [1 + multiplayer.get_peers().size(),
-				multiplayer.get_peers().size()]
+		_refresh_lobby_player_count()
 		if not lobby_players.has(id):
 			lobby_players[id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
 				"shape": randi() % Player.SHAPES.size()}
@@ -361,22 +401,32 @@ func on_peer_disconnected(id: int) -> void:
 		lobby_players.erase(id)
 		_refresh_lobby_roster()
 		if is_host():
-			lobby_status_label.text += "\n(a player left)"
+			_refresh_lobby_player_count()
 			net.send_lobby_state(lobby_players)
 		return
+	# Mid-game: keep the player's character (with its weapons/levels intact) in
+	# place, ghosted and invulnerable, so they can rejoin and pick up where they
+	# left off instead of being removed from the run.
 	var p: Player = players.get(id)
 	if p != null:
-		p.queue_free()
-	players.erase(id)
-	peer_ids.erase(id)
+		p.disconnected = true
 	if is_host():
-		picked_ids.erase(id)
-		if leveling:
+		if p != null:
+			p.safe = true
+		if leveling and not picked_ids.has(id):
+			picked_ids[id] = true  # don't block "wait for all" on an absent player
 			_check_all_picked()
-		_check_all_downed()
+		net.send_player_connection(id, false)
 
 
 func on_join_ok() -> void:
+	local_id = multiplayer.get_unique_id()
+	_save_last_join_address(ip_edit.text.strip_edges(), lobby_port)
+	if rejoin_pending:
+		# We have a saved session -- ask the host (non-mutating, right now on this
+		# connection) whether it's still available before committing to anything.
+		net.send_rejoin_check(rejoin_old_id)
+		return
 	_show_lobby("Connected! Waiting for the host to start...")
 
 
@@ -386,9 +436,258 @@ func on_join_failed() -> void:
 
 
 func on_server_disconnected() -> void:
+	var was_playing := playing
+	var old_id := local_id
 	net.leave()
 	_clear_world()
-	_show_menu("Host disconnected.")
+	if was_playing:
+		rejoin_old_id = old_id
+		rejoin_pending = true
+		_save_rejoin_state(old_id, ip_edit.text.strip_edges(), lobby_port)
+		_show_menu("")
+	else:
+		_show_menu("Host disconnected.")
+
+
+## Host's (non-mutating) answer to rpc_rejoin_check: is our old slot still ghosted
+## and waiting (in-game), or does the host have no run at all (lobby)?
+func on_rejoin_check_result(available: bool, in_lobby: bool) -> void:
+	if not available:
+		net.leave()
+		rejoin_pending = false
+		_clear_rejoin_state()
+		_show_menu("Could not rejoin -- that session has already started without you.")
+		return
+	if in_lobby:
+		rejoin_pending = false
+		_clear_rejoin_state()  # the old run is gone -- this is a fresh lobby join now
+		_show_lobby("Connected! Waiting for the host to start...")
+		return
+	net.send_rejoin_request(rejoin_old_id)
+	status_label.text = "Reconnected, restoring your character..."
+
+
+## Host: non-mutating answer to "can new_id rejoin as old_pid?" -- the rejoining
+## client checks this on its "Join" click before committing to a rejoin request.
+func handle_rejoin_check(new_id: int, old_pid: int) -> void:
+	if not is_host():
+		return
+	if not playing:
+		net.send_rejoin_check_result(new_id, true, true)  # no run -- but the lobby is open
+		return
+	var p: Player = players.get(old_pid)
+	net.send_rejoin_check_result(new_id, p != null and p.disconnected, false)
+
+
+## Host: a freshly (re)connected peer `new_id` claims to be the disconnected
+## player previously known as `old_pid`. If that slot is still here and marked
+## disconnected, hand it over -- the Player node (with its weapons/levels intact)
+## is reused as-is, so the rejoining client just needs to catch up on choices
+## made while it was away.
+func handle_rejoin_request(new_id: int, old_pid: int) -> void:
+	if not is_host():
+		return
+	if not playing:
+		net.send_rejoin_reject(new_id, "The host left the run.")
+		return
+	var p: Player = players.get(old_pid)
+	if p == null or not p.disconnected:
+		net.send_rejoin_reject(new_id, "Could not rejoin -- that player slot is no longer available.")
+		return
+	players.erase(old_pid)
+	players[new_id] = p
+	p.peer_id = new_id
+	p.disconnected = false
+	p.safe = false
+	var i := peer_ids.find(old_pid)
+	if i != -1:
+		peer_ids[i] = new_id
+	peer_ids.sort()
+	_rekey(lobby_players, old_pid, new_id)
+	_rekey(_score, old_pid, new_id)
+	_rekey(choice_history, old_pid, new_id)
+	_rekey(picked_ids, old_pid, new_id)
+	if leveling:
+		# A round in progress now has a real screen to show this client (below) --
+		# don't count their (possibly ghost-skipped) old entry as already picked.
+		picked_ids.erase(new_id)
+	var hp_snapshot := {}
+	for pid in players:
+		var pl: Player = players[pid]
+		hp_snapshot[pid] = [pl.hp, pl.max_hp, pl.downed, pl.global_position.x, pl.global_position.y]
+	net.send_player_rejoined(old_pid, new_id)
+	# Mark a reconnect with a shared "resuming" countdown -- but only when play was
+	# actually running (not mid-level-up, not already paused for some other reason).
+	var resuming := not leveling and not get_tree().paused
+	if resuming:
+		get_tree().paused = true
+		net.send_set_paused(true)
+	net.send_rejoin_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
+		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
+		get_tree().paused, leveling, free_choice, picks_starter, resuming)
+	if resuming:
+		net.send_resume_countdown()
+		_begin_resume_countdown(func() -> void:
+			get_tree().paused = false
+			net.send_set_paused(false))
+
+
+## Other clients: the host just handed the disconnected slot `old_pid` over to
+## `new_pid` -- re-key local bookkeeping so the (still-alive) Player node is found
+## under its new id. No-op for the rejoining client itself (it rebuilds its whole
+## view via rejoin_game instead).
+func apply_player_rejoined(old_pid: int, new_pid: int) -> void:
+	if not players.has(old_pid):
+		return
+	var p: Player = players[old_pid]
+	players.erase(old_pid)
+	players[new_pid] = p
+	p.peer_id = new_pid
+	p.disconnected = false
+	p.safe = false
+	p.is_local = new_pid == local_id
+	var i := peer_ids.find(old_pid)
+	if i != -1:
+		peer_ids[i] = new_pid
+	peer_ids.sort()
+	_rekey(lobby_players, old_pid, new_pid)
+	_rekey(_score, old_pid, new_pid)
+	_rekey(choice_history, old_pid, new_pid)
+	_rekey(picked_ids, old_pid, new_pid)
+
+
+func _rekey(d: Dictionary, old_key, new_key) -> void:
+	if old_key == new_key or not d.has(old_key):
+		return
+	d[new_key] = d[old_key]
+	d.erase(old_key)
+
+
+func on_rejoin_rejected(reason: String) -> void:
+	net.leave()
+	rejoin_pending = false
+	_clear_rejoin_state()
+	_show_menu(reason)
+
+
+## Remember rejoin_old_id + the host address on disk so "Rejoin" still works
+## after the player fully closes and relaunches the game.
+func _save_rejoin_state(old_id: int, ip: String, port: int) -> void:
+	var f := FileAccess.open(REJOIN_SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_var({"old_id": old_id, "ip": ip, "port": port})
+
+
+## Called once at startup: if we have a saved rejoin from a previous session,
+## restore rejoin_pending/rejoin_old_id and pre-fill the host address so the
+## next "Join" checks whether it's resumable.
+func _load_rejoin_state() -> void:
+	if OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_TEST") != "":
+		return  # headless test runs: ignore any stale save from interactive play
+	if not FileAccess.file_exists(REJOIN_SAVE_PATH):
+		return
+	var f := FileAccess.open(REJOIN_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var data = f.get_var()
+	if typeof(data) != TYPE_DICTIONARY or not data.has("old_id"):
+		return
+	rejoin_old_id = int(data["old_id"])
+	rejoin_pending = true
+	if data.has("ip"):
+		ip_edit.text = str(data["ip"])
+	if data.has("port"):
+		port_edit.text = str(int(data["port"]))
+
+
+func _clear_rejoin_state() -> void:
+	var da := DirAccess.open("user://")
+	if da != null and da.file_exists("rejoin.cfg"):
+		da.remove("rejoin.cfg")
+
+
+## Remember the address/port a client just successfully connected to, so the
+## join fields are prefilled with it next launch.
+func _save_last_join_address(ip: String, port: int) -> void:
+	var f := FileAccess.open(LAST_JOIN_SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_var({"ip": ip, "port": port})
+
+
+## Called once at startup: prefill the join address/port fields from the last
+## server a client successfully connected to (defaults stay as-is if none saved).
+func _load_last_join_address() -> void:
+	if OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_TEST") != "":
+		return  # headless test runs: ignore any stale save from interactive play
+	if not FileAccess.file_exists(LAST_JOIN_SAVE_PATH):
+		return
+	var f := FileAccess.open(LAST_JOIN_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var data = f.get_var()
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	if data.has("ip"):
+		ip_edit.text = str(data["ip"])
+	if data.has("port"):
+		port_edit.text = str(int(data["port"]))
+
+
+## Rejoining client: the host accepted our rejoin request. Rebuild the world for
+## the current roster, then replay every choice made since the run started (ours
+## included) so weapons/levels/stat upgrades come back exactly as they were, and
+## restore each player's current HP from the host's snapshot.
+func rejoin_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
+		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool,
+		resuming: bool) -> void:
+	peer_ids = Array(ids)
+	peer_ids.sort()
+	lobby_players = roster
+	cfg_choices = choices
+	cfg_xp_rate = xp_rate
+	cfg_enemy_scale = enemy_scale
+	local_id = multiplayer.get_unique_id()
+	_reset_run_state()
+	_build_world(false)
+	for pid in history:
+		for id in history[pid]:
+			apply_choice(int(pid), id, true)
+	choice_history = history.duplicate(true)
+	for pid in hp_snapshot:
+		var pl: Player = players.get(int(pid))
+		if pl == null:
+			continue
+		var info: Array = hp_snapshot[pid]
+		pl.hp = int(info[0])
+		pl.max_hp = int(info[1])
+		pl.downed = bool(info[2])
+		# _build_world placed everyone on a fresh spawn-circle near the origin --
+		# snap back to where they actually are in the run (the ghost's last known
+		# position for us, current positions for everyone else).
+		pl.global_position = Vector2(float(info[3]), float(info[4]))
+		pl.net_target = pl.global_position
+		pl.health_changed.emit(pl.hp, pl.max_hp)
+	playing = true
+	rejoin_pending = false
+	# Re-save under our new peer id, so a later disconnect+close can rejoin again.
+	_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
+	menu_panel.visible = false
+	lobby_panel.visible = false
+	hud_root.visible = true
+	# Match the run's current pause/level-up state -- otherwise we'd run unpaused
+	# while everyone else is frozen on a level-up screen (our world keeps moving,
+	# theirs doesn't, so they appear frozen to us).
+	if host_leveling:
+		open_picks(host_free_choice, host_picks_starter)
+	elif host_paused:
+		get_tree().paused = true
+		if resuming:
+			# The host paused everyone for a shared "resuming..." countdown to mark our
+			# reconnect -- show it here too (the host's set_paused(false) afterward
+			# unpauses us via apply_pause, same as everyone else).
+			paused_menu = true
+			_begin_resume_countdown(Callable())
 
 
 # --- lobby (pre-game roster + appearance) ------------------------------------
@@ -396,6 +695,7 @@ func on_server_disconnected() -> void:
 ## Shows the lobby panel (roster + appearance picker + game config) after a
 ## successful host/join. `status` is the connection-state line shown at top.
 func _show_lobby(status: String) -> void:
+	rejoin_pending = false
 	menu_panel.visible = false
 	lobby_panel.visible = true
 	hud_root.visible = false
@@ -580,13 +880,21 @@ func start_game(ids: Array) -> void:
 	ids.sort()
 	peer_ids = ids
 	local_id = multiplayer.get_unique_id()
+	# Set before _build_world(): the host's starter-weapon pick (_grant_starters ->
+	# _trigger_picks -> open_picks) fires synchronously from within it, and open_picks
+	# is a no-op while not playing.
+	playing = true
 	_reset_run_state()
 	_build_world()
-	playing = true
 	menu_panel.visible = false
 	lobby_panel.visible = false
 	hud_root.visible = true
 	_apply_fast_forward()
+	if net.active and not is_host():
+		# Save now (not just on disconnect) so a client whose game crashes/closes
+		# outright -- with no chance to run a disconnect handler -- can still
+		# rejoin after relaunching.
+		_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
 	if OS.get_environment("NICESWARM_NET") != "":
 		print("[test] start_game peers=%s local=%d host=%s" % [str(peer_ids), local_id, str(is_host())])
 
@@ -613,6 +921,8 @@ func _apply_fast_forward() -> void:
 
 
 func reset_game() -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	get_tree().paused = false
 	_clear_world()
 	_reset_run_state()
@@ -634,6 +944,7 @@ func _reset_run_state() -> void:
 	pending_chests = 0
 	picks_starter = false
 	picked_ids = {}
+	choice_history = {}
 	i_chose = false
 	paused_menu = false
 	_force_close_ingame_menu()
@@ -659,7 +970,7 @@ func _clear_world() -> void:
 	world = null
 
 
-func _build_world() -> void:
+func _build_world(grant_starters: bool = true) -> void:
 	world = Node2D.new()
 	world.name = "World"
 	world.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -686,7 +997,8 @@ func _build_world() -> void:
 		world.add_child(p)
 		players[pid] = p
 		_score[pid] = {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0}
-	_grant_starters()
+	if grant_starters:
+		_grant_starters()
 
 
 ## Decides how each player gets their first weapon. Headless/test runs get a
@@ -1079,6 +1391,8 @@ func _trigger_picks(free: bool, starter: bool = false) -> void:
 
 
 func open_picks(free: bool, starter: bool = false) -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	if ingame_menu:
 		_force_close_ingame_menu()  # a level-up pre-empts an open menu (clears safe/freeze)
 	_cancel_countdown()  # a (chained) pick supersedes any in-flight resume countdown
@@ -1211,17 +1525,24 @@ func _choose_upgrade(index: int) -> void:
 	net.submit_choice(local_id, current_choices[index].id)
 
 
-func apply_choice(pid: int, id: String) -> void:
+## `replay`: true when reconstructing a rejoining client's history -- applies the
+## same state changes silently (no SFX, no "wait for all" bookkeeping).
+func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 	var p: Player = players.get(pid)
 	if p == null:
 		return
+	if not replay:
+		if not choice_history.has(pid):
+			choice_history[pid] = []
+		choice_history[pid].append(id)
 	if id.begins_with("learn_"):
 		p.add_weapon(id.trim_prefix("learn_"))
 	elif id.begins_with("merge_"):
 		var pair := id.trim_prefix("merge_").split("|")
 		if pair.size() == 2:
 			p.merge_weapons(pair[0], pair[1])
-			Sfx.play("merge")
+			if not replay:
+				Sfx.play("merge")
 	elif id.begins_with("lv_"):
 		var w := p.get_weapon(id.trim_prefix("lv_"))
 		if w is WeaponFused:
@@ -1246,7 +1567,7 @@ func apply_choice(pid: int, id: String) -> void:
 				p.pickup_range *= 1.5
 			"st_dash":
 				p.dash_cooldown = maxf(p.dash_cooldown * 0.8, 1.2)
-	if is_host():
+	if is_host() and not replay:
 		picked_ids[pid] = true
 		_check_all_picked()
 
@@ -1256,6 +1577,9 @@ func _check_all_picked() -> void:
 		return
 	for pid in peer_ids:
 		if not picked_ids.has(pid):
+			var p: Player = players.get(pid)
+			if p != null and p.disconnected:
+				continue  # ghosted: don't block the round waiting for an absent player
 			return
 	net.send_resume()
 	resume_after_picks()
@@ -1323,7 +1647,7 @@ func _end_game(won: bool) -> void:
 
 
 func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array) -> void:
-	if game_over:
+	if not playing or game_over:
 		return
 	game_over = true
 	_force_close_ingame_menu()  # never end a run with a player stuck frozen/invulnerable
@@ -1390,6 +1714,16 @@ func apply_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) 
 	p.remote_dashing = dashing
 
 
+## Host -> everyone: a player's connection dropped (ghost them, invulnerable on
+## host) or was restored (rejoin re-key already applied via apply_player_rejoined).
+func apply_player_connection(pid: int, connected: bool) -> void:
+	var p: Player = players.get(pid)
+	if p == null:
+		return
+	p.disconnected = not connected
+	p.safe = not connected
+
+
 func apply_hud_state(elapsed_: float, xp_: int, needed: int, level_: int, kills_: int, heat: float, difficulty_: float) -> void:
 	if is_host() or not playing:
 		return
@@ -1430,6 +1764,8 @@ func apply_revive(pid: int, ratio: float) -> void:
 
 
 func apply_pause(pause: bool) -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	if pause and not is_host() and ingame_menu:
 		_force_close_ingame_menu()  # an incoming host pause supersedes our own local menu
 	paused_menu = pause
@@ -1442,6 +1778,8 @@ func apply_pause(pause: bool) -> void:
 
 
 func apply_event(type: int, pos: Vector2) -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	match type:
 		EVENT_BOMB:
 			_bomb_fx(pos)
@@ -1663,14 +2001,17 @@ func _input(event: InputEvent) -> void:
 ## Leave the current run and return to the main menu. Disconnects from co-op
 ## (host leaving drops everyone; a client leaving just drops itself).
 func _to_menu() -> void:
+	# A client leaving mid-run (ESC menu "leave", or "M" while paused by the host) still
+	# gets ghosted on the host -- the next "Join" can resume that character. A
+	# finished run (game_over), solo play, or the host leaving has nothing to rejoin.
+	var can_rejoin := net.active and not is_host() and not game_over
 	net.leave()
-	get_tree().paused = false
-	level_panel.visible = false
-	end_panel.visible = false
-	pause_panel.visible = false
-	paused_menu = false
-	_force_close_ingame_menu()
 	_clear_world()
+	if can_rejoin:
+		rejoin_old_id = local_id
+		rejoin_pending = true
+	else:
+		_clear_rejoin_state()
 	_show_menu("")
 
 
@@ -1750,6 +2091,8 @@ func apply_set_safe(pid: int, safe: bool) -> void:
 
 ## Cosmetic-only countdown shown on a remote peer; the host drives the real unpause.
 func begin_resume_countdown_remote() -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	if DisplayServer.get_name() == "headless":
 		return
 	pause_panel.visible = false
@@ -1838,10 +2181,11 @@ func _update_hud() -> void:
 		var p: Player = players.get(pid)
 		if p == null:
 			continue
+		var tag := " (away)" if p.disconnected else ""
 		if p.downed:
-			lines.append("%s  DOWN %d%%" % [p.player_name, int(p.revive_progress * 100.0)])
+			lines.append("%s  DOWN %d%%%s" % [p.player_name, int(p.revive_progress * 100.0), tag])
 		else:
-			lines.append("%s  ♥%d/%d" % [p.player_name, p.hp, p.max_hp])
+			lines.append("%s  ♥%d/%d%s" % [p.player_name, p.hp, p.max_hp, tag])
 	allies_label.text = "\n".join(lines)
 
 

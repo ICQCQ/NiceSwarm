@@ -49,6 +49,17 @@ var dash_dir := Vector2.ZERO
 var disrupt_timer := 0.0  # Disruptor debuff: slows movement (dash still works)
 var downed := false
 var revive_progress := 0.0
+## mid-game: owner's connection dropped; held in place until they rejoin. Toggles
+## physics processing on every weapon (and its fused components) so a ghost stops
+## firing/dealing damage entirely without each weapon having to check this flag.
+var disconnected := false:
+	set(value):
+		disconnected = value
+		for w in weapons:
+			w.set_physics_process(not value)
+			if w is WeaponFused:
+				for c in w.components:
+					c.set_physics_process(not value)
 var debug_god := false  # debug panel: ignore all damage
 var safe := false  # host-authoritative: ignore damage while this player's in-game menu is open
 var menu_frozen := false  # local: hold still while our own in-game menu is open
@@ -205,7 +216,7 @@ func nearest_enemy(max_range: float) -> Node2D:
 func take_damage(amount: int) -> void:
 	if hp <= 0 or downed:
 		return
-	if debug_god or safe:
+	if debug_god or safe or disconnected:
 		return
 	if invuln > 0.0 or dash_active > 0.0 or remote_dashing:
 		return
@@ -310,6 +321,8 @@ static func draw_shape(node: CanvasItem, shape_idx_: int, radius: float, col: Co
 
 func _draw() -> void:
 	var body := COLORS[color_idx % COLORS.size()]
+	if disconnected:
+		body.a = 0.35
 	if downed:
 		draw_circle(Vector2.ZERO, RADIUS, Color(0.25, 0.28, 0.33))
 		draw_line(Vector2(-7, -7), Vector2(7, 7), Color(0.9, 0.3, 0.3), 3.0)
@@ -329,5 +342,6 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
 	if not is_local:
+		var label := player_name + (" (away)" if disconnected else "")
 		draw_string(ThemeDB.fallback_font, Vector2(-60.0, -RADIUS - 10.0),
-			player_name, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 13, body)
+			label, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 13, body)
