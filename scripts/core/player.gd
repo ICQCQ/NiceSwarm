@@ -30,6 +30,7 @@ var area_mult := 1.0     # Area — AoE radii, reach, projectile size
 var duration_mult := 1.0 # Duration — lifetimes of summons/trails/projectiles
 var pickup_range := 90.0
 var dash_cooldown := 2.5
+var stat_levels := {}    # stat-upgrade id ("st_power"…) -> times picked, for the HUD icons
 
 var facing := Vector2.RIGHT
 var invuln := 0.0
