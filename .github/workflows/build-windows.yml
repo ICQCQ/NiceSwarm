@@ -250,6 +250,7 @@ jobs:
       # and BEFORE zipping — hashing the .zip would never match the running build.
       - name: Export macOS per-arch (.zip, ad-hoc signed)
         run: |
+          set -euo pipefail
           mkdir -p build
           for arch in x86_64 arm64; do
             preset="macOS $arch"
@@ -260,10 +261,16 @@ jobs:
             echo "Built $out (${mb} MB)"
             rm -rf "build/_u_$arch" && unzip -q "$out" -d "build/_u_$arch"
             app=$(find "build/_u_$arch" -maxdepth 1 -name '*.app' | head -n1)
-            bin="$app/Contents/MacOS/$(basename "$app" .app)"
+            [ -n "$app" ] || { echo "no .app inside $out"; exit 1; }
+            # Hash whatever single executable is actually in Contents/MacOS — Godot names it
+            # after product_name ("NiceSwarm"), NOT the export-path basename, so don't guess.
+            # _self_hash() hashes this exact (already ad-hoc-signed) binary at runtime.
+            bin=$(find "$app/Contents/MacOS" -maxdepth 1 -type f | head -n1)
+            [ -n "$bin" ] || { echo "no executable in $app/Contents/MacOS"; exit 1; }
             hash=$(shasum -a 256 "$bin" | awk '{print $1}')
+            [ ${#hash} -eq 64 ] || { echo "bad/empty sha256 for $arch ($bin)"; exit 1; }
             printf '%s  NiceSwarm-%s.zip' "$hash" "$arch" > "$out.sha256"
-            echo "macOS $arch inner-binary sha256: $hash"
+            echo "macOS $arch inner-binary ($(basename "$bin")) sha256: $hash"
           done
 
       - name: Upload build artifact
@@ -287,12 +294,13 @@ jobs:
             build/NiceSwarm-arm64.zip
             build/NiceSwarm-arm64.zip.sha256
 
+      # Only append the mac assets — the export-windows job already created/named the `latest`
+      # release. Omitting name/body here avoids blanking the body that job wrote.
       - name: Publish rolling 'latest' prerelease (on publish branch)
         if: github.ref == 'refs/heads/publish'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Latest build (publish)
           prerelease: true
           files: |
             build/NiceSwarm-x86_64.zip
