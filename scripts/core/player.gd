@@ -342,8 +342,6 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.5 * col.a))
 		Player.draw_shape(self, shape_idx, RADIUS, col)
 		draw_circle(Vector2.ZERO, RADIUS * 0.45, Color(0.1, 0.25, 0.4, col.a))
-		# crisp bright rim — reads against any enemy color
-		draw_arc(Vector2.ZERO, RADIUS - 0.5, 0.0, TAU, 28, Color(1.0, 1.0, 1.0, 0.85 * col.a), 2.0)
 		# facing notch: a slim bright wedge showing aim/front (player identity)
 		var fa := facing.angle()
 		var notch := PackedVector2Array([
