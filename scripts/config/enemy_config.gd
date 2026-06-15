@@ -64,6 +64,9 @@ const CLASSES := {
 		{"name": "Warlock", "hp0": 14.0, "hpk": 4.0, "spd": 85.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 5, "col": Color(0.45, 0.25, 0.6), "shape": "diamond", "caster": true, "pattern": 0, "effect": 2, "cr": 95.0, "cd": 0, "cdt": 3.2, "keep": 320.0},
 		{"name": "Defiler", "hp0": 24.0, "hpk": 5.0, "spd": 82.0, "spdk": 1.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.5, 0.28, 0.66), "shape": "diamond", "caster": true, "pattern": 1, "effect": 2, "cr": 85.0, "cd": 0, "cdt": 3.6, "keep": 340.0},
 	],
+	"interceptor": [  # projects a jamming field that destroys player projectiles inside it
+		{"name": "Jammer", "hp0": 12.0, "hpk": 4.0, "spd": 65.0, "spdk": 1.0, "r": 17.0, "dmg": 1, "xp": 6, "col": Color(0.25, 0.75, 0.85), "shape": "hex", "pull_imm": true, "intercept_radius": 110.0},
+	],
 	"elite": [  # tanky specials that always drop a chest
 		{"name": "Elite", "hp0": 40.0, "hpk": 18.0, "spd": 100.0, "spdk": 0.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.95, 0.35, 0.5), "shape": "circle", "elite": true, "pull_imm": true},
 		{"name": "Champion", "hp0": 95.0, "hpk": 30.0, "spd": 110.0, "spdk": 0.0, "r": 22.0, "dmg": 2, "xp": 14, "col": Color(1.0, 0.45, 0.6), "shape": "circle", "elite": true, "pull_imm": true},
@@ -98,6 +101,7 @@ const SPAWN_POOL := [
 	{"cls": "burster",   "weight": 1, "unlock": 180.0},
 	{"cls": "disruptor", "weight": 1, "unlock": 210.0},
 	{"cls": "defiler",   "weight": 1, "unlock": 300.0},
+	{"cls": "interceptor", "weight": 1, "unlock": 240.0},
 ]
 
 # Periodic "special" spawns (tanks/elites/casters), one per key. Each fires on

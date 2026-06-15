@@ -40,6 +40,7 @@ Each tier is a dictionary:
 | `enrage_resist` | extra `resist` that ramps up to this value as hp drops toward 0 |
 | `immune_cycle`+`immune_pool` | rotates `immune` through this list of `DMG_*` every `immune_cycle` seconds |
 | `summon_cls`+`summon_count`+`summon_cooldown` | periodically calls in `summon_count` enemies of `summon_cls` |
+| `intercept_radius` | Interceptor — projects a jamming field of this radius; player projectiles entering it are destroyed |
 
 ## Damage types
 
@@ -85,13 +86,14 @@ jitter, and a second scattered strike late game.
 | **wisp** | Mote | Wisp | — | **drifts randomly** (no chase); **immune to ENERGY** (counters energy builds) |
 | **disruptor** | Hexer | Nullifier | — | telegraphs instant **disrupt** zones — no damage, but slows + dash-locks you |
 | **defiler** | Warlock | Defiler | — | lays **lingering disrupt fields on the ground** (effect 2) — area denial, walk out or dash through |
+| **interceptor** | Jammer | — | — | projects a **jamming field** — player projectiles (bolt/turret bolts, missiles, frost shards) entering it are destroyed |
 | **elite** | Elite | Champion | — | tanky mini-boss, always drops a chest |
 | **boss** | Juggernaut | Harbinger | Eclipse | rare, very tough — see Bosses below |
 
 ### Spawn cadence (host, `EnemySpawner.run_spawning`)
 - Steady stream: weighted pick from `EnemyConfig.SPAWN_POOL` — brawler (staple) / rusher (0:45) /
   wisp (1:30) / warden (2:00) / sentinel (2:30) / burster (3:00) / disruptor (3:30) /
-  defiler (5:00). Shards only spawn from a Burster's death.
+  interceptor (4:00) / defiler (5:00). Shards only spawn from a Burster's death.
 - Periodic specials from `EnemyConfig.SPAWN_SPECIALS`: tank every 45 s after 1:30 ·
   elite every 75→32 s (faster with heat) after 2:00 · caster (Bomber/Diviner/Oracle by
   tier) every 20→11 s after 2:30.

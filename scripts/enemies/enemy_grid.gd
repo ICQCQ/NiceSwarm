@@ -12,6 +12,7 @@ const MARGIN := 40.0  # >= largest enemy radius, so "near" stays a superset of
                        # `distance <= radius + e.radius` checks
 
 static var _cells: Dictionary = {}
+static var _interceptors: Array[Enemy] = []
 static var _frame: int = -1
 
 
@@ -21,6 +22,7 @@ static func _ensure_fresh() -> void:
 		return
 	_frame = f
 	_cells.clear()
+	_interceptors.clear()
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
@@ -30,6 +32,8 @@ static func _ensure_fresh() -> void:
 		if not _cells.has(key):
 			_cells[key] = [] as Array[Enemy]
 		(_cells[key] as Array[Enemy]).append(e)
+		if e.intercept_radius > 0.0:
+			_interceptors.append(e)
 
 
 ## Enemies in cells overlapping the box [pos-radius, pos+radius]. Pass the same
@@ -57,3 +61,15 @@ static func all() -> Array[Enemy]:
 	for bucket in _cells.values():
 		result.append_array(bucket)
 	return result
+
+
+## True if `pos` falls inside an Interceptor's jamming field (player projectiles
+## are destroyed there). Interceptors are rare, so this is a short linear scan
+## over the per-frame cache rather than a grid lookup — cheap even if several
+## are alive at once, and free (empty list) when none are.
+static func in_interceptor_zone(pos: Vector2) -> bool:
+	_ensure_fresh()
+	for e in _interceptors:
+		if pos.distance_to(e.global_position) <= e.intercept_radius:
+			return true
+	return false

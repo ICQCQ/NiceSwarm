@@ -76,6 +76,7 @@ var summon_cls := ""      # periodically calls in reinforcements of this class
 var summon_count := 0
 var summon_cooldown := 0.0
 var summon_timer := 0.0
+var intercept_radius := 0.0  # Interceptor: player projectiles within this radius are destroyed
 var flash := 0.0
 var knockback := Vector2.ZERO
 var slow_timer := 0.0
@@ -396,6 +397,9 @@ func _draw() -> void:
 	if shielded:  # sentinel: an impenetrable bubble — wait it out
 		draw_circle(Vector2.ZERO, radius + 6.0, Color(0.5, 0.8, 1.0, 0.28))
 		draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 28, Color(0.7, 0.9, 1.0, 0.9), 2.5)
+	if intercept_radius > 0.0:  # interceptor: jamming field that shoots down projectiles
+		draw_circle(Vector2.ZERO, intercept_radius, Color(0.3, 0.85, 0.95, 0.07))
+		draw_arc(Vector2.ZERO, intercept_radius, 0.0, TAU, 40, Color(0.4, 0.9, 1.0, 0.5), 1.5)
 
 
 ## Distinct silhouette per class so enemies read at a glance. Polygons point along

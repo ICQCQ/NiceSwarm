@@ -317,6 +317,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.summon_count = d.get("summon_count", 0)
 	e.summon_cooldown = d.get("summon_cooldown", 0.0)
 	e.summon_timer = e.summon_cooldown
+	e.intercept_radius = d.get("intercept_radius", 0.0)
 	# configured enemy-scale multiplier (difficulty is already baked into hp/speed above)
 	e.hp *= main.cfg_enemy_scale
 	e.speed *= lerpf(1.0, main.cfg_enemy_scale, 0.4)

@@ -53,6 +53,9 @@ func _physics_process(delta: float) -> void:
 	life -= delta
 	if life <= 0.0:
 		queue_free()
+		return
+	if EnemyGrid.in_interceptor_zone(global_position):
+		queue_free()
 
 
 func _on_body_entered(body: Node) -> void:
