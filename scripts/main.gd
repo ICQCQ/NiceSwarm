@@ -254,11 +254,7 @@ var _update_hash := ""          # sha256 of the newer build, for the Skip-this-v
 var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
-var debug_panel: Control
-var debug_god_btn: Button
-var debug_fuse_a: OptionButton
-var debug_fuse_b: OptionButton
-var debug_spawn_select: OptionButton
+var debug: DebugPanel            # F1 debug/testing panel (ui/debug_panel.gd)
 
 
 func _ready() -> void:
@@ -279,6 +275,10 @@ func _ready() -> void:
 	sim.name = "Sim"
 	sim.main = self
 	add_child(sim)
+	debug = DebugPanel.new()
+	debug.name = "Debug"
+	debug.main = self
+	add_child(debug)
 	_load_profile()
 	_build_ui()
 	_show_menu("")
@@ -2250,8 +2250,8 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	var key: int = event.keycode
-	if key == KEY_F1 and debug_panel != null:
-		debug_panel.visible = not debug_panel.visible
+	if key == KEY_F1:
+		debug.toggle()
 		return
 	if countdown_time > 0.0:
 		return  # swallow input while the resume countdown is running
@@ -2670,7 +2670,7 @@ func _build_ui() -> void:
 	_build_menu()
 	_build_lobby_panel()
 	if OS.is_debug_build():
-		_build_debug_panel()
+		debug.build()
 
 
 func _make_label(pos: Vector2, size: int, color: Color) -> Label:
@@ -2936,214 +2936,6 @@ func _build_countdown_panel() -> void:
 	countdown_label.add_theme_font_size_override("font_size", 96)
 	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(countdown_label)
-
-
-## Debug-build-only testing panel: F1 toggles it. God mode + one-click weapon
-## grant/level-up for the local player, routed through the normal upgrade-pick
-## RPC so co-op peers stay in sync.
-func _build_debug_panel() -> void:
-	debug_panel = Control.new()
-	debug_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	debug_panel.offset_left = -260.0
-	debug_panel.offset_right = -16.0
-	debug_panel.offset_top = 100.0
-	debug_panel.offset_bottom = 700.0
-	debug_panel.visible = false
-	ui.add_child(debug_panel)
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.0, 0.0, 0.0, 0.6)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	debug_panel.add_child(bg)
-
-	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(8, 8)
-	debug_panel.add_child(vbox)
-
-	var title := Label.new()
-	title.text = "DEBUG (F1)"
-	title.add_theme_font_size_override("font_size", 16)
-	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
-	vbox.add_child(title)
-
-	debug_god_btn = Button.new()
-	debug_god_btn.text = "God Mode: OFF"
-	debug_god_btn.pressed.connect(_debug_toggle_god)
-	vbox.add_child(debug_god_btn)
-
-	var levelup_btn := Button.new()
-	levelup_btn.text = "Instant Level Up"
-	levelup_btn.pressed.connect(_debug_level_up)
-	vbox.add_child(levelup_btn)
-
-	var reset_btn := Button.new()
-	reset_btn.text = "Reset Weapons + Stats"
-	reset_btn.pressed.connect(_debug_reset_loadout)
-	vbox.add_child(reset_btn)
-
-	var grant_head := Label.new()
-	grant_head.text = "Grant / level weapon"
-	grant_head.add_theme_font_size_override("font_size", 14)
-	grant_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(grant_head)
-
-	var grid := GridContainer.new()
-	grid.columns = 4
-	vbox.add_child(grid)
-	for wid in WEAPON_INFO:
-		var b := Button.new()
-		b.text = wid
-		b.add_theme_font_size_override("font_size", 12)
-		b.custom_minimum_size = Vector2(56, 26)
-		b.pressed.connect(_debug_grant_weapon.bind(wid))
-		grid.add_child(b)
-
-	var fuse_head := Label.new()
-	fuse_head.text = "Grant fusion"
-	fuse_head.add_theme_font_size_override("font_size", 14)
-	fuse_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(fuse_head)
-
-	var fuse_row := HBoxContainer.new()
-	vbox.add_child(fuse_row)
-	debug_fuse_a = OptionButton.new()
-	debug_fuse_b = OptionButton.new()
-	for wid in WEAPON_INFO:
-		debug_fuse_a.add_item(wid)
-		debug_fuse_b.add_item(wid)
-	debug_fuse_b.selected = 1
-	fuse_row.add_child(debug_fuse_a)
-	fuse_row.add_child(debug_fuse_b)
-	var fuse_btn := Button.new()
-	fuse_btn.text = "Fuse"
-	fuse_btn.pressed.connect(_debug_grant_fusion)
-	vbox.add_child(fuse_btn)
-
-	var stat_head := Label.new()
-	stat_head.text = "Stat up"
-	stat_head.add_theme_font_size_override("font_size", 14)
-	stat_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(stat_head)
-
-	var stat_grid := GridContainer.new()
-	stat_grid.columns = 4
-	vbox.add_child(stat_grid)
-	for sid in STAT_INFO:
-		var sb := Button.new()
-		sb.text = STAT_INFO[sid].label
-		sb.add_theme_font_size_override("font_size", 12)
-		sb.custom_minimum_size = Vector2(56, 26)
-		sb.pressed.connect(_debug_stat_up.bind(sid))
-		stat_grid.add_child(sb)
-
-	var spawn_head := Label.new()
-	spawn_head.text = "Spawn enemy (host)"
-	spawn_head.add_theme_font_size_override("font_size", 14)
-	spawn_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(spawn_head)
-
-	var spawn_row := HBoxContainer.new()
-	vbox.add_child(spawn_row)
-	debug_spawn_select = OptionButton.new()
-	debug_spawn_select.custom_minimum_size = Vector2(170, 26)
-	for ty in spawner.types:
-		var d: Dictionary = ty.data
-		debug_spawn_select.add_item("%s (%s T%d)" % [d.get("name", ty.cls), ty.cls, ty.tier])
-	spawn_row.add_child(debug_spawn_select)
-	var spawn_btn := Button.new()
-	spawn_btn.text = "Spawn"
-	spawn_btn.pressed.connect(_debug_spawn_enemy)
-	spawn_row.add_child(spawn_btn)
-
-
-func _debug_toggle_god() -> void:
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	p.debug_god = not p.debug_god
-	debug_god_btn.text = "God Mode: ON" if p.debug_god else "God Mode: OFF"
-
-
-## Grants the weapon if the local player doesn't have it yet, otherwise
-## levels it up (capped at MAX_WEAPON_LEVEL) — handy for testing fusions.
-func _debug_grant_weapon(id: String) -> void:
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	var w := p.get_weapon(id)
-	if w == null:
-		net.submit_choice(local_id, "learn_" + id)
-	elif w.level < MAX_WEAPON_LEVEL:
-		net.submit_choice(local_id, "lv_" + id)
-
-
-func _debug_stat_up(id: String) -> void:
-	if players.get(local_id) == null:
-		return
-	net.submit_choice(local_id, id)
-
-
-## Strips the local player of every weapon (including the starting bolt) and
-## resets every stat multiplier to its starting value — a clean slate for
-## re-testing weapons without restarting the run.
-func _debug_reset_loadout() -> void:
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	for w in p.weapons:
-		w.queue_free()
-	p.weapons.clear()
-	p.damage_mult = 1.0
-	p.rate_mult = 1.0
-	p.area_mult = 1.0
-	p.duration_mult = 1.0
-	p.move_speed = 220.0
-	p.pickup_range = 90.0
-	p.dash_cooldown = 2.5
-	p.stat_levels.clear()
-	p.max_hp = 5
-	p.hp = mini(p.hp, p.max_hp)
-	p.health_changed.emit(p.hp, p.max_hp)
-
-
-## Force the party to its next level-up pick immediately (host-only — the
-## same path real XP gain uses, so picks/sync behave normally).
-func _debug_level_up() -> void:
-	if not is_host() or leveling or game_over:
-		return
-	xp = _xp_needed()
-	_maybe_open_picks()
-
-
-## Host-only: spawns one enemy of the selected type near a player — same path
-## as normal spawns (spawner.spawn_enemy), for testing specific classes/tiers.
-func _debug_spawn_enemy() -> void:
-	if not is_host():
-		return
-	var idx := debug_spawn_select.selected
-	if idx < 0 or idx >= spawner.types.size():
-		return
-	var ty: Dictionary = spawner.types[idx]
-	spawner.spawn_enemy(ty.cls, ty.tier)
-
-
-## Maxes both selected weapons (granting them first if missing) and fuses
-## them — signature recipe if one exists, otherwise the generic WeaponFused.
-func _debug_grant_fusion() -> void:
-	var a := debug_fuse_a.get_item_text(debug_fuse_a.selected)
-	var b := debug_fuse_b.get_item_text(debug_fuse_b.selected)
-	if a == b:
-		return
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	for id in [a, b]:
-		_debug_grant_weapon(id)
-		var w := p.get_weapon(id)
-		while w != null and w.level < MAX_WEAPON_LEVEL:
-			net.submit_choice(local_id, "lv_" + id)
-			w = p.get_weapon(id)
-	net.submit_choice(local_id, "merge_" + Fusions.key(a, b))
 
 
 func _refresh_pause_roster() -> void:
