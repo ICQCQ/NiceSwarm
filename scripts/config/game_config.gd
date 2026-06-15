@@ -11,8 +11,8 @@ const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3
 const MAX_FUSION_TIER := 3       # fusion depth cap: base+base->T1, T1+T1->T2, T2+T2->T3 (final)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
 const ENEMY_CAP := 220           # hard limit on live enemies
-const TELEGRAPH_WARN := 1.3      # seconds to dodge a telegraphed strike
-const MAX_TELEGRAPHS := 9        # cap simultaneous danger zones (was 6 — more caster area-denial late)
+const TELEGRAPH_WARN := 1.5      # seconds to dodge a telegraphed strike
+const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed
 const NET_PORT := 24565          # default co-op port
 
 # --- weapon progression ---
