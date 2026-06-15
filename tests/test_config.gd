@@ -12,6 +12,7 @@ func run(t) -> void:
 	t.eq(GameConfig.MAX_FUSION_TIER, 2, "MAX_FUSION_TIER")
 	t.gt(GameConfig.WEAPON_LEVEL_POWER, 0.0, "WEAPON_LEVEL_POWER positive (weapons scale with party level)")
 	t.eq(GameConfig.MAX_CHOICES, 6, "MAX_CHOICES")
+	t.ok(GameConfig.XP_GAIN_MULT > 0.0 and GameConfig.XP_GAIN_MULT <= 1.0, "XP_GAIN_MULT in (0,1]")
 	t.eq(GameConfig.ENEMY_CAP, 220, "ENEMY_CAP")
 	t.eq(GameConfig.NET_PORT, 24565, "NET_PORT")
 	t.gt(GameConfig.TELEGRAPH_WARN, 0.0, "TELEGRAPH_WARN positive")

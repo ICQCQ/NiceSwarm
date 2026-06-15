@@ -46,6 +46,7 @@ var stat_levels := {}    # stat-upgrade id ("st_power"…) -> times picked, for 
 var facing := Vector2.RIGHT
 var invuln := 0.0
 var shake := 0.0
+var lethal_taken := 0.0  # FF lethality instrument: would-be damage eaten while debug_god (see take_damage)
 var dash_timer := 0.0   # cooldown remaining
 var dash_active := 0.0  # dash duration remaining
 var dash_dir := Vector2.ZERO
@@ -323,9 +324,11 @@ func nearest_enemy(max_range: float) -> Node2D:
 func take_damage(amount: int) -> void:
 	if hp <= 0 or downed:
 		return
-	if debug_god or safe or disconnected:
-		return
 	if invuln > 0.0 or dash_active > 0.0 or remote_dashing:
+		return  # i-frames / dash block the hit (real or god) — no behavioral change vs before
+	if debug_god or safe or disconnected:
+		if debug_god:
+			lethal_taken += amount  # FF lethality instrument: damage a mortal would have eaten here
 		return
 	hp -= amount
 	invuln = 0.9

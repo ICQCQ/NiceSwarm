@@ -33,10 +33,10 @@ const DIFF_WARMUP_SECS := 80.0   # seconds to ramp warmup to full
 const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor player...
 const SPAWN_RING_MAX := 900.0         # ...up to this far (random within the ring)
 const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player
-const SPAWN_DESIRED_BASE := 6.0       # target live-enemy count at difficulty 0
-const SPAWN_DESIRED_PER_DIFF := 2.5   # +this many target enemies per difficulty point
-const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
-const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
+const SPAWN_DESIRED_BASE := 8.0       # target live-enemy count at difficulty 0 (was 6.0 — denser swarm)
+const SPAWN_DESIRED_PER_DIFF := 3.5   # +this many target enemies per difficulty point (was 2.5 — denser late game)
+const SPAWN_INTERVAL_START := 1.0     # seconds between spawns early (was 1.4 — faster spawn rate)
+const SPAWN_INTERVAL_END := 0.12      # seconds between spawns late (was 0.2 — faster late spawn rate)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
 # --- co-op party scaling (host-authoritative; N = peer_ids.size()) ---
@@ -74,6 +74,9 @@ const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as 
 # --- xp level curve: three-band step curve (cost at level L to reach L+1), /cfg_xp_rate ---
 # Replaces the old flat-linear curve. Steepening shape (fast early → earned late);
 # absolute steps calibrated via a NICESWARM_FF run to land the 10-min win near level ~45.
+# Base XP-gain multiplier — effective xp rate = cfg_xp_rate (menu, 0.5-2x) * this. 0.5 halves
+# leveling speed (player is weaker for longer, killing the late-game snowball). Tunable balance knob.
+const XP_GAIN_MULT := 0.5
 const XP_BASE := 5            # cost to reach level 2
 const XP_BAND_EARLY := 13     # levels 1..13 use the early step
 const XP_BAND_MID := 33       # levels 14..33 use the mid step; 34+ use the late step

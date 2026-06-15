@@ -1651,7 +1651,8 @@ func _on_gem_collected(value: int, gem: XpGem) -> void:
 
 ## Cost at the current level to reach the next (three-band curve in GameConfig).
 func _xp_needed() -> int:
-	return GameConfig.xp_for_level(level, cfg_xp_rate)
+	# Effective XP rate = menu cfg_xp_rate * GameConfig.XP_GAIN_MULT (base 0.5 = half leveling speed).
+	return GameConfig.xp_for_level(level, cfg_xp_rate * GameConfig.XP_GAIN_MULT)
 
 
 func _current_needed() -> int:
