@@ -237,6 +237,13 @@ func send_set_safe(pid: int, safe: bool) -> void:
 		rpc_set_safe_flag.rpc(pid, safe)
 
 
+# Client -> host: my in-game menu opened/closed — the host pauses the whole run while
+# ANY player's menu is open (host-authoritative global pause).
+func send_request_pause(pid: int, open: bool) -> void:
+	if active:
+		rpc_request_pause.rpc(pid, open)
+
+
 # Host -> clients: show the cosmetic resume countdown (the real unpause follows via set_paused).
 func send_resume_countdown() -> void:
 	if active:
@@ -395,6 +402,11 @@ func rpc_set_paused(p: bool) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_set_safe_flag(pid: int, safe: bool) -> void:
 	main.apply_set_safe(pid, safe)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_pause(pid: int, open: bool) -> void:
+	main.set_menu_open(pid, open)
 
 
 @rpc("authority", "call_remote", "reliable")

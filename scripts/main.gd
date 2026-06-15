@@ -146,7 +146,8 @@ var choice_history := {}        # peer_id -> Array[String] of upgrade ids applie
                                  # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
-var ingame_menu := false        # our own in-game menu/hub is open (host: global pause; client: local + safe)
+var ingame_menu := false        # our own in-game menu/hub is open (opening it pauses the whole run for everyone)
+var menu_open_pids := {}         # host-only: pids whose in-game menu is open — the run stays paused while non-empty
 const RESUME_COUNTDOWN := 2.0   # seconds of "get ready" before a resume actually un-freezes the run
 const HINT_COOP := "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
 const HINT_SOLO := "WASD move  ·  SPACE/SHIFT dash  ·  ESC pause/menu"
@@ -1183,6 +1184,7 @@ func _reset_run_state() -> void:
 	choice_history = {}
 	i_chose = false
 	paused_menu = false
+	menu_open_pids = {}
 	_force_close_ingame_menu()
 	spawner.reset()
 	item_seq = 0
@@ -2066,15 +2068,17 @@ func apply_revive(pid: int, ratio: float) -> void:
 func apply_pause(pause: bool) -> void:
 	if not playing:
 		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
-	if pause and not is_host() and ingame_menu:
-		_force_close_ingame_menu()  # an incoming host pause supersedes our own local menu
+	var was := paused_menu
 	paused_menu = pause
 	get_tree().paused = pause
 	if pause:
 		gameui._refresh_pause_roster()
+		pause_panel.visible = not ingame_menu  # if MY menu is open, show that instead of the generic panel
 	else:
 		_cancel_countdown()  # authoritative unpause arrived — end any cosmetic countdown
-	pause_panel.visible = pause
+		pause_panel.visible = false
+		if was:
+			Sfx.play("alert")  # the run resumed for everyone
 
 
 func apply_event(type: int, pos: Vector2) -> void:
@@ -2294,11 +2298,13 @@ func _input(event: InputEvent) -> void:
 			ingame_menu_hint.text = "Settings — coming soon"
 		elif key == KEY_L and codex_view == "":
 			_leave_from_menu()  # deliberate, hub-root only — never a stray key while reading a codex
-	elif paused_menu:  # a host paused us (client): wait for resume, or leave with M
-		if key == KEY_M:
+	elif paused_menu:  # paused by another player's menu (or a reconnect): open my own menu, or leave with M
+		if key == KEY_ESCAPE:
+			_open_ingame_menu()  # open my own menu while the run is already paused
+		elif key == KEY_M:
 			_to_menu()
 	elif key == KEY_ESCAPE:
-		_open_ingame_menu()  # universal: ESC opens the menu (host pauses for all; client goes safe)
+		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 
 
 ## Leave the current run and return to the main menu. Disconnects from co-op
@@ -2324,33 +2330,52 @@ func _to_menu() -> void:
 ## the host (and solo) globally pause the run; a client can't pause the shared sim, so it
 ## holds its own avatar still and asks the host to make it invulnerable (auto-safe).
 func _open_ingame_menu() -> void:
-	if not is_host() and get_tree().paused:
-		return  # already frozen by a host pause — don't stack a local menu on top
+	if ingame_menu:
+		return
 	ingame_menu = true
 	gameui._close_codex()  # always open on the hub root, never a stale codex view
 	ingame_menu_panel.visible = true
+	pause_panel.visible = false  # my own menu replaces any "PAUSED" panel I was shown
+	# Opening any player's menu pauses the whole run for everyone (host-authoritative).
 	if is_host():
-		get_tree().paused = true
-		net.send_set_paused(true)  # clients show the remote "PAUSED" panel + freeze
+		set_menu_open(local_id, true)
 	else:
-		var me: Player = players.get(local_id)
-		if me != null:
-			me.menu_frozen = true
-		net.send_set_safe(local_id, true)
+		net.send_request_pause(local_id, true)
 
 
-## Close the hub and return to play behind a short countdown (never an instant resume).
+## Close the hub. The run resumes (for everyone) only once NO player still has a menu open.
 func _resume_from_ingame_menu() -> void:
 	ingame_menu = false
 	ingame_menu_panel.visible = false
 	if is_host():
-		net.send_resume_countdown()  # clients run the same cosmetic countdown
-		_begin_resume_countdown(func() -> void:
-			get_tree().paused = false
-			net.send_set_paused(false))
+		set_menu_open(local_id, false)
 	else:
-		# stay safe through the countdown; clear on completion (idempotent teardown)
-		_begin_resume_countdown(_clear_local_safe)
+		net.send_request_pause(local_id, false)
+		pause_panel.visible = paused_menu  # still paused by another player's menu? keep the panel
+
+
+## Host: track which players have a menu open and pause/resume the whole run accordingly.
+## The run is paused for everyone while ANY player's menu is open; it resumes (with the
+## alert cue) once the last one closes. Defers to the level-up / game-over flows, which own
+## the pause in their own right.
+func set_menu_open(pid: int, open: bool) -> void:
+	if not is_host():
+		return
+	if open:
+		menu_open_pids[pid] = true
+	else:
+		menu_open_pids.erase(pid)
+	if leveling or game_over:
+		return
+	var want: bool = not menu_open_pids.is_empty()
+	if want == paused_menu:
+		return
+	if want:
+		apply_pause(true)
+		net.send_set_paused(true)
+	else:
+		net.send_set_paused(false)
+		apply_pause(false)
 
 
 ## Deliberate "leave game" from inside the hub (the L key) — the old accidental ESC path.
@@ -2367,6 +2392,11 @@ func _force_close_ingame_menu() -> void:
 	if ingame_menu_panel != null:
 		ingame_menu_panel.visible = false
 	_clear_local_safe()
+	# drop our menu-pause contribution (the level-up / game-over / leave flows own the pause now)
+	if is_host():
+		menu_open_pids.erase(local_id)
+	elif net.active:
+		net.send_request_pause(local_id, false)
 
 
 ## Drop our local "menu safe" state and tell the host we're vulnerable + mobile again.
