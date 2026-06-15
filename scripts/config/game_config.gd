@@ -27,7 +27,7 @@ const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, to
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
 const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
 const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
-const ENEMY_HP_PER_LEVEL := 0.02       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const ENEMY_HP_PER_LEVEL := 0.2        # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
 const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
