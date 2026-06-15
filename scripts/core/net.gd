@@ -147,25 +147,13 @@ func send_player_connection(pid: int, connected: bool) -> void:
 
 # --- late join (a brand-new player joins a session already in progress) ----
 
-# Client -> host: "is a run already in progress, and is there room for me?" Sent
-# right after connecting, when we have no saved session to rejoin.
-func send_session_check() -> void:
+# Client -> host: "here's my profile (name/color/shape) -- is a run already in
+# progress?" Sent right after connecting, when we have no saved session to rejoin.
+# If the host isn't playing yet, we land in the lobby; if a run is already in
+# progress, the host splices us straight in (no lobby/appearance step at all).
+func send_session_check(player_name: String, color_idx: int, shape_idx: int) -> void:
 	if active:
-		rpc_session_check.rpc()
-
-
-# Host -> the checking client only: a run is in progress and there's room --
-# show the lobby's appearance picker (seeded with the current roster) and a
-# "Join Game" button instead of "waiting for the host to start".
-func send_late_join_offer(target: int, roster: Dictionary) -> void:
-	if active:
-		rpc_late_join_offer.rpc_id(target, roster)
-
-
-# Client -> host: "I've set my look -- splice me into the running game."
-func send_late_join_request() -> void:
-	if active:
-		rpc_late_join_request.rpc()
+		rpc_session_check.rpc(player_name, color_idx, shape_idx)
 
 
 func send_late_join_reject(target: int, reason: String) -> void:
@@ -336,18 +324,8 @@ func rpc_player_connection(pid: int, connected: bool) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func rpc_session_check() -> void:
-	main.handle_session_check(multiplayer.get_remote_sender_id())
-
-
-@rpc("authority", "call_remote", "reliable")
-func rpc_late_join_offer(roster: Dictionary) -> void:
-	main.on_late_join_offer(roster)
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func rpc_late_join_request() -> void:
-	main.handle_late_join_request(multiplayer.get_remote_sender_id())
+func rpc_session_check(player_name: String, color_idx: int, shape_idx: int) -> void:
+	main.handle_session_check(multiplayer.get_remote_sender_id(), player_name, color_idx, shape_idx)
 
 
 @rpc("authority", "call_remote", "reliable")

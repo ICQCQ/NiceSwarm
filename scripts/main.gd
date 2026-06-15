@@ -88,7 +88,6 @@ var local_id := 1
 var auto_start_on_join := false # test hook
 var rejoin_pending := false     # we have a saved session: check on the next Join whether it's resumable
 var rejoin_old_id := 0          # our peer id in the run we're trying to rejoin
-var late_join_pending := false  # host has a run in progress and offered us a seat -- lobby shows "Join Game"
 
 # Persists rejoin_old_id + host address across a full app restart (e.g. the player
 # closed the game after disconnecting), so the next "Join" can still resume the run.
@@ -98,10 +97,14 @@ const REJOIN_SAVE_PATH := "user://rejoin.cfg"
 # fields are prefilled next launch instead of defaulting to 127.0.0.1.
 const LAST_JOIN_SAVE_PATH := "user://last_join.cfg"
 
-# --- lobby (pre-game roster + appearance) ---
+# --- profile (name/color/shape, set on the main menu, persisted to disk) ---
+var profile_name := "Player"
+var profile_color_idx := 0
+var profile_shape_idx := 0
+const PROFILE_SAVE_PATH := "user://profile.cfg"
+
+# --- lobby (pre-game roster) ---
 var lobby_players := {}         # peer_id -> {name, color, shape}; synced host<->clients
-var lobby_color_idx := 0        # local player's pending appearance (mirrors lobby_players[local_id])
-var lobby_shape_idx := 0
 var lobby_port := 0             # port we're hosting/connected on, shown in the config column
 
 # --- run config (host sets in the menu, broadcast to all peers at start) ---
@@ -212,14 +215,13 @@ var codex_view := ""             # "" = hub root, "skills", or "monsters"
 var countdown_panel: Control     # resume countdown overlay
 var countdown_label: Label
 var menu_panel: Control
+var profile_name_edit: LineEdit
+var profile_preview_label: Label
 var lobby_panel: Control
 var lobby_status_label: Label
-var lobby_name_edit: LineEdit
-var lobby_preview_label: Label
 var lobby_roster_box: VBoxContainer
 var lobby_config_box: VBoxContainer
 var lobby_start_btn: Button
-var lobby_join_btn: Button
 var update_check: UpdateCheck
 var update_banner: Control      # menu "a newer build is available" notice (hidden until found)
 var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
@@ -246,6 +248,7 @@ func _ready() -> void:
 	spawner.main = self
 	add_child(spawner)
 	spawner.build_type_registry()
+	_load_profile()
 	_build_ui()
 	_show_menu("")
 	_load_last_join_address()
@@ -302,7 +305,6 @@ func _show_menu(message: String) -> void:
 	menu_panel.visible = true
 	lobby_panel.visible = false
 	lobby_players = {}
-	late_join_pending = false
 	hud_root.visible = false
 	status_label.text = message
 
@@ -333,6 +335,7 @@ func _apply_menu_config() -> void:
 func _on_solo_pressed() -> void:
 	net.leave()
 	_apply_menu_config()
+	lobby_players[1] = {"name": profile_name, "color": profile_color_idx, "shape": profile_shape_idx}
 	start_game([1])
 
 
@@ -446,10 +449,12 @@ func on_join_ok() -> void:
 		# connection) whether it's still available before committing to anything.
 		net.send_rejoin_check(rejoin_old_id)
 		return
-	# Ask whether a run is already in progress -- if so the host replies with a
-	# late-join offer (on_late_join_offer) and we switch the lobby to "Join Game".
-	net.send_session_check()
-	_show_lobby("Connected! Waiting for the host to start...")
+	# Send our profile (set on the main menu) and ask whether a run is already in
+	# progress. If so the host splices us straight into it (late_join_game, no
+	# lobby); otherwise it adds us to the lobby roster (apply_lobby_state shows
+	# the lobby once the roster arrives).
+	net.send_session_check(profile_name, profile_color_idx, profile_shape_idx)
+	status_label.text = "Connected! Checking the session..."
 
 
 func on_join_failed() -> void:
@@ -594,49 +599,28 @@ func on_rejoin_rejected(reason: String) -> void:
 
 # --- late join (a brand-new player joins a session already in progress) -----
 
-## Host: a freshly connected peer with no saved session asked whether a run is
-## already underway. If so, seed it a lobby slot and offer it a late join (with
-## the current roster, so its appearance picker shows everyone already playing).
-func handle_session_check(new_id: int) -> void:
-	if not is_host() or not playing:
-		return
-	if not lobby_players.has(new_id):
-		lobby_players[new_id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
-			"shape": randi() % Player.SHAPES.size()}
-	net.send_late_join_offer(new_id, lobby_players)
-
-
-## Client: the host has a run in progress and there's a seat for us -- show the
-## lobby's appearance picker (seeded with the current roster) and a "Join Game"
-## button instead of "waiting for the host to start".
-func on_late_join_offer(roster: Dictionary) -> void:
-	late_join_pending = true
-	lobby_players = roster.duplicate(true)
-	_show_lobby("A run is already in progress.\nSet your look, then tap Join!")
-	if OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_TEST") != "":
-		_on_lobby_join_pressed()  # headless test hook: skip the appearance picker, join immediately
-
-
-func on_late_join_rejected(reason: String) -> void:
-	net.leave()
-	late_join_pending = false
-	_show_menu(reason)
-
-
-## Host: a connected peer that was offered a late join has set its appearance
-## and pressed "Join" -- splice a brand-new Player into the running game for it.
-func handle_late_join_request(new_id: int) -> void:
+## Host: a freshly connected peer sent its profile (name/color/shape, set on its
+## main menu) and asked whether a run is already underway. If not, add it to the
+## lobby roster as usual. If a run IS in progress, skip the lobby entirely and
+## splice a brand-new Player straight into the running game using that profile.
+func handle_session_check(new_id: int, player_name: String, color_idx: int, shape_idx: int) -> void:
 	if not is_host():
 		return
+	var info := {"name": player_name, "color": color_idx % Player.COLORS.size(),
+		"shape": shape_idx % Player.SHAPES.size()}
+	lobby_players[new_id] = info
 	if not playing:
-		net.send_late_join_reject(new_id, "The host left the run.")
+		_refresh_lobby_player_count()
+		net.send_lobby_state(lobby_players)
+		_refresh_lobby_roster()
+		if auto_start_on_join:
+			get_tree().create_timer(0.5).timeout.connect(_on_start_pressed)
 		return
 	if players.has(new_id):
 		return  # already joined -- ignore a duplicate request
 	if peer_ids.size() >= Net.MAX_PLAYERS:
 		net.send_late_join_reject(new_id, "The party is full.")
 		return
-	var info: Dictionary = lobby_players.get(new_id, {"name": "Player", "color": 0, "shape": 0})
 	var spawn_pos := _late_join_spawn_pos()
 	var p := _make_player_node(new_id, info, spawn_pos)
 	p.add_weapon("bolt")
@@ -660,6 +644,12 @@ func handle_late_join_request(new_id: int) -> void:
 		spawn_pos.x, spawn_pos.y, p.hp, p.max_hp)
 	if OS.get_environment("NICESWARM_NET") != "":
 		print("[test] late join accepted id=%d peers=%s" % [new_id, str(peer_ids)])
+
+
+## Client: the host couldn't splice us into the running game (party full).
+func on_late_join_rejected(reason: String) -> void:
+	net.leave()
+	_show_menu(reason)
 
 
 ## Host: a safe-ish spawn point for a brand-new mid-run player -- next to an
@@ -706,7 +696,6 @@ func late_join_game(ids: PackedInt32Array, roster: Dictionary, history: Dictiona
 	if me != null and me.weapons.is_empty() and not host_picks_starter:
 		me.add_weapon("bolt")
 	playing = true
-	late_join_pending = false
 	# A late-joiner can rejoin too, if they disconnect later.
 	_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
 	menu_panel.visible = false
@@ -806,6 +795,29 @@ func _load_last_join_address() -> void:
 		port_edit.text = str(int(data["port"]))
 
 
+## Save the main-menu profile (name/color/shape) so it persists across launches.
+func _save_profile() -> void:
+	var f := FileAccess.open(PROFILE_SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_var({"name": profile_name, "color": profile_color_idx, "shape": profile_shape_idx})
+
+
+## Called once at startup, before the menu is built, so the profile panel shows
+## the saved name/color/shape immediately.
+func _load_profile() -> void:
+	if not FileAccess.file_exists(PROFILE_SAVE_PATH):
+		return
+	var f := FileAccess.open(PROFILE_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var data = f.get_var()
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	profile_name = String(data.get("name", profile_name))
+	profile_color_idx = int(data.get("color", profile_color_idx)) % Player.COLORS.size()
+	profile_shape_idx = int(data.get("shape", profile_shape_idx)) % Player.SHAPES.size()
+
+
 ## Rejoining client: the host accepted our rejoin request. Rebuild the world for
 ## the current roster, then replay every choice made since the run started (ours
 ## included) so weapons/levels/stat upgrades come back exactly as they were, and
@@ -863,72 +875,73 @@ func rejoin_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 			_begin_resume_countdown(Callable())
 
 
-# --- lobby (pre-game roster + appearance) ------------------------------------
+# --- profile (main menu: name/color/shape, used whenever we host/join/solo) --
 
-## Shows the lobby panel (roster + appearance picker + game config) after a
-## successful host/join. `status` is the connection-state line shown at top.
+## Local player edited their name/color/shape on the main menu: store it,
+## persist it to disk, refresh the preview, and (if connected to a lobby) sync
+## it -- clients ask the host to relay; the host rebroadcasts the full roster.
+func _on_profile_appearance_changed() -> void:
+	var player_name := profile_name_edit.text.strip_edges().left(16)
+	if player_name == "":
+		player_name = "Player"
+	profile_name_edit.text = player_name
+	profile_name = player_name
+	_save_profile()
+	_refresh_profile_preview()
+	if lobby_players.has(local_id):
+		lobby_players[local_id] = {"name": profile_name, "color": profile_color_idx, "shape": profile_shape_idx}
+		_refresh_lobby_roster()
+	if not net.active:
+		return
+	if is_host():
+		net.send_lobby_state(lobby_players)
+	else:
+		net.send_lobby_update(local_id, profile_name, profile_color_idx, profile_shape_idx)
+
+
+func _on_profile_color_pressed() -> void:
+	profile_color_idx = (profile_color_idx + 1) % Player.COLORS.size()
+	_on_profile_appearance_changed()
+
+
+func _on_profile_shape_pressed() -> void:
+	profile_shape_idx = (profile_shape_idx + 1) % Player.SHAPES.size()
+	_on_profile_appearance_changed()
+
+
+func _refresh_profile_preview() -> void:
+	if profile_preview_label == null:
+		return
+	var shape: String = Player.SHAPES[profile_shape_idx % Player.SHAPES.size()]
+	profile_preview_label.text = Player.SHAPE_GLYPHS.get(shape, "*")
+	profile_preview_label.add_theme_color_override("font_color",
+		Player.COLORS[profile_color_idx % Player.COLORS.size()])
+
+
+# --- lobby (pre-game roster) -------------------------------------------------
+
+## Shows the lobby panel (roster + game config) after hosting, or after a join
+## that landed in a lobby rather than a running game. `status` is the
+## connection-state line shown at top. Appearance is set on the main menu
+## (profile_name/profile_color_idx/profile_shape_idx), not here.
 func _show_lobby(status: String) -> void:
 	rejoin_pending = false
 	menu_panel.visible = false
 	lobby_panel.visible = true
 	hud_root.visible = false
 	local_id = multiplayer.get_unique_id()
-	if not lobby_players.has(local_id):
-		lobby_players[local_id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
-			"shape": randi() % Player.SHAPES.size()}
-	var info: Dictionary = lobby_players[local_id]
-	lobby_color_idx = int(info.get("color", 0))
-	lobby_shape_idx = int(info.get("shape", 0))
-	lobby_name_edit.text = String(info.get("name", "Player"))
+	lobby_players[local_id] = {"name": profile_name, "color": profile_color_idx, "shape": profile_shape_idx}
 	lobby_status_label.text = status
 	lobby_start_btn.visible = is_host()
-	lobby_join_btn.visible = late_join_pending
-	_refresh_lobby_appearance_preview()
 	_refresh_lobby_roster()
 	_refresh_lobby_config_display()
 	if net.active and not is_host():
-		net.send_lobby_update(local_id, lobby_name_edit.text, lobby_color_idx, lobby_shape_idx)
-
-
-## Local player edited their name/color/shape: store it, refresh our own UI, and
-## sync — clients ask the host to relay; the host rebroadcasts the full roster.
-func _on_lobby_appearance_changed() -> void:
-	var player_name := lobby_name_edit.text.strip_edges().left(16)
-	if player_name == "":
-		player_name = "Player"
-	lobby_name_edit.text = player_name
-	lobby_players[local_id] = {"name": player_name, "color": lobby_color_idx, "shape": lobby_shape_idx}
-	_refresh_lobby_appearance_preview()
-	_refresh_lobby_roster()
-	if not net.active:
-		return
-	if is_host():
-		net.send_lobby_state(lobby_players)
-	else:
-		net.send_lobby_update(local_id, player_name, lobby_color_idx, lobby_shape_idx)
-
-
-func _on_lobby_color_pressed() -> void:
-	lobby_color_idx = (lobby_color_idx + 1) % Player.COLORS.size()
-	_on_lobby_appearance_changed()
-
-
-func _on_lobby_shape_pressed() -> void:
-	lobby_shape_idx = (lobby_shape_idx + 1) % Player.SHAPES.size()
-	_on_lobby_appearance_changed()
+		net.send_lobby_update(local_id, profile_name, profile_color_idx, profile_shape_idx)
 
 
 func _on_lobby_leave_pressed() -> void:
 	net.leave()
 	_show_menu("")
-
-
-## A run is already underway and we've set our look -- ask the host to splice us
-## into it (late_join_game on rpc_late_join_accept finishes the job).
-func _on_lobby_join_pressed() -> void:
-	lobby_join_btn.visible = false
-	lobby_status_label.text = "Joining the run..."
-	net.send_late_join_request()
 
 
 ## Client/host -> host: a peer's appearance changed. Host merges it into the
@@ -940,26 +953,14 @@ func apply_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx
 		net.send_lobby_state(lobby_players)
 
 
-## Host -> everyone: replace our view of the lobby roster.
+## Host -> everyone: replace our view of the lobby roster. The first roster we
+## receive after connecting (while still on the main menu, not playing) is what
+## tells us the host's run hasn't started yet -- show the lobby now.
 func apply_lobby_state(roster: Dictionary) -> void:
 	lobby_players = roster.duplicate(true)
-	if lobby_players.has(local_id):
-		var info: Dictionary = lobby_players[local_id]
-		lobby_color_idx = int(info.get("color", lobby_color_idx))
-		lobby_shape_idx = int(info.get("shape", lobby_shape_idx))
-		if lobby_name_edit != null and not lobby_name_edit.has_focus():
-			lobby_name_edit.text = String(info.get("name", lobby_name_edit.text))
-	_refresh_lobby_appearance_preview()
 	_refresh_lobby_roster()
-
-
-func _refresh_lobby_appearance_preview() -> void:
-	if lobby_preview_label == null:
-		return
-	var shape: String = Player.SHAPES[lobby_shape_idx % Player.SHAPES.size()]
-	lobby_preview_label.text = Player.SHAPE_GLYPHS.get(shape, "*")
-	lobby_preview_label.add_theme_color_override("font_color",
-		Player.COLORS[lobby_color_idx % Player.COLORS.size()])
+	if not playing and not lobby_panel.visible:
+		_show_lobby("Connected! Waiting for the host to start...")
 
 
 func _refresh_lobby_roster() -> void:
@@ -3041,11 +3042,75 @@ func _make_cycler(parent: Node, label: String, get_text: Callable, advance: Call
 	row.add_child(b)
 
 
+## Left panel on the main menu: persistent name/color/shape, used whenever this
+## player solos, hosts, or joins a session -- no separate lobby appearance step.
+func _build_profile_panel(parent: Node) -> void:
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(220, 0)
+	box.add_theme_constant_override("separation", 12)
+	parent.add_child(box)
+
+	var head := Label.new()
+	head.text = "PROFILE"
+	head.add_theme_font_size_override("font_size", 18)
+	head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(head)
+
+	profile_preview_label = Label.new()
+	profile_preview_label.custom_minimum_size = Vector2(0, 64)
+	profile_preview_label.add_theme_font_size_override("font_size", 48)
+	profile_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	profile_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	box.add_child(profile_preview_label)
+
+	profile_name_edit = LineEdit.new()
+	profile_name_edit.custom_minimum_size = Vector2(0, 44)
+	profile_name_edit.add_theme_font_size_override("font_size", 20)
+	profile_name_edit.max_length = 16
+	profile_name_edit.text = profile_name
+	profile_name_edit.text_submitted.connect(func(_t): _on_profile_appearance_changed())
+	profile_name_edit.focus_exited.connect(_on_profile_appearance_changed)
+	box.add_child(profile_name_edit)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 8)
+	box.add_child(btn_row)
+
+	var color_btn := Button.new()
+	color_btn.text = "Color"
+	color_btn.custom_minimum_size = Vector2(100, 44)
+	color_btn.add_theme_font_size_override("font_size", 18)
+	color_btn.pressed.connect(_on_profile_color_pressed)
+	btn_row.add_child(color_btn)
+
+	var shape_btn := Button.new()
+	shape_btn.text = "Shape"
+	shape_btn.custom_minimum_size = Vector2(100, 44)
+	shape_btn.add_theme_font_size_override("font_size", 18)
+	shape_btn.pressed.connect(_on_profile_shape_pressed)
+	btn_row.add_child(shape_btn)
+
+	_refresh_profile_preview()
+
+
 func _build_menu() -> void:
 	var parts := _make_overlay()
 	menu_panel = parts[0]
 	menu_panel.visible = true
 	var vbox: VBoxContainer = parts[1]
+
+	# Profile panel: a fixed strip on the left edge of the screen, independent of
+	# the centered menu content -- doesn't push the main buttons off-center.
+	var profile_strip := Control.new()
+	profile_strip.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	profile_strip.offset_right = 260
+	menu_panel.add_child(profile_strip)
+	var profile_center := CenterContainer.new()
+	profile_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	profile_strip.add_child(profile_center)
+	_build_profile_panel(profile_center)
 
 	var title := Label.new()
 	title.text = "NICESWARM"
@@ -3180,47 +3245,6 @@ func _build_lobby_panel() -> void:
 	left.add_theme_constant_override("separation", 16)
 	columns.add_child(left)
 
-	var you_head := Label.new()
-	you_head.text = "YOUR APPEARANCE"
-	you_head.add_theme_font_size_override("font_size", 18)
-	you_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	you_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left.add_child(you_head)
-
-	var you_row := HBoxContainer.new()
-	you_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	you_row.add_theme_constant_override("separation", 8)
-	left.add_child(you_row)
-
-	lobby_preview_label = Label.new()
-	lobby_preview_label.custom_minimum_size = Vector2(48, 44)
-	lobby_preview_label.add_theme_font_size_override("font_size", 32)
-	lobby_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lobby_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	you_row.add_child(lobby_preview_label)
-
-	lobby_name_edit = LineEdit.new()
-	lobby_name_edit.custom_minimum_size = Vector2(220, 44)
-	lobby_name_edit.add_theme_font_size_override("font_size", 20)
-	lobby_name_edit.max_length = 16
-	lobby_name_edit.text_submitted.connect(func(_t): _on_lobby_appearance_changed())
-	lobby_name_edit.focus_exited.connect(_on_lobby_appearance_changed)
-	you_row.add_child(lobby_name_edit)
-
-	var color_btn := Button.new()
-	color_btn.text = "Color"
-	color_btn.custom_minimum_size = Vector2(90, 44)
-	color_btn.add_theme_font_size_override("font_size", 18)
-	color_btn.pressed.connect(_on_lobby_color_pressed)
-	you_row.add_child(color_btn)
-
-	var shape_btn := Button.new()
-	shape_btn.text = "Shape"
-	shape_btn.custom_minimum_size = Vector2(90, 44)
-	shape_btn.add_theme_font_size_override("font_size", 18)
-	shape_btn.pressed.connect(_on_lobby_shape_pressed)
-	you_row.add_child(shape_btn)
-
 	var players_head := Label.new()
 	players_head.text = "PLAYERS"
 	players_head.add_theme_font_size_override("font_size", 18)
@@ -3254,14 +3278,6 @@ func _build_lobby_panel() -> void:
 	lobby_start_btn.visible = false
 	lobby_start_btn.pressed.connect(_on_start_pressed)
 	vbox.add_child(lobby_start_btn)
-
-	lobby_join_btn = Button.new()
-	lobby_join_btn.text = "Join Game"
-	lobby_join_btn.custom_minimum_size = Vector2(360, 52)
-	lobby_join_btn.add_theme_font_size_override("font_size", 22)
-	lobby_join_btn.visible = false
-	lobby_join_btn.pressed.connect(_on_lobby_join_pressed)
-	vbox.add_child(lobby_join_btn)
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave Lobby"
