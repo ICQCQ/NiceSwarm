@@ -3,8 +3,7 @@ name: Build desktop binaries
 # Builds the distributable desktop binaries and publishes them:
 #   - Windows x86_64  (NiceSwarm.exe + NiceSwarm-debug.exe)
 #   - Windows arm64   (NiceSwarm-arm64.exe)
-#   - macOS x86_64    (NiceSwarm-x86_64.zip, ad-hoc signed)
-#   - macOS arm64     (NiceSwarm-arm64.zip, ad-hoc signed)
+#   - macOS universal (NiceSwarm-macos.zip, ad-hoc signed; one binary runs native on Intel + Apple Silicon)
 # Runs on:
 #   - push to `publish`  -> rolling "latest" prerelease (always-current dev build)
 #   - version tags (v*)  -> attaches the binaries to a versioned GitHub Release
@@ -216,10 +215,10 @@ jobs:
             build/NiceSwarm-arm64.exe
             build/NiceSwarm-arm64.exe.sha256
 
-  # macOS: one job, two per-arch exports (x86_64 + arm64), each ad-hoc signed so the arm64
-  # slice runs on Apple Silicon at all. Plain foreground `run:` steps — unlike the Windows
-  # job there's no GUI-subsystem detach, so no Start-Process dance. `needs: export-windows`
-  # serializes Release creation so the two jobs don't race the `latest` tag.
+  # macOS: one job, one universal export, ad-hoc signed so it runs on Apple Silicon at all.
+  # Plain foreground `run:` steps — unlike the Windows job there's no GUI-subsystem detach, so
+  # no Start-Process dance. `needs: export-windows` serializes Release creation so the two jobs
+  # don't race the `latest` tag.
   export-macos:
     runs-on: macos-latest
     needs: export-windows
@@ -244,44 +243,43 @@ jobs:
       - name: Import project
         run: godot --headless --path . --import || true
 
-      # One export per arch + a per-arch sidecar. The game hashes its OWN inner Mach-O at
-      # runtime (OS.get_executable_path() -> NiceSwarm.app/Contents/MacOS/NiceSwarm), so the
-      # sidecar must hash that exact file, AFTER ad-hoc signing (the export does the signing)
-      # and BEFORE zipping — hashing the .zip would never match the running build.
-      - name: Export macOS per-arch (.zip, ad-hoc signed)
+      # ONE universal export — the stock Godot macOS template only ships a universal binary
+      # (godot_macos_release.universal); a per-arch export (architecture="x86_64"/"arm64") makes
+      # Godot look for godot_macos_release.<arch>, which doesn't exist → "Requested template
+      # binary not found". A universal binary already runs native on both Intel and Apple Silicon,
+      # so one zip covers everything. The game hashes its OWN inner Mach-O at runtime
+      # (OS.get_executable_path() -> NiceSwarm.app/Contents/MacOS/NiceSwarm), so the sidecar must
+      # hash that exact file, AFTER ad-hoc signing (the export does the signing) and BEFORE
+      # zipping — hashing the .zip would never match the running build.
+      - name: Export macOS universal (.zip, ad-hoc signed)
         run: |
           set -euo pipefail
           mkdir -p build
-          for arch in x86_64 arm64; do
-            preset="macOS $arch"
-            out="build/NiceSwarm-$arch.zip"
-            godot --headless --path . --export-release "$preset" "$out"
-            test -f "$out" || { echo "no zip produced for $arch"; exit 1; }
-            mb=$(echo "scale=1; $(stat -f%z "$out")/1048576" | bc)
-            echo "Built $out (${mb} MB)"
-            rm -rf "build/_u_$arch" && unzip -q "$out" -d "build/_u_$arch"
-            app=$(find "build/_u_$arch" -maxdepth 1 -name '*.app' | head -n1)
-            [ -n "$app" ] || { echo "no .app inside $out"; exit 1; }
-            # Hash whatever single executable is actually in Contents/MacOS — Godot names it
-            # after product_name ("NiceSwarm"), NOT the export-path basename, so don't guess.
-            # _self_hash() hashes this exact (already ad-hoc-signed) binary at runtime.
-            bin=$(find "$app/Contents/MacOS" -maxdepth 1 -type f | head -n1)
-            [ -n "$bin" ] || { echo "no executable in $app/Contents/MacOS"; exit 1; }
-            hash=$(shasum -a 256 "$bin" | awk '{print $1}')
-            [ ${#hash} -eq 64 ] || { echo "bad/empty sha256 for $arch ($bin)"; exit 1; }
-            printf '%s  NiceSwarm-%s.zip' "$hash" "$arch" > "$out.sha256"
-            echo "macOS $arch inner-binary ($(basename "$bin")) sha256: $hash"
-          done
+          out="build/NiceSwarm-macos.zip"
+          godot --headless --path . --export-release "macOS" "$out"
+          test -f "$out" || { echo "no zip produced"; exit 1; }
+          mb=$(echo "scale=1; $(stat -f%z "$out")/1048576" | bc)
+          echo "Built $out (${mb} MB)"
+          rm -rf build/_u_macos && unzip -q "$out" -d build/_u_macos
+          app=$(find build/_u_macos -maxdepth 1 -name '*.app' | head -n1)
+          [ -n "$app" ] || { echo "no .app inside $out"; exit 1; }
+          # Hash whatever single executable is actually in Contents/MacOS — Godot names it
+          # after product_name ("NiceSwarm"), NOT the export-path basename, so don't guess.
+          # _self_hash() hashes this exact (already ad-hoc-signed) binary at runtime.
+          bin=$(find "$app/Contents/MacOS" -maxdepth 1 -type f | head -n1)
+          [ -n "$bin" ] || { echo "no executable in $app/Contents/MacOS"; exit 1; }
+          hash=$(shasum -a 256 "$bin" | awk '{print $1}')
+          [ ${#hash} -eq 64 ] || { echo "bad/empty sha256 ($bin)"; exit 1; }
+          printf '%s  NiceSwarm-macos.zip' "$hash" > "$out.sha256"
+          echo "macOS universal inner-binary ($(basename "$bin")) sha256: $hash"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: NiceSwarm-macos
           path: |
-            build/NiceSwarm-x86_64.zip
-            build/NiceSwarm-x86_64.zip.sha256
-            build/NiceSwarm-arm64.zip
-            build/NiceSwarm-arm64.zip.sha256
+            build/NiceSwarm-macos.zip
+            build/NiceSwarm-macos.zip.sha256
           if-no-files-found: error
 
       - name: Publish versioned Release (on v* tags)
@@ -289,10 +287,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/NiceSwarm-x86_64.zip
-            build/NiceSwarm-x86_64.zip.sha256
-            build/NiceSwarm-arm64.zip
-            build/NiceSwarm-arm64.zip.sha256
+            build/NiceSwarm-macos.zip
+            build/NiceSwarm-macos.zip.sha256
 
       # Only append the mac assets — the export-windows job already created/named the `latest`
       # release. Omitting name/body here avoids blanking the body that job wrote.
@@ -303,7 +299,5 @@ jobs:
           tag_name: latest
           prerelease: true
           files: |
-            build/NiceSwarm-x86_64.zip
-            build/NiceSwarm-x86_64.zip.sha256
-            build/NiceSwarm-arm64.zip
-            build/NiceSwarm-arm64.zip.sha256
+            build/NiceSwarm-macos.zip
+            build/NiceSwarm-macos.zip.sha256
