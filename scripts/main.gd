@@ -621,6 +621,24 @@ func handle_session_check(new_id: int, player_name: String, color_idx: int, shap
 	if peer_ids.size() >= Net.MAX_PLAYERS:
 		net.send_late_join_reject(new_id, "The party is full.")
 		return
+	# If the host is mid "resuming..." countdown, the world is about to unpause via
+	# a broadcast this brand-new connection could race with -- wait for it to settle
+	# so the late-joiner always arrives in a stable paused/running state instead of
+	# getting stuck frozen forever.
+	while countdown_time > 0.0:
+		await get_tree().create_timer(0.1).timeout
+		if not is_host() or not playing:
+			return  # host stopped/left mid-wait
+		if players.has(new_id):
+			return  # already joined via a retried session_check
+	# Freeze the run for everyone while the late-joiner is spliced in -- gives the
+	# new Player node a moment to build/replay before anyone moves around it, and
+	# a stable "paused" snapshot is simplest for the joiner to mirror. A short
+	# shared "resuming..." countdown un-freezes everyone together afterwards.
+	var was_running := not get_tree().paused
+	if was_running:
+		get_tree().paused = true
+		net.send_set_paused(true)
 	var spawn_pos := _late_join_spawn_pos()
 	var p := _make_player_node(new_id, info, spawn_pos)
 	p.add_weapon("bolt")
@@ -644,6 +662,11 @@ func handle_session_check(new_id: int, player_name: String, color_idx: int, shap
 		spawn_pos.x, spawn_pos.y, p.hp, p.max_hp)
 	if OS.get_environment("NICESWARM_NET") != "":
 		print("[test] late join accepted id=%d peers=%s" % [new_id, str(peer_ids)])
+	if was_running:
+		net.send_resume_countdown()
+		_begin_resume_countdown(func() -> void:
+			get_tree().paused = false
+			net.send_set_paused(false))
 
 
 ## Client: the host couldn't splice us into the running game (party full).
