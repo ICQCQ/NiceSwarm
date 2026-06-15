@@ -10,6 +10,15 @@ const MAX_WEAPONS := 5           # weapon slots per player per run
 const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3 — longer grind to fusion)
 const MAX_FUSION_TIER := 3       # fusion depth cap: base+base->T1, T1+T1->T2, T2+T2->T3 (final)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
+
+# --- player stat-upgrade caps: a pick stops being offered, and its value is clamped, here ---
+const STAT_CAP_POWER := 6.0        # power_stat (pick-driven damage multiplier)
+const STAT_CAP_AREA := 1.75        # area_mult
+const STAT_CAP_DURATION := 1.75    # duration_mult
+const STAT_CAP_RATE := 1.0 / 1.8   # rate_mult floor → caps Haste at 1.8x faster
+const STAT_CAP_SPEED := 396.0      # move_speed cap (1.8x base 220)
+const STAT_CAP_MAGNET := 270.0     # pickup_range cap (3x base 90)
+const STAT_CAP_MAX_HP := 15        # max_hp cap from Vitality
 const ENEMY_CAP := 220           # hard limit on live enemies
 const TELEGRAPH_WARN := 1.5      # seconds to dodge a telegraphed strike
 const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed

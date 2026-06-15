@@ -1795,17 +1795,19 @@ func _build_choice_pool(p: Player) -> Array:
 	merges.shuffle()
 	pool.append_array(merges.slice(0, 2))
 	# [STAT] — generalized axes that touch every weapon's math
-	pool.append({"id": "st_power", "cat": "stat", "name": "[STAT]  Power", "desc": "+25% damage — every weapon"})
-	if p.rate_mult > 0.5:
+	if p.power_stat < GameConfig.STAT_CAP_POWER:
+		pool.append({"id": "st_power", "cat": "stat", "name": "[STAT]  Power", "desc": "+25% damage — every weapon"})
+	if p.rate_mult > GameConfig.STAT_CAP_RATE:
 		pool.append({"id": "st_rate", "cat": "stat", "name": "[STAT]  Haste", "desc": "+14% attack speed — every weapon"})
-	if p.area_mult < 2.5:
+	if p.area_mult < GameConfig.STAT_CAP_AREA:
 		pool.append({"id": "st_area", "cat": "stat", "name": "[STAT]  Area", "desc": "+20% size & reach — AoE, beams, blasts"})
-	if p.duration_mult < 2.5:
+	if p.duration_mult < GameConfig.STAT_CAP_DURATION:
 		pool.append({"id": "st_duration", "cat": "stat", "name": "[STAT]  Duration", "desc": "+25% effect time — turrets, trails, projectiles"})
-	if p.move_speed < 400.0:
+	if p.move_speed < GameConfig.STAT_CAP_SPEED:
 		pool.append({"id": "st_speed", "cat": "stat", "name": "[STAT]  Swift Boots", "desc": "+12% move speed"})
-	pool.append({"id": "st_hp", "cat": "stat", "name": "[STAT]  Vitality", "desc": "+1 max HP and heal 2"})
-	if p.pickup_range < 360.0:
+	if p.max_hp < GameConfig.STAT_CAP_MAX_HP:
+		pool.append({"id": "st_hp", "cat": "stat", "name": "[STAT]  Vitality", "desc": "+1 max HP and heal 2"})
+	if p.pickup_range < GameConfig.STAT_CAP_MAGNET:
 		pool.append({"id": "st_magnet", "cat": "stat", "name": "[STAT]  Magnet", "desc": "+50% pickup range"})
 	if p.dash_cooldown > 1.2:
 		pool.append({"id": "st_dash", "cat": "stat", "name": "[STAT]  Slipstream", "desc": "-20% dash cooldown"})
@@ -1890,20 +1892,20 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 			w.level += 1
 	else:
 		match id:
-			"st_power":
-				p.power_stat *= 1.25  # damage_mult is derived from power_stat * party-level scaling
+			"st_power":  # damage_mult is derived from power_stat * party-level scaling
+				p.power_stat = minf(p.power_stat * 1.25, GameConfig.STAT_CAP_POWER)
 			"st_rate":
-				p.rate_mult *= 0.88
+				p.rate_mult = maxf(p.rate_mult * 0.88, GameConfig.STAT_CAP_RATE)
 			"st_area":
-				p.area_mult *= 1.2
+				p.area_mult = minf(p.area_mult * 1.2, GameConfig.STAT_CAP_AREA)
 			"st_duration":
-				p.duration_mult *= 1.25
+				p.duration_mult = minf(p.duration_mult * 1.25, GameConfig.STAT_CAP_DURATION)
 			"st_speed":
-				p.move_speed *= 1.12
+				p.move_speed = minf(p.move_speed * 1.12, GameConfig.STAT_CAP_SPEED)
 			"st_hp":
 				p.gain_vitality()
 			"st_magnet":
-				p.pickup_range *= 1.5
+				p.pickup_range = minf(p.pickup_range * 1.5, GameConfig.STAT_CAP_MAGNET)
 			"st_dash":
 				p.dash_cooldown = maxf(p.dash_cooldown * 0.8, 1.2)
 		# Track stat picks for the on-screen icons (runs on every peer via call_local).

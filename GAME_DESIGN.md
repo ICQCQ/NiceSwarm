@@ -99,15 +99,18 @@ and **every player picks their own** upgrade; the run resumes once all have pick
 Eight passives, multiplicative (so early picks matter most). The four **weapon** stats
 are the universal contract every weapon honours (see §7):
 
+Each is **capped** (the pick stops being offered, and the value is clamped, at the cap —
+see `GameConfig.STAT_CAP_*`):
+
 | Pick | Effect | Cap |
 |------|--------|-----|
-| Power (`st_power`) | `damage_mult ×1.25` | — |
-| Haste (`st_rate`) | `rate_mult ×0.88` (faster cadence) | `rate_mult > 0.5` |
-| Area (`st_area`) | `area_mult ×1.2` (all spatial dims) | `< 2.5` |
-| Duration (`st_duration`) | `duration_mult ×1.25` (lifetimes) | `< 2.5` |
-| Swift Boots (`st_speed`) | `move_speed ×1.12` | `< 400` |
-| Vitality (`st_hp`) | +1 max HP, heal 2 | — |
-| Magnet (`st_magnet`) | `pickup_range ×1.5` | `< 360` |
+| Power (`st_power`) | `power_stat ×1.25` | **×6** |
+| Haste (`st_rate`) | `rate_mult ×0.88` (faster cadence) | **1.8× faster** (`rate_mult ≥ 1/1.8`) |
+| Area (`st_area`) | `area_mult ×1.2` (all spatial dims) | **×1.75** |
+| Duration (`st_duration`) | `duration_mult ×1.25` (lifetimes) | **×1.75** |
+| Swift Boots (`st_speed`) | `move_speed ×1.12` | **1.8× (396)** |
+| Vitality (`st_hp`) | +1 max HP, heal 2 | **15 max HP** |
+| Magnet (`st_magnet`) | `pickup_range ×1.5` | **3× (270)** |
 | Slipstream (`st_dash`) | `dash_cooldown ×0.8` | `≥ 1.2 s` |
 
 ### Weapon base power scales with party level
