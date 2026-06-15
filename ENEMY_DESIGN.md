@@ -29,7 +29,7 @@ Each tier is a dictionary:
 | `immune` | `Enemy.DMG_*` — takes **zero** damage of that type (PHYS/FIRE/ICE/ENERGY) |
 | `pull_imm` | ignores gravity-well pull |
 | `shield_cycle`+`shield_time` | Sentinel — phases an invulnerable shield on/off |
-| `move` | 0 chase (default) / 1 wander (random) / 2 bounce (straight, reflects off walls) / 3 straight+`life` |
+| `move` | 0 chase (default) / 1 wander (random) / 2 bounce (straight, reflects off walls) / 3 straight+`life` / 4 wander, flee a nearby player (stays within the arena) |
 | `phase` | passes through all bodies (no collision) |
 | `cc_imm` | can't be slowed or knocked back (interrupt-immune) |
 | `life` | despawns after N seconds (shards) |
@@ -40,7 +40,7 @@ Each tier is a dictionary:
 | `enrage_resist` | extra `resist` that ramps up to this value as hp drops toward 0 |
 | `immune_cycle`+`immune_pool` | rotates `immune` through this list of `DMG_*` every `immune_cycle` seconds |
 | `summon_cls`+`summon_count`+`summon_cooldown` | periodically calls in `summon_count` enemies of `summon_cls` |
-| `intercept_radius` | Interceptor — projects a jamming field of this radius; player projectiles entering it are destroyed |
+| `icast_pattern`+`icast_radius`+`icast_life`+`icast_count`+`icast_cooldown` | Interceptor — periodically casts lingering jamming field(s) (see Interceptor below) |
 
 ## Damage types
 
@@ -70,6 +70,32 @@ Dashing through any disrupt zone shrugs it off. Disrupt/field zones are purple i
 Pattern-0 casters (Bomber etc.) grow **more unpredictable as difficulty climbs** — variable lead +
 jitter, and a second scattered strike late game.
 
+## Interceptor jamming fields
+
+The interceptor class never approaches — `move: 4` makes it **wander** randomly until a player
+comes within `FLEE_RANGE` (220px), then **flee** directly away from them (and back to wandering
+once they're out of range again); either way it stays within the arena (see
+`Enemy._physics_process`). Every tier periodically *casts* a lingering jamming field
+via `main.cast_intercept_zone` — a `TelegraphZone` with `effect: EFFECT_INTERCEPT` (cyan): it
+shows the usual `TELEGRAPH_WARN` warm-up, then for `icast_life` seconds destroys any player
+projectile (bolt/turret bolt, missile, frost shard) that enters it, on host **and** clients alike
+(each registers the synced zone with `EnemyGrid.register_zone`, so `EnemyGrid.in_interceptor_zone`
+stays a cheap linear scan over a handful of live fields). `icast_pattern` selects the cast:
+
+- **4 — on itself** (Jammer). Re-casts the field centered on its own position every
+  `icast_cooldown`; since `warn + icast_life < icast_cooldown`, there's **down time** between
+  fields with no protection at all.
+- **1 — random spot nearby** (Scrambler). A single field at a random point 80-260px away,
+  radius scaled up by current **THREAT** (`1 + diff()/40`) — the worse things get, the bigger
+  the no-fire zones.
+- **2 — N enemies** (Disperser). Drops a field on up to `icast_count` other live enemies,
+  each lingering for `icast_life`. Prefers **Bouncers** — their ricochet path drags the
+  field around the arena unpredictably — and falls back to **Bosses** if no bouncers are
+  alive; if neither is alive, it skips the cast that cycle.
+- **3 — one long line, random angle** (Overseer, rare). A chain of fields spanning the arena's
+  diagonal at a fresh random angle each cast — `icast_cooldown` is long, so this is an
+  infrequent, large-area denial burst.
+
 ## Current roster
 
 | Class | Tier 0 | Tier 1 | Tier 2 | Role |
@@ -86,7 +112,7 @@ jitter, and a second scattered strike late game.
 | **wisp** | Mote | Wisp | — | **drifts randomly** (no chase); **immune to ENERGY** (counters energy builds) |
 | **disruptor** | Hexer | Nullifier | — | telegraphs instant **disrupt** zones — no damage, but slows + dash-locks you |
 | **defiler** | Warlock | Defiler | — | lays **lingering disrupt fields on the ground** (effect 2) — area denial, walk out or dash through |
-| **interceptor** | Jammer | — | — | projects a **jamming field** — player projectiles (bolt/turret bolts, missiles, frost shards) entering it are destroyed |
+| **interceptor** | Jammer | Scrambler | Disperser / Overseer | **wanders, then flees** once a player gets close; projects/casts **jamming fields** — player projectiles (bolt/turret bolts, missiles, frost shards) entering them are destroyed |
 | **elite** | Elite | Champion | — | tanky mini-boss, always drops a chest |
 | **boss** | Juggernaut | Harbinger | Eclipse | rare, very tough — see Bosses below |
 

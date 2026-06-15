@@ -64,8 +64,15 @@ const CLASSES := {
 		{"name": "Warlock", "hp0": 14.0, "hpk": 4.0, "spd": 85.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 5, "col": Color(0.45, 0.25, 0.6), "shape": "diamond", "caster": true, "pattern": 0, "effect": 2, "cr": 95.0, "cd": 0, "cdt": 3.2, "keep": 320.0},
 		{"name": "Defiler", "hp0": 24.0, "hpk": 5.0, "spd": 82.0, "spdk": 1.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.5, 0.28, 0.66), "shape": "diamond", "caster": true, "pattern": 1, "effect": 2, "cr": 85.0, "cd": 0, "cdt": 3.6, "keep": 340.0},
 	],
-	"interceptor": [  # projects a jamming field that destroys player projectiles inside it
-		{"name": "Jammer", "hp0": 12.0, "hpk": 4.0, "spd": 65.0, "spdk": 1.0, "r": 17.0, "dmg": 1, "xp": 6, "col": Color(0.25, 0.75, 0.85), "shape": "hex", "pull_imm": true, "intercept_radius": 110.0},
+	"interceptor": [  # projects/casts jamming fields that destroy player projectiles; always flees
+		# Jammer: periodically re-casts a jamming field on itself — has down time between casts.
+		{"name": "Jammer", "hp0": 12.0, "hpk": 4.0, "spd": 65.0, "spdk": 1.0, "r": 17.0, "dmg": 1, "xp": 6, "col": Color(0.25, 0.75, 0.85), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 4, "icast_radius": 110.0, "icast_life": 2.5, "icast_cooldown": 5.0},
+		# Scrambler: casts a field at a random spot nearby (not on itself); sized by current THREAT.
+		{"name": "Scrambler", "hp0": 18.0, "hpk": 5.0, "spd": 75.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 8, "col": Color(0.3, 0.8, 0.9), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 1, "icast_radius": 90.0, "icast_life": 3.0, "icast_cooldown": 5.0},
+		# Disperser: drops lingering fields on several nearby enemies at once.
+		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.35, 0.85, 0.95), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 85.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
+		# Overseer: rare — casts a single very long line of fields across the arena at a random angle.
+		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.4, 0.9, 1.0), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 2.5, "icast_cooldown": 50.0},
 	],
 	"elite": [  # tanky specials that always drop a chest
 		{"name": "Elite", "hp0": 40.0, "hpk": 18.0, "spd": 100.0, "spdk": 0.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.95, 0.35, 0.5), "shape": "circle", "elite": true, "pull_imm": true},

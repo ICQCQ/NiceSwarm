@@ -12,7 +12,7 @@ const MARGIN := 40.0  # >= largest enemy radius, so "near" stays a superset of
                        # `distance <= radius + e.radius` checks
 
 static var _cells: Dictionary = {}
-static var _interceptors: Array[Enemy] = []
+static var _zones: Array[TelegraphZone] = []  # cast jamming fields (Interceptor)
 static var _frame: int = -1
 
 
@@ -22,7 +22,6 @@ static func _ensure_fresh() -> void:
 		return
 	_frame = f
 	_cells.clear()
-	_interceptors.clear()
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
@@ -32,8 +31,6 @@ static func _ensure_fresh() -> void:
 		if not _cells.has(key):
 			_cells[key] = [] as Array[Enemy]
 		(_cells[key] as Array[Enemy]).append(e)
-		if e.intercept_radius > 0.0:
-			_interceptors.append(e)
 
 
 ## Enemies in cells overlapping the box [pos-radius, pos+radius]. Pass the same
@@ -63,13 +60,25 @@ static func all() -> Array[Enemy]:
 	return result
 
 
+## Registers a cast jamming field (Interceptor, TelegraphZone with effect ==
+## EFFECT_INTERCEPT) so in_interceptor_zone() also checks it. Called once from
+## the zone's _ready() on both host and puppet instances; the entry self-prunes
+## (is_instance_valid) once the zone is freed.
+static func register_zone(z: TelegraphZone) -> void:
+	_zones.append(z)
+
+
 ## True if `pos` falls inside an Interceptor's jamming field (player projectiles
-## are destroyed there). Interceptors are rare, so this is a short linear scan
-## over the per-frame cache rather than a grid lookup — cheap even if several
-## are alive at once, and free (empty list) when none are.
+## are destroyed there). The zone list is short (zones are rare), so this is a
+## cheap linear scan rather than a grid lookup, and free (empty list) when none
+## are active.
 static func in_interceptor_zone(pos: Vector2) -> bool:
-	_ensure_fresh()
-	for e in _interceptors:
-		if pos.distance_to(e.global_position) <= e.intercept_radius:
+	var i := _zones.size() - 1
+	while i >= 0:
+		var z := _zones[i]
+		if not is_instance_valid(z):
+			_zones.remove_at(i)
+		elif z.is_intercept_active() and pos.distance_to(z.global_position) <= z.radius:
 			return true
+		i -= 1
 	return false

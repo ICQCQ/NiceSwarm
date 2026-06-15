@@ -256,6 +256,7 @@ var debug_panel: Control
 var debug_god_btn: Button
 var debug_fuse_a: OptionButton
 var debug_fuse_b: OptionButton
+var debug_spawn_select: OptionButton
 
 
 func _ready() -> void:
@@ -1515,6 +1516,26 @@ func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0) -
 	Sfx.play("telegraph", pos)
 
 
+## Host only: an Interceptor (T1-3) casts a lingering jamming field that
+## destroys player projectiles once `warn` elapses, for `life` seconds after.
+## Synced to clients via STATE_TELEGRAPHS (effect EFFECT_INTERCEPT) so puppets
+## register the same field in EnemyGrid and destroy their own local projectile
+## visuals too — see EnemyGrid.in_interceptor_zone.
+func cast_intercept_zone(pos: Vector2, radius: float, life: float) -> void:
+	var tz := TelegraphZone.new()
+	tz.radius = radius
+	tz.warn = TELEGRAPH_WARN
+	tz.life = life
+	tz.effect = TelegraphZone.EFFECT_INTERCEPT
+	tz.main_ref = self
+	tz.net_id = item_seq
+	item_seq += 1
+	tz.position = pos
+	telegraphs_by_id[tz.net_id] = tz
+	world.add_child(tz)
+	Sfx.play("telegraph", pos)
+
+
 # --- host: drops, pickups, revives -------------------------------------------
 
 func _on_enemy_killed(enemy: Enemy) -> void:
@@ -2213,7 +2234,7 @@ func _apply_state(kind: int, data: PackedFloat32Array) -> void:
 					pop.radius = node.radius * 0.6
 					pop.max_radius = node.radius
 					pop.life = 0.25
-					pop.color = Color(1.0, 0.3, 0.2)
+					pop.color = Color(0.3, 0.85, 0.95) if node.effect == TelegraphZone.EFFECT_INTERCEPT else Color(1.0, 0.3, 0.2)
 					world.add_child(pop)
 					Sfx.play("boom", node.global_position)
 			node.queue_free()
@@ -2920,7 +2941,7 @@ func _build_debug_panel() -> void:
 	debug_panel.offset_left = -260.0
 	debug_panel.offset_right = -16.0
 	debug_panel.offset_top = 100.0
-	debug_panel.offset_bottom = 640.0
+	debug_panel.offset_bottom = 700.0
 	debug_panel.visible = false
 	ui.add_child(debug_panel)
 
@@ -3009,6 +3030,25 @@ func _build_debug_panel() -> void:
 		sb.pressed.connect(_debug_stat_up.bind(sid))
 		stat_grid.add_child(sb)
 
+	var spawn_head := Label.new()
+	spawn_head.text = "Spawn enemy (host)"
+	spawn_head.add_theme_font_size_override("font_size", 14)
+	spawn_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vbox.add_child(spawn_head)
+
+	var spawn_row := HBoxContainer.new()
+	vbox.add_child(spawn_row)
+	debug_spawn_select = OptionButton.new()
+	debug_spawn_select.custom_minimum_size = Vector2(170, 26)
+	for ty in spawner.types:
+		var d: Dictionary = ty.data
+		debug_spawn_select.add_item("%s (%s T%d)" % [d.get("name", ty.cls), ty.cls, ty.tier])
+	spawn_row.add_child(debug_spawn_select)
+	var spawn_btn := Button.new()
+	spawn_btn.text = "Spawn"
+	spawn_btn.pressed.connect(_debug_spawn_enemy)
+	spawn_row.add_child(spawn_btn)
+
 
 func _debug_toggle_god() -> void:
 	var p: Player = players.get(local_id)
@@ -3067,6 +3107,18 @@ func _debug_level_up() -> void:
 		return
 	xp = _xp_needed()
 	_maybe_open_picks()
+
+
+## Host-only: spawns one enemy of the selected type near a player — same path
+## as normal spawns (spawner.spawn_enemy), for testing specific classes/tiers.
+func _debug_spawn_enemy() -> void:
+	if not is_host():
+		return
+	var idx := debug_spawn_select.selected
+	if idx < 0 or idx >= spawner.types.size():
+		return
+	var ty: Dictionary = spawner.types[idx]
+	spawner.spawn_enemy(ty.cls, ty.tier)
 
 
 ## Maxes both selected weapons (granting them first if missing) and fuses
