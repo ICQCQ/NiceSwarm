@@ -89,7 +89,7 @@ func _ready() -> void:
 	circle.radius = RADIUS
 	cs.shape = circle
 	add_child(cs)
-	z_index = 10  # always render above the enemy swarm (enemies are z=0)
+	z_index = 100  # always on top of the whole world (swarm, projectiles, FX) so the glyph/effect/name stay visible
 	net_target = global_position
 
 	if is_local:
@@ -456,6 +456,11 @@ func _draw() -> void:
 			col = col.lightened(0.5)
 		elif invuln > 0.0 and fmod(invuln, 0.2) > 0.1:
 			col.a = 0.35
+		# pulsing "grow" ring — expands outward and fades in the player's colour, so the
+		# player pops out of a dense swarm at a glance (drawn under the body so it stays crisp)
+		var pt := fmod(Time.get_ticks_msec() * 0.0012, 1.0)
+		draw_arc(Vector2.ZERO, RADIUS + 4.0 + pt * 18.0, 0.0, TAU, 32,
+			Color(body.r, body.g, body.b, (1.0 - pt) * 0.5 * body.a), 2.5)
 		# dark backing halo: separates the bright body from the swarm on any color
 		draw_circle(Vector2.ZERO, RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.5 * col.a))
 		Player.draw_shape(self, shape_idx, RADIUS, col)
