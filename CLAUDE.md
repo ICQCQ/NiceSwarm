@@ -17,6 +17,7 @@ checkboxes, append a session-log entry with what changed and what's next, and co
 - Bombardier/telegraph smoke test: `NICESWARM_TEST=bomber` spawns 4 bombers at start (works solo or as host) so the telegraph attack + the `STATE_TELEGRAPHS` sync channel run headless.
 - Headless/test runs bypass the interactive 1-of-3 starter-weapon pick (no input) and grant bolt + any `NICESWARM_TEST` loadout directly.
 - Fusion smoke test: `NICESWARM_TEST=merge` force-maxes bolt+nova and fuses them at start; log should print `[test] merged -> ... weapons=1`.
+- **Late-game lethality probe** (balance): `NICESWARM_SIM="style=greedy,players=1,seed=1,god=1,ff=4"` runs the kiting bot **immortal** so it reaches 10:00; `player.lethal_taken` tallies the would-be (i-frame/dash-respected) damage and the per-minute `[ff] lethal/min` line is the incoming-DPS-to-a-5HP-player curve. This is the only signal that sees the late game (the mortal `NICESWARM_SIM` sweep is saturated — bots die mid-game). Keep `ff<=6` (higher time-dilates the headless host → false losses). See [docs/balance/SOLO_BALANCE_SIM.md].
 - After adding a **new** `class_name` script, run `godot --headless --path . --import` once,
   or other scripts won't resolve the class (global class cache).
 

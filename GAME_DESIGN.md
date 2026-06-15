@@ -113,7 +113,8 @@ Every weapon's base damage is multiplied by `(1 + WEAPON_LEVEL_POWER·(party_lev
 on top of its own Lv1→3 growth and the player's Power picks (see `player._physics_process`,
 which derives `damage_mult` from `power_stat` each frame). This keeps weapons you never pour
 level-ups into — and the off-build half of a fusion — paying their way as enemy HP scales.
-At ~L45 that's ≈2.8× base damage; it's a single tunable knob (FF-calibrated).
+At ~L45 that's ≈2.1× base damage (dialed back from 0.04 to curb the late-game snowball);
+a single tunable knob (FF/lethality-probe calibrated).
 
 ### Weapon → fusion slot economy
 5 slots, level cap 3. Hit Lv3 on two weapons and you can **fuse** them: removes 2, adds 1
@@ -247,9 +248,13 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | `WIN_TIME` | 600 s | run length |
 | `MAX_WEAPONS` / `MAX_WEAPON_LEVEL` | 5 / 3 | slots / level cap before fuse |
 | `MAX_FUSION_TIER` | 2 | fusion depth cap: base+base→T1, T1+T1→T2 (final, no T3) |
-| `WEAPON_LEVEL_POWER` | 0.04 | weapon base damage ×(1 + this·(party_level−1)) |
-| `ENEMY_CAP` | 220 | hard live-enemy limit |
-| `DIFF_BASE` | 1/48 | base difficulty climb rate |
+| `WEAPON_LEVEL_POWER` | 0.025 | weapon base damage ×(1 + this·(party_level−1)) |
+| `XP_GAIN_MULT` | 0.5 | base XP-gain multiplier (half leveling speed) |
+| `ENEMY_CAP` | 300 | hard live-enemy limit |
+| `DIFF_BASE` | 1/45 | base difficulty climb rate |
+| `ENEMY_SPEED_DIFF_SCALE` / `ENEMY_HP_DIFF_SCALE` | 0.025 / 0.04 | enemy speed/hp ×(1 + diff·this) — break the late-game kite |
+| `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); 300-enemy flood late |
+| `SPAWN_RING_MIN` / `_MAX` | 300 / 1200 | spawn-distance band (`SPAWN_SAFE_RADIUS` 500 still clamps the effective min) |
 | `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 2.4 / 1.0 / 0.02 | climb accelerators |
 | `DIFF_LEVEL_STEP` | 0.05 | flat difficulty added per level-up |
 | `MID_GAME_TIME` | 300 s | earliest heat-spike arm time |

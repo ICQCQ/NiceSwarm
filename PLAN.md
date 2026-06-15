@@ -783,3 +783,34 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   harness artifact, not a regression).
 - **Next:** real playtest to tune `WEAPON_LEVEL_POWER` (0.04 is FF-calibrated, not
   hand-played) and confirm the T2 cap feels right; then merge → `publish`.
+
+### 2026-06-16 — Session 5 (continued): hard-difficulty pass + FF lethality probe (target win <10%)
+- User: the game is too easy (esp. after the weapon revamp); recalibrate toward a
+  **skilled-player win rate <10%**; look back at the old, harder enemy design. Then
+  steered specific knobs live (spawn rate, half XP, cap 300, ×5 spawn, spawn ring).
+- **Key diagnosis (new instrument):** the kiting **bot sweep is saturated** — every build
+  dies in the mid-game (~3-4 min, L9), so it's blind to the level-20-45 late game where a
+  skilled human lives. Built a **lethality probe**: `NICESWARM_SIM=...,god=1` runs the bot
+  **immortal** to 10:00 and `player.lethal_taken` tallies the would-be (i-frame-respected)
+  damage; per-minute `[ff] lethal/min` is the incoming-DPS-to-a-5HP-player curve. It showed
+  the real "too easy": **late-game incoming damage was 0** — once a build comes online the
+  player out-runs/out-DPSes the capped swarm (a free snowball). Count/XP levers alone can't
+  reach it (more enemies → more XP → more DPS → untouchable again).
+- **Changes (GameConfig unless noted):** density — `ENEMY_CAP` 220→300, spawn interval ×5
+  (`SPAWN_INTERVAL_START/_END` →0.2/0.024) **ramped over `DIFF_WARMUP_SECS` 80→130** so the
+  opening is survivable, `SPAWN_DESIRED_*` up, `SPAWN_RING_MIN/_MAX` 300/1200,
+  `SPAWN_SAFE_RADIUS` 500→250. Late-game lethality — `DIFF_BASE` 1/62→1/45, new
+  `ENEMY_SPEED_DIFF_SCALE` 0.025 + `ENEMY_HP_DIFF_SCALE` 0.04 in `spawner.make_enemy` (late
+  enemies catch + survive a kiter), contact dmg `diff/12→diff/7`, `MAX_TELEGRAPHS` 6→9.
+  Player power-curve — `XP_GAIN_MULT` 0.5 (half leveling, applied at `_xp_needed`),
+  `WEAPON_LEVEL_POWER` 0.04→0.025.
+- **Result:** lethality curve went from `…6:149 7:0 8:0 9:0` (free late snowball) to a
+  sustained `2:191 3:1038 4:1214 5:661 6:214 7:139 8:145 9:103` — brutal mid wall, **no free
+  late game**. Mortal-bot win 3%→0% (dies in the min3-4 wall). The 130s warmup was the fix
+  for an instant-death overshoot (×5 flood on a L1 player → die at 40s).
+- **Verified:** `[tests] 1026 passed, 0 failed`; solo/merge/all_weapons smoke clean. Doc:
+  new "Hard-difficulty pass" section in [docs/balance/SOLO_BALANCE_SIM.md].
+- **Caveat / next:** no automated proxy measures a *skilled* player's win rate — the final
+  <10% is a **playtest call**. The probe over-counts dodgeable AoE, so trust relative change.
+  Knobs to tune live are listed in the balance doc. Late-game perf at 300 enemies wants a
+  real check. Open as PR off `revamp-weapon-progression`.
