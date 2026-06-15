@@ -88,6 +88,7 @@ var local_id := 1
 var auto_start_on_join := false # test hook
 var rejoin_pending := false     # we have a saved session: check on the next Join whether it's resumable
 var rejoin_old_id := 0          # our peer id in the run we're trying to rejoin
+var late_join_pending := false  # host has a run in progress and offered us a seat -- lobby shows "Join Game"
 
 # Persists rejoin_old_id + host address across a full app restart (e.g. the player
 # closed the game after disconnecting), so the next "Join" can still resume the run.
@@ -218,6 +219,7 @@ var lobby_preview_label: Label
 var lobby_roster_box: VBoxContainer
 var lobby_config_box: VBoxContainer
 var lobby_start_btn: Button
+var lobby_join_btn: Button
 var update_check: UpdateCheck
 var update_banner: Control      # menu "a newer build is available" notice (hidden until found)
 var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
@@ -300,6 +302,7 @@ func _show_menu(message: String) -> void:
 	menu_panel.visible = true
 	lobby_panel.visible = false
 	lobby_players = {}
+	late_join_pending = false
 	hud_root.visible = false
 	status_label.text = message
 
@@ -443,6 +446,9 @@ func on_join_ok() -> void:
 		# connection) whether it's still available before committing to anything.
 		net.send_rejoin_check(rejoin_old_id)
 		return
+	# Ask whether a run is already in progress -- if so the host replies with a
+	# late-join offer (on_late_join_offer) and we switch the lobby to "Join Game".
+	net.send_session_check()
 	_show_lobby("Connected! Waiting for the host to start...")
 
 
@@ -586,6 +592,157 @@ func on_rejoin_rejected(reason: String) -> void:
 	_show_menu(reason)
 
 
+# --- late join (a brand-new player joins a session already in progress) -----
+
+## Host: a freshly connected peer with no saved session asked whether a run is
+## already underway. If so, seed it a lobby slot and offer it a late join (with
+## the current roster, so its appearance picker shows everyone already playing).
+func handle_session_check(new_id: int) -> void:
+	if not is_host() or not playing:
+		return
+	if not lobby_players.has(new_id):
+		lobby_players[new_id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
+			"shape": randi() % Player.SHAPES.size()}
+	net.send_late_join_offer(new_id, lobby_players)
+
+
+## Client: the host has a run in progress and there's a seat for us -- show the
+## lobby's appearance picker (seeded with the current roster) and a "Join Game"
+## button instead of "waiting for the host to start".
+func on_late_join_offer(roster: Dictionary) -> void:
+	late_join_pending = true
+	lobby_players = roster.duplicate(true)
+	_show_lobby("A run is already in progress.\nSet your look, then tap Join!")
+	if OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_TEST") != "":
+		_on_lobby_join_pressed()  # headless test hook: skip the appearance picker, join immediately
+
+
+func on_late_join_rejected(reason: String) -> void:
+	net.leave()
+	late_join_pending = false
+	_show_menu(reason)
+
+
+## Host: a connected peer that was offered a late join has set its appearance
+## and pressed "Join" -- splice a brand-new Player into the running game for it.
+func handle_late_join_request(new_id: int) -> void:
+	if not is_host():
+		return
+	if not playing:
+		net.send_late_join_reject(new_id, "The host left the run.")
+		return
+	if players.has(new_id):
+		return  # already joined -- ignore a duplicate request
+	if peer_ids.size() >= Net.MAX_PLAYERS:
+		net.send_late_join_reject(new_id, "The party is full.")
+		return
+	var info: Dictionary = lobby_players.get(new_id, {"name": "Player", "color": 0, "shape": 0})
+	var spawn_pos := _late_join_spawn_pos()
+	var p := _make_player_node(new_id, info, spawn_pos)
+	p.add_weapon("bolt")
+	_register_player(p)
+	peer_ids.append(new_id)
+	peer_ids.sort()
+	# Record the starter grant so a *later* late-joiner's history replay also
+	# gives this player their bolt (apply_player_joined grants it directly to
+	# everyone already here).
+	choice_history[new_id] = ["learn_bolt"]
+
+	var hp_snapshot := {}
+	for pid in players:
+		var pl: Player = players[pid]
+		hp_snapshot[pid] = [pl.hp, pl.max_hp, pl.downed, pl.global_position.x, pl.global_position.y]
+
+	net.send_late_join_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
+		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
+		get_tree().paused, leveling, free_choice, picks_starter)
+	net.send_player_joined(new_id, p.player_name, p.color_idx, p.shape_idx,
+		spawn_pos.x, spawn_pos.y, p.hp, p.max_hp)
+	if OS.get_environment("NICESWARM_NET") != "":
+		print("[test] late join accepted id=%d peers=%s" % [new_id, str(peer_ids)])
+
+
+## Host: a safe-ish spawn point for a brand-new mid-run player -- next to an
+## existing ally (so they're not dropped into the swarm alone), or the arena
+## center if (somehow) no one is alive yet.
+func _late_join_spawn_pos() -> Vector2:
+	var anchor: Node2D = nearest_alive_player(Vector2.ZERO)
+	var base := anchor.global_position if anchor != null else Vector2.ZERO
+	return base + Vector2.from_angle(randf() * TAU) * 50.0
+
+
+## We asked to late-join and the host accepted: rebuild the world for the
+## current roster (mirrors rejoin_game), replay every choice made so far so
+## existing players' weapons/levels match the host, then grant ourselves the
+## starting Bolt weapon since we missed the run's starter pick.
+func late_join_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
+		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool) -> void:
+	peer_ids = Array(ids)
+	peer_ids.sort()
+	lobby_players = roster
+	cfg_choices = choices
+	cfg_xp_rate = xp_rate
+	cfg_enemy_scale = enemy_scale
+	local_id = multiplayer.get_unique_id()
+	_reset_run_state()
+	_build_world(false)
+	for pid in history:
+		for id in history[pid]:
+			apply_choice(int(pid), id, true)
+	choice_history = history.duplicate(true)
+	for pid in hp_snapshot:
+		var pl: Player = players.get(int(pid))
+		if pl == null:
+			continue
+		var snap: Array = hp_snapshot[pid]
+		pl.hp = int(snap[0])
+		pl.max_hp = int(snap[1])
+		pl.downed = bool(snap[2])
+		pl.global_position = Vector2(float(snap[3]), float(snap[4]))
+		pl.net_target = pl.global_position
+		pl.health_changed.emit(pl.hp, pl.max_hp)
+	var me: Player = players.get(local_id)
+	if me != null and me.weapons.is_empty() and not host_picks_starter:
+		me.add_weapon("bolt")
+	playing = true
+	late_join_pending = false
+	# A late-joiner can rejoin too, if they disconnect later.
+	_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
+	menu_panel.visible = false
+	lobby_panel.visible = false
+	hud_root.visible = true
+	# Match the run's current pause/level-up state, same as a rejoin -- if a
+	# pick is open or the host is paused, we should see that too.
+	if host_leveling:
+		open_picks(host_free_choice, host_picks_starter)
+	elif host_paused:
+		get_tree().paused = true
+	if OS.get_environment("NICESWARM_NET") != "":
+		print("[test] late_join_game peers=%s local=%d weapons=%d" \
+			% [str(peer_ids), local_id, (me.weapons.size() if me != null else -1)])
+
+
+## Everyone already in the run (not the joiner, which rebuilds via
+## late_join_game instead): the host added a brand-new player -- create their
+## Player node here too so they show up immediately.
+func apply_player_joined(pid: int, player_name: String, color_idx: int, shape_idx: int,
+		x: float, y: float, hp: int, max_hp: int) -> void:
+	if not playing or players.has(pid):
+		return
+	lobby_players[pid] = {"name": player_name, "color": color_idx, "shape": shape_idx}
+	peer_ids.append(pid)
+	peer_ids.sort()
+	var p := _make_player_node(pid, lobby_players[pid], Vector2(x, y))
+	p.add_weapon("bolt")
+	p.hp = hp
+	p.max_hp = max_hp
+	_register_player(p)
+	p.health_changed.emit(p.hp, p.max_hp)
+	if OS.get_environment("NICESWARM_NET") != "":
+		print("[test] apply_player_joined id=%d peers=%s" % [pid, str(peer_ids)])
+
+
 ## Remember rejoin_old_id + the host address on disk so "Rejoin" still works
 ## after the player fully closes and relaunches the game.
 func _save_rejoin_state(old_id: int, ip: String, port: int) -> void:
@@ -725,6 +882,7 @@ func _show_lobby(status: String) -> void:
 	lobby_name_edit.text = String(info.get("name", "Player"))
 	lobby_status_label.text = status
 	lobby_start_btn.visible = is_host()
+	lobby_join_btn.visible = late_join_pending
 	_refresh_lobby_appearance_preview()
 	_refresh_lobby_roster()
 	_refresh_lobby_config_display()
@@ -763,6 +921,14 @@ func _on_lobby_shape_pressed() -> void:
 func _on_lobby_leave_pressed() -> void:
 	net.leave()
 	_show_menu("")
+
+
+## A run is already underway and we've set our look -- ask the host to splice us
+## into it (late_join_game on rpc_late_join_accept finishes the job).
+func _on_lobby_join_pressed() -> void:
+	lobby_join_btn.visible = false
+	lobby_status_label.text = "Joining the run..."
+	net.send_late_join_request()
 
 
 ## Client/host -> host: a peer's appearance changed. Host merges it into the
@@ -1026,23 +1192,37 @@ func _build_world(grant_starters: bool = true) -> void:
 
 	for i in peer_ids.size():
 		var pid: int = peer_ids[i]
-		var p := Player.new()
-		p.name = "Player_%d" % pid
-		p.peer_id = pid
 		var info: Dictionary = lobby_players.get(pid, {})
-		p.color_idx = int(info.get("color", i)) % Player.COLORS.size()
-		p.shape_idx = int(info.get("shape", 0)) % Player.SHAPES.size()
-		p.player_name = String(info.get("name", "Player"))
-		p.is_local = pid == local_id
-		p.arena = ARENA
-		p.position = Vector2.from_angle(TAU * i / maxi(peer_ids.size(), 1)) * 60.0
-		p.health_changed.connect(_on_player_hp_changed.bind(p))
-		p.died.connect(_on_player_downed.bind(p))
-		world.add_child(p)
-		players[pid] = p
-		_score[pid] = {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0}
+		var pos := Vector2.from_angle(TAU * i / maxi(peer_ids.size(), 1)) * 60.0
+		_register_player(_make_player_node(pid, info, pos, i))
 	if grant_starters:
 		_grant_starters()
+
+
+## Builds (but does not register) a Player node from lobby appearance info.
+## `fallback_color_idx` is used when the roster has no saved color for this
+## peer yet (e.g. spawn-order index in _build_world).
+func _make_player_node(pid: int, info: Dictionary, pos: Vector2, fallback_color_idx: int = 0) -> Player:
+	var p := Player.new()
+	p.name = "Player_%d" % pid
+	p.peer_id = pid
+	p.color_idx = int(info.get("color", fallback_color_idx)) % Player.COLORS.size()
+	p.shape_idx = int(info.get("shape", 0)) % Player.SHAPES.size()
+	p.player_name = String(info.get("name", "Player"))
+	p.is_local = pid == local_id
+	p.arena = ARENA
+	p.position = pos
+	return p
+
+
+## Wires a freshly built Player node into the world/bookkeeping shared by every
+## entry path (initial build, mid-game late join, ally late-join notification).
+func _register_player(p: Player) -> void:
+	p.health_changed.connect(_on_player_hp_changed.bind(p))
+	p.died.connect(_on_player_downed.bind(p))
+	world.add_child(p)
+	players[p.peer_id] = p
+	_score[p.peer_id] = {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0}
 
 
 ## Decides how each player gets their first weapon. Headless/test runs get a
@@ -3074,6 +3254,14 @@ func _build_lobby_panel() -> void:
 	lobby_start_btn.visible = false
 	lobby_start_btn.pressed.connect(_on_start_pressed)
 	vbox.add_child(lobby_start_btn)
+
+	lobby_join_btn = Button.new()
+	lobby_join_btn.text = "Join Game"
+	lobby_join_btn.custom_minimum_size = Vector2(360, 52)
+	lobby_join_btn.add_theme_font_size_override("font_size", 22)
+	lobby_join_btn.visible = false
+	lobby_join_btn.pressed.connect(_on_lobby_join_pressed)
+	vbox.add_child(lobby_join_btn)
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave Lobby"

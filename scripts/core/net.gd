@@ -145,6 +145,52 @@ func send_player_connection(pid: int, connected: bool) -> void:
 		rpc_player_connection.rpc(pid, connected)
 
 
+# --- late join (a brand-new player joins a session already in progress) ----
+
+# Client -> host: "is a run already in progress, and is there room for me?" Sent
+# right after connecting, when we have no saved session to rejoin.
+func send_session_check() -> void:
+	if active:
+		rpc_session_check.rpc()
+
+
+# Host -> the checking client only: a run is in progress and there's room --
+# show the lobby's appearance picker (seeded with the current roster) and a
+# "Join Game" button instead of "waiting for the host to start".
+func send_late_join_offer(target: int, roster: Dictionary) -> void:
+	if active:
+		rpc_late_join_offer.rpc_id(target, roster)
+
+
+# Client -> host: "I've set my look -- splice me into the running game."
+func send_late_join_request() -> void:
+	if active:
+		rpc_late_join_request.rpc()
+
+
+func send_late_join_reject(target: int, reason: String) -> void:
+	if active:
+		rpc_late_join_reject.rpc_id(target, reason)
+
+
+# Host -> the joining client only: everything it needs to build the run (mirrors
+# rejoin_accept, minus the resume countdown -- nothing was paused for this).
+func send_late_join_accept(target: int, ids: PackedInt32Array, roster: Dictionary,
+		history: Dictionary, hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool) -> void:
+	if active:
+		rpc_late_join_accept.rpc_id(target, ids, roster, history, hp_snapshot, choices, xp_rate,
+			enemy_scale, paused, leveling, free_choice, picks_starter)
+
+
+# Host -> everyone already in the run (not the joiner, which rebuilds via
+# rpc_late_join_accept instead): a brand-new player joined -- add their character.
+func send_player_joined(pid: int, player_name: String, color_idx: int, shape_idx: int,
+		x: float, y: float, hp: int, max_hp: int) -> void:
+	if active:
+		rpc_player_joined.rpc(pid, player_name, color_idx, shape_idx, x, y, hp, max_hp)
+
+
 func send_start(ids: PackedInt32Array) -> void:
 	if active:
 		rpc_start.rpc(ids)
@@ -287,6 +333,40 @@ func rpc_player_rejoined(old_pid: int, new_pid: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func rpc_player_connection(pid: int, connected: bool) -> void:
 	main.apply_player_connection(pid, connected)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_session_check() -> void:
+	main.handle_session_check(multiplayer.get_remote_sender_id())
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_late_join_offer(roster: Dictionary) -> void:
+	main.on_late_join_offer(roster)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_late_join_request() -> void:
+	main.handle_late_join_request(multiplayer.get_remote_sender_id())
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_late_join_reject(reason: String) -> void:
+	main.on_late_join_rejected(reason)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_late_join_accept(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
+		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool) -> void:
+	main.late_join_game(ids, roster, history, hp_snapshot, choices, xp_rate, enemy_scale,
+		paused, leveling, free_choice, picks_starter)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_player_joined(pid: int, player_name: String, color_idx: int, shape_idx: int,
+		x: float, y: float, hp: int, max_hp: int) -> void:
+	main.apply_player_joined(pid, player_name, color_idx, shape_idx, x, y, hp, max_hp)
 
 
 @rpc("any_peer", "call_remote", "unreliable")
