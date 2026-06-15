@@ -189,7 +189,7 @@ func send_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) -
 		rpc_player_state.rpc(pid, pos, facing, dashing)
 
 
-func send_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedFloat32Array) -> void:
+func send_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedByteArray) -> void:
 	if active:
 		rpc_world_state.rpc(kind, tick, chunk, total, data)
 
@@ -237,6 +237,13 @@ func send_set_safe(pid: int, safe: bool) -> void:
 		rpc_set_safe_flag.rpc(pid, safe)
 
 
+# Client -> host: my in-game menu opened/closed — the host pauses the whole run while
+# ANY player's menu is open (host-authoritative global pause).
+func send_request_pause(pid: int, open: bool) -> void:
+	if active:
+		rpc_request_pause.rpc(pid, open)
+
+
 # Host -> clients: show the cosmetic resume countdown (the real unpause follows via set_paused).
 func send_resume_countdown() -> void:
 	if active:
@@ -253,9 +260,15 @@ func send_announce(text: String, is_boss: bool) -> void:
 		rpc_announce.rpc(text, is_boss)
 
 
-func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
+func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array, names: PackedStringArray) -> void:
 	if active:
-		rpc_end.rpc(won, elapsed, level, kills, scores)
+		rpc_end.rpc(won, elapsed, level, kills, scores, names)
+
+
+# Host -> clients: per-peer round-trip ms (pid -> ms), for the in-game name tags / ally list.
+func send_pings(pings: Dictionary) -> void:
+	if active:
+		rpc_pings.rpc(pings)
 
 
 func send_reset() -> void:
@@ -353,7 +366,7 @@ func rpc_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) ->
 
 
 @rpc("authority", "call_remote", "unreliable")
-func rpc_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedFloat32Array) -> void:
+func rpc_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedByteArray) -> void:
 	main.apply_world_state(kind, tick, chunk, total, data)
 
 
@@ -397,6 +410,11 @@ func rpc_set_safe_flag(pid: int, safe: bool) -> void:
 	main.apply_set_safe(pid, safe)
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_pause(pid: int, open: bool) -> void:
+	main.set_menu_open(pid, open)
+
+
 @rpc("authority", "call_remote", "reliable")
 func rpc_resume_countdown() -> void:
 	main.begin_resume_countdown_remote()
@@ -413,8 +431,13 @@ func rpc_announce(text: String, is_boss: bool) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
-	main.apply_end(won, elapsed, level, kills, scores)
+func rpc_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array, names: PackedStringArray) -> void:
+	main.apply_end(won, elapsed, level, kills, scores, names)
+
+
+@rpc("authority", "call_remote", "unreliable")
+func rpc_pings(pings: Dictionary) -> void:
+	main.apply_pings(pings)
 
 
 @rpc("authority", "call_remote", "reliable")

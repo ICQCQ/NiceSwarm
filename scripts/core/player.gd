@@ -23,6 +23,11 @@ const SHAPE_GLYPHS := {
 	"circle": "●", "square": "■", "triangle": "▲", "diamond": "◆", "star": "★",
 }
 
+
+## Unicode marker for a player's character shape — prepended to their name in the HUD/scoreboard.
+static func shape_glyph(shape_idx_: int) -> String:
+	return SHAPE_GLYPHS[SHAPES[shape_idx_ % SHAPES.size()]]
+
 var peer_id := 1
 var color_idx := 0
 var shape_idx := 0
@@ -84,7 +89,7 @@ func _ready() -> void:
 	circle.radius = RADIUS
 	cs.shape = circle
 	add_child(cs)
-	z_index = 10  # always render above the enemy swarm (enemies are z=0)
+	z_index = 100  # always on top of the whole world (swarm, projectiles, FX) so the glyph/effect/name stay visible
 	net_target = global_position
 
 	if is_local:
@@ -451,6 +456,11 @@ func _draw() -> void:
 			col = col.lightened(0.5)
 		elif invuln > 0.0 and fmod(invuln, 0.2) > 0.1:
 			col.a = 0.35
+		# pulsing "grow" ring — expands outward and fades in the player's colour, so the
+		# player pops out of a dense swarm at a glance (drawn under the body so it stays crisp)
+		var pt := fmod(Time.get_ticks_msec() * 0.0012, 1.0)
+		draw_arc(Vector2.ZERO, RADIUS + 4.0 + pt * 18.0, 0.0, TAU, 32,
+			Color(body.r, body.g, body.b, (1.0 - pt) * 0.5 * body.a), 2.5)
 		# dark backing halo: separates the bright body from the swarm on any color
 		draw_circle(Vector2.ZERO, RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.5 * col.a))
 		Player.draw_shape(self, shape_idx, RADIUS, col)
@@ -466,6 +476,12 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
 	if not is_local:
-		var label := player_name + (" (away)" if disconnected else "")
-		draw_string(ThemeDB.fallback_font, Vector2(-60.0, -RADIUS - 10.0),
-			label, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 13, body)
+		var ping := 0
+		if Main.instance != null:
+			ping = int(Main.instance.net_pings.get(peer_id, 0))
+		var ping_s := ("  %dms" % ping) if ping > 0 else ""
+		# glyph (character) + name, drawn in the player's own colour (the colour cue), + ping
+		var label := "%s %s%s%s" % [Player.shape_glyph(shape_idx), player_name, ping_s,
+			(" (away)" if disconnected else "")]
+		draw_string(ThemeDB.fallback_font, Vector2(-75.0, -RADIUS - 10.0),
+			label, HORIZONTAL_ALIGNMENT_CENTER, 150.0, 13, body)

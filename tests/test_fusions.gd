@@ -32,13 +32,18 @@ func run(t) -> void:
 	t.eq(pairs, 78, "13 weapons -> 78 unordered pairs")
 	t.eq(covered, 78, "all 78 pairs have a signature recipe")
 
-	# Fusion depth cap (base+base -> T1, T1+T1 -> T2 final, no T3).
+	# Fusion depth: merging tiers a,b yields max(a,b)+1; mergeable only while that stays
+	# within MAX_FUSION_TIER (so a final-tier fusion can never merge again). Cap-relative
+	# so these hold for any MAX_FUSION_TIER.
 	t.eq(Fusions.merged_tier(0, 0), 1, "base+base merges to tier 1")
 	t.eq(Fusions.merged_tier(1, 1), 2, "T1+T1 merges to tier 2")
 	t.eq(Fusions.merged_tier(0, 1), 2, "base+T1 merges to tier 2")
+	var cap: int = GameConfig.MAX_FUSION_TIER
 	t.ok(Fusions.can_merge(0, 0), "base+base is mergeable")
-	t.ok(Fusions.can_merge(1, 1), "T1+T1 is mergeable (-> final T2)")
-	t.ok(Fusions.can_merge(0, 1), "base+T1 is mergeable")
-	t.ok(not Fusions.can_merge(2, 0), "a final T2 fusion can't be merged again")
-	t.ok(not Fusions.can_merge(2, 1), "T2 + T1 is blocked")
-	t.ok(not Fusions.can_merge(2, 2), "T2 + T2 is blocked")
+	t.ok(Fusions.can_merge(cap - 1, cap - 1), "two next-to-final tiers merge into the final tier")
+	t.ok(not Fusions.can_merge(cap, 0), "a final-tier fusion can't be merged again")
+	t.ok(not Fusions.can_merge(cap, cap), "two final-tier fusions can't merge")
+	# general invariant: can_merge iff the result stays within the cap
+	for a in range(0, cap + 2):
+		for b in range(0, cap + 2):
+			t.eq(Fusions.can_merge(a, b), Fusions.merged_tier(a, b) <= cap, "can_merge(%d,%d) matches the cap rule" % [a, b])

@@ -30,7 +30,14 @@ func build() -> void:
 	main.kills_label = _make_label(Vector2(16, 86), 22, Color(0.8, 0.85, 1.0))
 	main.dash_label = _make_label(Vector2(16, 114), 22, Color(0.5, 1.0, 0.7))
 	main.threat_label = _make_label(Vector2(540, 58), 22, Color(0.6, 0.65, 0.75))
-	main.allies_label = _make_label(Vector2(16, 146), 20, Color(0.85, 0.85, 0.95))
+	main.allies_label = RichTextLabel.new()  # BBCode so each ally name shows in their own colour
+	main.allies_label.bbcode_enabled = true
+	main.allies_label.fit_content = true
+	main.allies_label.scroll_active = false
+	main.allies_label.position = Vector2(16, 146)
+	main.allies_label.custom_minimum_size = Vector2(380, 0)
+	main.allies_label.add_theme_font_size_override("normal_font_size", 20)
+	main.hud_root.add_child(main.allies_label)
 	main.weapons_label = RichTextLabel.new()
 	main.weapons_label.bbcode_enabled = true
 	main.weapons_label.scroll_active = false
@@ -78,7 +85,7 @@ func build() -> void:
 	main.hint_label.text = Main.HINT_COOP
 	main.banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
 	main.banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	main.banner_label.offset_top = 150.0
+	main.banner_label.offset_top = 90.0  # centered, just below the difficulty/threat readout (not over the left HUD list)
 	main.banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	main.banner_label.modulate.a = 0.0
 

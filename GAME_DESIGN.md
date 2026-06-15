@@ -48,7 +48,7 @@ fixed schedule, while enemy **toughness** accelerates when the party is doing we
 | WASD / arrows | Move |
 | SPACE / SHIFT | Dash (brief i-frames; shrugs off disrupt zones) |
 | 1–6 | Pick an upgrade (number of options is configurable) |
-| ESC | Pause (host) / leave to menu (client) |
+| ESC | Open the in-game menu — pauses the whole run for **every** player (resume = ESC again) |
 | M | Main menu (from pause / game-over) |
 | R | Restart (host, at game-over) |
 
@@ -70,13 +70,15 @@ fixed schedule, while enemy **toughness** accelerates when the party is doing we
 
 ### Party XP and levels
 XP and level are **shared by the whole party** — anyone's gem pickup advances everyone.
-The threshold curve is currently **linear**:
+The cost AT level `L` to reach `L+1` is **exponential** (`GameConfig.xp_for_level`):
 
 ```
-xp_needed(level) = max(1, round( (6 + (level-1) * 4) / cfg_xp_rate ))
+xp_needed(L) = max(1, round( XP_BASE * XP_GROWTH^(L-1) / (cfg_xp_rate * XP_GAIN_MULT) ))
 ```
-(L1 = 6, L2 = 10, L3 = 14, …). *This curve is the subject of the balance overhaul in
-[docs/balance/BALANCE_PLAN.md](docs/balance/BALANCE_PLAN.md).* On level-up the game pauses
+`XP_BASE = 5`, `XP_GROWTH = 1.12` (each level costs 1.12× the last → gentle early, steep late),
+and the effective rate is `cfg_xp_rate` (menu) × `XP_GAIN_MULT` (0.5 base). At the default rate
+the shown costs are L1≈10, L20≈86, L30≈267, L45≈1462 — leveling compounds, so high levels are
+genuinely earned. On level-up the game pauses
 and **every player picks their own** upgrade; the run resumes once all have picked
 (banked XP / queued chests chain straight into another pick).
 
@@ -86,7 +88,7 @@ and **every player picks their own** upgrade; the run resumes once all have pick
 | Tag | Colour | Meaning |
 |-----|--------|---------|
 | `[NEW]` | green | learn a weapon you don't own (while < `MAX_WEAPONS` = 5) |
-| `[Lv n]` | blue | level an owned weapon (cap `MAX_WEAPON_LEVEL` = 3) — adds damage + counts |
+| `[Lv n]` | blue | level an owned weapon (cap `MAX_WEAPON_LEVEL` = 7) — adds damage + counts |
 | `[FUSE]` | gold | combine two maxed weapons into a **signature** new weapon |
 | `[AMALGAM]` | orange | combine two maxed weapons with no recipe → generic `WeaponFused` |
 | `[STAT]` | pale | a passive stat boost (below) |
@@ -97,15 +99,18 @@ and **every player picks their own** upgrade; the run resumes once all have pick
 Eight passives, multiplicative (so early picks matter most). The four **weapon** stats
 are the universal contract every weapon honours (see §7):
 
+Each is **capped** (the pick stops being offered, and the value is clamped, at the cap —
+see `GameConfig.STAT_CAP_*`):
+
 | Pick | Effect | Cap |
 |------|--------|-----|
-| Power (`st_power`) | `damage_mult ×1.25` | — |
-| Haste (`st_rate`) | `rate_mult ×0.88` (faster cadence) | `rate_mult > 0.5` |
-| Area (`st_area`) | `area_mult ×1.2` (all spatial dims) | `< 2.5` |
-| Duration (`st_duration`) | `duration_mult ×1.25` (lifetimes) | `< 2.5` |
-| Swift Boots (`st_speed`) | `move_speed ×1.12` | `< 400` |
-| Vitality (`st_hp`) | +1 max HP, heal 2 | — |
-| Magnet (`st_magnet`) | `pickup_range ×1.5` | `< 360` |
+| Power (`st_power`) | `power_stat ×1.25` | **×6** |
+| Haste (`st_rate`) | `rate_mult ×0.88` (faster cadence) | **2× faster** (`rate_mult ≥ 0.5`) |
+| Area (`st_area`) | `area_mult ×1.2` (all spatial dims) | **×2** |
+| Duration (`st_duration`) | `duration_mult ×1.25` (lifetimes) | **×2.5** |
+| Swift Boots (`st_speed`) | `move_speed ×1.12` | **1.8× (396)** |
+| Vitality (`st_hp`) | +1 max HP, heal 2 | **15 max HP** |
+| Magnet (`st_magnet`) | `pickup_range ×1.5` | **3× (270)** |
 | Slipstream (`st_dash`) | `dash_cooldown ×0.8` | `≥ 1.2 s` |
 
 ### Weapon base power scales with party level
@@ -117,10 +122,10 @@ At ~L45 that's ≈2.1× base damage (dialed back from 0.04 to curb the late-game
 a single tunable knob (FF/lethality-probe calibrated).
 
 ### Weapon → fusion slot economy
-5 slots, level cap 3. Hit Lv3 on two weapons and you can **fuse** them: removes 2, adds 1
-(frees a slot). Fusion depth is **capped at `MAX_FUSION_TIER` = 2**: two base weapons fuse to
-a tier-1 fusion; two tier-1 fusions can fuse once more into a **final tier-2** fusion that can
-never be merged again (no T3+). Fused weapons still level as a unit. Breadth (many weapons) vs
+5 slots, level cap 7. Hit Lv7 on two weapons and you can **fuse** them: removes 2, adds 1
+(frees a slot). Fusion depth is **capped at `MAX_FUSION_TIER` = 3**: two base weapons fuse to
+a tier-1 fusion; two T1s fuse to a T2; two T2s fuse once more into a **final tier-3** fusion that
+can never be merged again. Fused weapons still level as a unit. Breadth (many weapons) vs
 depth (few, deeply fused) is the central build tension; the cap keeps a single slot's power
 bounded. The cap is enforced both in the pick pool and in `player.merge_weapons`
 (`Fusions.can_merge`).
@@ -224,20 +229,36 @@ add-a-class checklist: **ENEMY_DESIGN.md**.
 
 Host-authoritative: the **host simulates everything** (AI, damage, XP, pickups, revives,
 spawns). Clients send their position/facing/dash (20 Hz) and upgrade picks; the host
-broadcasts chunked full-snapshot world state (enemies 12 Hz, items 8 Hz, HUD 4 Hz).
-Clients run weapons **cosmetically** (real damage is host-only) and show enemies as
-position-lerped puppets. **Solo is the identical code path** with no peer. Shared XP/level
-(level-up waits for *all* to pick), separate HP/builds, party-scaled enemy hp/spawn-rate,
-ally HUD + off-screen arrows, team chests. Port 24565 (configurable).
+broadcasts chunked full-snapshot world state (enemies 12 Hz, items/telegraphs 8 Hz, HUD +
+pings 4 Hz). Each entity is a compact **10-byte record** — `u32 id | s16 x×16 | s16 y×16 |
+u16 f` — positions ×16 fixed-point (1/16 px, lossless to the eye since clients lerp puppets
+to the target); ~235 kbps/client for a full 220-enemy field. Sent **unreliable**; removal-
+by-diff drives death pops. Clients run weapons **cosmetically** (real damage is host-only)
+and show enemies as position-lerped puppets. **Solo is the identical code path** with no
+peer. Shared XP/level (level-up waits for *all* to pick), separate HP/builds, party-scaled
+enemy hp/spawn-rate, ally HUD + off-screen arrows, team chests. Port 24565 (configurable).
+
+**Pause:** any player opening their in-game menu (ESC) pauses the whole run for everyone
+(host-authoritative); it stays paused while *any* player's menu is open, resuming with an
+alert cue once the last closes (no countdown). **Rejoin:** a disconnected player is ghosted
+for a few seconds; a returning client reclaims its slot by saved peer-id, or — for a
+brand-new game instance — by matching its player **name**, recovering the character's
+weapons/levels. **Ping:** the host measures each peer's ENet round-trip and broadcasts it
+for the HUD.
 
 ---
 
 ## 10. Presentation
 
-No art assets — every entity draws itself with vector `_draw()`. **Juice:** damage
+No art assets — every entity draws itself with vector `_draw()`. **Player visibility:**
+each player draws a pulsing "grow" ring in their colour and renders above the whole world
+(`z_index = 100`) so the glyph, ring, and name tag are never buried in the swarm; ally name
+tags show the character glyph + name (in the player's colour) + ping. **HUD:** the ally
+list (a RichTextLabel) and the end-game scoreboard show each player's real name prefixed by
+their character glyph, in their colour (scoreboard ranks by damage). **Juice:** damage
 numbers, knockback, kill pops, screen shake, telegraph flashes. **Audio:** `sfx.gd`
-synthesises ~25 sounds at startup (no files); each weapon/pickup/dash/hit/level-up/merge
-has a distinct positional voice, throttled per-name so tick weapons don't stack.
+synthesises ~25 sounds at startup (no files); each weapon/pickup/dash/hit/level-up/merge/
+resume cue has a distinct positional voice, throttled per-name so tick weapons don't stack.
 
 ---
 
@@ -246,16 +267,21 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | Const | Value | Meaning |
 |-------|-------|---------|
 | `WIN_TIME` | 600 s | run length |
-| `MAX_WEAPONS` / `MAX_WEAPON_LEVEL` | 5 / 3 | slots / level cap before fuse |
-| `MAX_FUSION_TIER` | 2 | fusion depth cap: base+base→T1, T1+T1→T2 (final, no T3) |
+| `MAX_WEAPONS` / `MAX_WEAPON_LEVEL` | 5 / 7 | slots / level cap before fuse |
+| `MAX_FUSION_TIER` | 3 | fusion depth cap: base+base→T1, T1+T1→T2, T2+T2→T3 (final) |
 | `WEAPON_LEVEL_POWER` | 0.025 | weapon base damage ×(1 + this·(party_level−1)) |
 | `XP_GAIN_MULT` | 0.5 | base XP-gain multiplier (half leveling speed) |
-| `ENEMY_CAP` | 300 | hard live-enemy limit |
+| `ENEMY_CAP` | 220 | hard live-enemy limit |
 | `DIFF_BASE` | 1/45 | base difficulty climb rate |
 | `ENEMY_SPEED_DIFF_SCALE` / `ENEMY_HP_DIFF_SCALE` | 0.025 / 0.04 | enemy speed/hp ×(1 + diff·this) — break the late-game kite |
-| `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); 300-enemy flood late |
-| `SPAWN_RING_MIN` / `_MAX` | 300 / 1200 | spawn-distance band (`SPAWN_SAFE_RADIUS` 500 still clamps the effective min) |
-| `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 2.4 / 1.0 / 0.02 | climb accelerators |
+| `ENEMY_HP_PER_LEVEL` | 0.05 | base enemy hp ×(1 + this·(party_level−1)) — tankier as the party levels (≈×3.4 by L48) |
+| `CC_IMMUNE_TIER` | 2 | tier-index ≥ this (the 3rd tier) + bosses resist knockback & gravity suck-in |
+| `BOSS_FIGHT_SECONDS` / `BOSS_DPS_WINDOW` | 8 / 15 s | boss hp ≈ recent_dps·FIGHT (DPS over the last WINDOW s) |
+| `BOSS_HP_PER_LEVEL` / `BOSS_HP_PER_PLAYER` | 0.015 / 0.5 | boss hp ×(1+·(level−1))·(1+·(N−1)) on top of the DPS term |
+| `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); dense flood late |
+| `SPAWN_RING_MIN` / `_MAX` / `SPAWN_SAFE_RADIUS` | 300 / 1200 / 250 | spawn-distance band + closest allowed spawn |
+| `POS_SCALE` | 16 | world-state x,y fixed-point scale (1/16 px); 10-byte/entity wire record |
+| `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 3.12 / 1.0 / 0.02 | climb accelerators |
 | `DIFF_LEVEL_STEP` | 0.05 | flat difficulty added per level-up |
 | `MID_GAME_TIME` | 300 s | earliest heat-spike arm time |
 | `HEAT_SPIKE_GROWTH` / `_MAX` | 1.8 / 5.0 | exponential spike rate / cap |

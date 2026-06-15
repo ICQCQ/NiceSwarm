@@ -87,11 +87,14 @@ func update() -> void:
 		var p: Player = main.players.get(pid)
 		if p == null:
 			continue
-		var tag := " (away)" if p.disconnected else ""
-		if p.downed:
-			lines.append("%s  DOWN %d%%%s" % [p.player_name, int(p.revive_progress * 100.0), tag])
-		else:
-			lines.append("%s  ♥%d/%d%s" % [p.player_name, p.hp, p.max_hp, tag])
+		var col: Color = Player.COLORS[p.color_idx % Player.COLORS.size()]
+		var glyph: String = Player.shape_glyph(p.shape_idx)  # character marker
+		var ping := int(main.net_pings.get(pid, 0))
+		var ping_s := ("  %dms" % ping) if ping > 0 else ""
+		var tag := "  (away)" if p.disconnected else ""
+		var status := ("DOWN %d%%" % int(p.revive_progress * 100.0)) if p.downed else "♥%d/%d" % [p.hp, p.max_hp]
+		# colour the glyph + name in the ally's own colour; hp/ping stay neutral
+		lines.append("[color=#%s]%s %s[/color]  %s%s%s" % [col.to_html(false), glyph, p.player_name, status, ping_s, tag])
 	main.allies_label.text = "\n".join(lines)
 
 

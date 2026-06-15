@@ -1,6 +1,6 @@
 extends RefCounted
-## Unit tests for the three-band XP curve (GameConfig.xp_for_level) — base, monotonicity,
-## the steepening shape, band boundaries, and xp-rate scaling.
+## Unit tests for the exponential XP curve (GameConfig.xp_for_level): base cost,
+## monotonicity, geometric (compounding) growth, and xp-rate scaling.
 
 func run(t) -> void:
 	t.suite("xp_curve")
@@ -18,21 +18,19 @@ func run(t) -> void:
 		prev = need
 	t.ok(mono, "xp curve is monotonic non-decreasing")
 
-	# per-band slope equals the configured step, and the curve steepens
-	var early_slope := GameConfig.xp_for_level(5, 1.0) - GameConfig.xp_for_level(4, 1.0)
-	var mid_slope := GameConfig.xp_for_level(20, 1.0) - GameConfig.xp_for_level(19, 1.0)
-	var late_slope := GameConfig.xp_for_level(40, 1.0) - GameConfig.xp_for_level(39, 1.0)
-	t.eq(early_slope, GameConfig.XP_STEP_EARLY, "early slope == XP_STEP_EARLY")
-	t.eq(mid_slope, GameConfig.XP_STEP_MID, "mid slope == XP_STEP_MID")
-	t.eq(late_slope, GameConfig.XP_STEP_LATE, "late slope == XP_STEP_LATE")
-	t.ok(early_slope <= mid_slope and mid_slope <= late_slope, "curve steepens (early<=mid<=late)")
+	# exponential = convex: the per-level increment keeps GROWING (unlike a linear curve)
+	var slope_early := GameConfig.xp_for_level(11, 1.0) - GameConfig.xp_for_level(10, 1.0)
+	var slope_late := GameConfig.xp_for_level(41, 1.0) - GameConfig.xp_for_level(40, 1.0)
+	t.gt(slope_late, slope_early, "curve steepens — late increment >> early increment")
 
-	# band boundaries land where configured
-	t.eq(GameConfig.xp_for_level(GameConfig.XP_BAND_EARLY + 1, 1.0) - GameConfig.xp_for_level(GameConfig.XP_BAND_EARLY, 1.0),
-		GameConfig.XP_STEP_MID, "switches to mid step just past XP_BAND_EARLY")
-	t.eq(GameConfig.xp_for_level(GameConfig.XP_BAND_MID + 1, 1.0) - GameConfig.xp_for_level(GameConfig.XP_BAND_MID, 1.0),
-		GameConfig.XP_STEP_LATE, "switches to late step just past XP_BAND_MID")
+	# closed form matches the geometric definition: need = XP_BASE * XP_GROWTH^(lvl-1)
+	t.eq(GameConfig.xp_for_level(20, 1.0), int(round(GameConfig.XP_BASE * pow(GameConfig.XP_GROWTH, 19))),
+		"matches XP_BASE * XP_GROWTH^(lvl-1)")
 
-	# xp rate divides the requirement; never below 1
-	t.eq(GameConfig.xp_for_level(20, 2.0), int(round(GameConfig.xp_for_level(20, 1.0) / 2.0)), "xp_rate 2x halves the need")
+	# at high levels (rounding negligible) consecutive costs grow by ~XP_GROWTH
+	var ratio := float(GameConfig.xp_for_level(51, 1.0)) / float(GameConfig.xp_for_level(50, 1.0))
+	t.ok(absf(ratio - GameConfig.XP_GROWTH) < 0.02, "consecutive costs grow by ~XP_GROWTH late")
+
+	# xp rate divides the requirement (higher rate = cheaper); never below 1
+	t.lt(GameConfig.xp_for_level(20, 2.0), GameConfig.xp_for_level(20, 1.0), "higher xp_rate lowers the cost")
 	t.ge(GameConfig.xp_for_level(1, 99.0), 1, "need never drops below 1 even at huge xp_rate")

@@ -27,6 +27,12 @@ const STATE_ENEMIES := 0
 const STATE_GEMS := 1
 const STATE_PICKUPS := 2
 const STATE_TELEGRAPHS := 3
+# World-state wire format: each entity is a compact 10-byte record
+#   u32 id | s16 x*POS_SCALE | s16 y*POS_SCALE | u16 f   (vs the old 16-byte 4×float32).
+# Positions are fixed-point ×16 (1/16 px) — well within the ±1200 px arena (s16 holds ±32767
+# → ±2047 px) and far finer than the screen, so it's lossless to the eye and halves the x,y bytes.
+const POS_SCALE := 16.0
+const ENT_BYTES := 10
 const EVENT_BOMB := 0
 const TELEGRAPH_WARN := GameConfig.TELEGRAPH_WARN
 
@@ -93,6 +99,7 @@ var peer_ids: Array = []        # all peer ids in the run, sorted
 var players := {}               # peer_id -> Player
 var _score := {}                # peer_id -> {damage, xp, revives, deaths} (host)
 var net_scores: Array = []      # end-game scoreboard rows received by clients
+var net_pings := {}             # pid -> round-trip ms (host-measured via ENet, broadcast to all)
 var local_id := 1
 var auto_start_on_join := false # test hook
 var rejoin_pending := false     # we have a saved session: check on the next Join whether it's resumable
@@ -146,7 +153,8 @@ var choice_history := {}        # peer_id -> Array[String] of upgrade ids applie
                                  # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
-var ingame_menu := false        # our own in-game menu/hub is open (host: global pause; client: local + safe)
+var ingame_menu := false        # our own in-game menu/hub is open (opening it pauses the whole run for everyone)
+var menu_open_pids := {}         # host-only: pids whose in-game menu is open — the run stays paused while non-empty
 const RESUME_COUNTDOWN := 2.0   # seconds of "get ready" before a resume actually un-freezes the run
 const HINT_COOP := "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
 const HINT_SOLO := "WASD move  ·  SPACE/SHIFT dash  ·  ESC pause/menu"
@@ -213,7 +221,7 @@ var level_label: Label
 var kills_label: Label
 var dash_label: Label
 var threat_label: Label
-var allies_label: Label
+var allies_label: RichTextLabel  # per-ally coloured names (BBCode): glyph + name + hp + ping
 var weapons_label: RichTextLabel
 var stats_label: RichTextLabel    # current stat upgrades, shown under the weapon slots
 var weapon_tip: RichTextLabel     # hover tooltip: the hovered weapon slot's current stats
@@ -529,10 +537,13 @@ func on_server_disconnected() -> void:
 ## and waiting (in-game), or does the host have no run at all (lobby)?
 func on_rejoin_check_result(available: bool, in_lobby: bool) -> void:
 	if not available:
-		net.leave()
+		# Our saved old peer-id slot is gone (ghost expired / host re-hosted). Fall back to a
+		# name-based session check: if a same-name ghost is still around the host reclaims it
+		# for us, otherwise we join fresh. (Keeps the connection — no leave/error.)
 		rejoin_pending = false
 		_clear_rejoin_state()
-		_show_menu("Could not rejoin -- that session has already started without you.")
+		net.send_session_check(profile_name, profile_color_idx, profile_shape_idx)
+		status_label.text = "Reconnecting..."
 		return
 	if in_lobby:
 		rejoin_pending = false
@@ -570,6 +581,26 @@ func handle_rejoin_request(new_id: int, old_pid: int) -> void:
 	if p == null or not p.disconnected:
 		net.send_rejoin_reject(new_id, "Could not rejoin -- that player slot is no longer available.")
 		return
+	_take_over_slot(new_id, old_pid)
+
+
+## Host: find a still-ghosted (disconnected) player slot whose lobby name matches `pname`,
+## so a brand-new game instance can reclaim it by name alone. Returns the old peer id, or 0.
+func _disconnected_pid_by_name(pname: String) -> int:
+	if pname == "":
+		return 0
+	for pid in players:
+		var p: Player = players[pid]
+		if p.disconnected and String(lobby_players.get(pid, {}).get("name", "")) == pname:
+			return pid
+	return 0
+
+
+## Host: hand a still-ghosted disconnected slot `old_pid` to reconnected peer `new_id` --
+## reuses the Player node (weapons/levels intact) and sends the rejoiner a full rebuild.
+## Shared by both rejoin paths: same-instance (saved old peer-id) and same-name (new instance).
+func _take_over_slot(new_id: int, old_pid: int) -> void:
+	var p: Player = players[old_pid]
 	players.erase(old_pid)
 	players[new_id] = p
 	p.peer_id = new_id
@@ -667,6 +698,13 @@ func handle_session_check(new_id: int, player_name: String, color_idx: int, shap
 		return
 	if players.has(new_id):
 		return  # already joined -- ignore a duplicate request
+	# Name-based rejoin: a NEW game instance (no saved old peer-id) reclaims a still-ghosted
+	# disconnected slot with the same player name, recovering that character's weapons/levels
+	# instead of starting fresh. Checked before the capacity gate (the ghost already holds a slot).
+	var rejoin_pid := _disconnected_pid_by_name(player_name)
+	if rejoin_pid != 0:
+		_take_over_slot(new_id, rejoin_pid)
+		return
 	if peer_ids.size() >= Net.MAX_PLAYERS:
 		net.send_late_join_reject(new_id, "The party is full.")
 		return
@@ -1183,6 +1221,7 @@ func _reset_run_state() -> void:
 	choice_history = {}
 	i_chose = false
 	paused_menu = false
+	menu_open_pids = {}
 	_force_close_ingame_menu()
 	spawner.reset()
 	item_seq = 0
@@ -1400,6 +1439,8 @@ func _physics_process(delta: float) -> void:
 	if t_hud >= 0.25:
 		t_hud = 0.0
 		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, spawner.heat_cur, spawner.difficulty)
+		_refresh_pings()
+		net.send_pings(net_pings)
 
 
 # --- shared enemy spatial index ----------------------------------------------
@@ -1754,17 +1795,19 @@ func _build_choice_pool(p: Player) -> Array:
 	merges.shuffle()
 	pool.append_array(merges.slice(0, 2))
 	# [STAT] — generalized axes that touch every weapon's math
-	pool.append({"id": "st_power", "cat": "stat", "name": "[STAT]  Power", "desc": "+25% damage — every weapon"})
-	if p.rate_mult > 0.5:
+	if p.power_stat < GameConfig.STAT_CAP_POWER:
+		pool.append({"id": "st_power", "cat": "stat", "name": "[STAT]  Power", "desc": "+25% damage — every weapon"})
+	if p.rate_mult > GameConfig.STAT_CAP_RATE:
 		pool.append({"id": "st_rate", "cat": "stat", "name": "[STAT]  Haste", "desc": "+14% attack speed — every weapon"})
-	if p.area_mult < 2.5:
+	if p.area_mult < GameConfig.STAT_CAP_AREA:
 		pool.append({"id": "st_area", "cat": "stat", "name": "[STAT]  Area", "desc": "+20% size & reach — AoE, beams, blasts"})
-	if p.duration_mult < 2.5:
+	if p.duration_mult < GameConfig.STAT_CAP_DURATION:
 		pool.append({"id": "st_duration", "cat": "stat", "name": "[STAT]  Duration", "desc": "+25% effect time — turrets, trails, projectiles"})
-	if p.move_speed < 400.0:
+	if p.move_speed < GameConfig.STAT_CAP_SPEED:
 		pool.append({"id": "st_speed", "cat": "stat", "name": "[STAT]  Swift Boots", "desc": "+12% move speed"})
-	pool.append({"id": "st_hp", "cat": "stat", "name": "[STAT]  Vitality", "desc": "+1 max HP and heal 2"})
-	if p.pickup_range < 360.0:
+	if p.max_hp < GameConfig.STAT_CAP_MAX_HP:
+		pool.append({"id": "st_hp", "cat": "stat", "name": "[STAT]  Vitality", "desc": "+1 max HP and heal 2"})
+	if p.pickup_range < GameConfig.STAT_CAP_MAGNET:
 		pool.append({"id": "st_magnet", "cat": "stat", "name": "[STAT]  Magnet", "desc": "+50% pickup range"})
 	if p.dash_cooldown > 1.2:
 		pool.append({"id": "st_dash", "cat": "stat", "name": "[STAT]  Slipstream", "desc": "-20% dash cooldown"})
@@ -1849,20 +1892,20 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 			w.level += 1
 	else:
 		match id:
-			"st_power":
-				p.power_stat *= 1.25  # damage_mult is derived from power_stat * party-level scaling
+			"st_power":  # damage_mult is derived from power_stat * party-level scaling
+				p.power_stat = minf(p.power_stat * 1.25, GameConfig.STAT_CAP_POWER)
 			"st_rate":
-				p.rate_mult *= 0.88
+				p.rate_mult = maxf(p.rate_mult * 0.88, GameConfig.STAT_CAP_RATE)
 			"st_area":
-				p.area_mult *= 1.2
+				p.area_mult = minf(p.area_mult * 1.2, GameConfig.STAT_CAP_AREA)
 			"st_duration":
-				p.duration_mult *= 1.25
+				p.duration_mult = minf(p.duration_mult * 1.25, GameConfig.STAT_CAP_DURATION)
 			"st_speed":
-				p.move_speed *= 1.12
+				p.move_speed = minf(p.move_speed * 1.12, GameConfig.STAT_CAP_SPEED)
 			"st_hp":
 				p.gain_vitality()
 			"st_magnet":
-				p.pickup_range *= 1.5
+				p.pickup_range = minf(p.pickup_range * 1.5, GameConfig.STAT_CAP_MAGNET)
 			"st_dash":
 				p.dash_cooldown = maxf(p.dash_cooldown * 0.8, 1.2)
 		# Track stat picks for the on-screen icons (runs on every peer via call_local).
@@ -1916,6 +1959,7 @@ func _on_player_downed(p: Player) -> void:
 func add_damage(pid: int, amount: float) -> void:
 	if _score.has(pid):
 		_score[pid].damage += amount
+	spawner.add_damage_sample(amount)  # feed the rolling party-DPS window (boss hp sizing)
 
 
 func _check_all_downed() -> void:
@@ -1930,23 +1974,27 @@ func _check_all_downed() -> void:
 func _end_game(won: bool) -> void:
 	if game_over:
 		return
-	# scoreboard rows: [color_idx, damage, xp, revives, deaths] per player, by damage
+	# scoreboard rows: [color_idx, damage, xp, revives, deaths, shape_idx] + name per player, by damage
 	var rows := []
 	for pid in peer_ids:
 		var sc: Dictionary = _score.get(pid, {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0})
 		var ci: int = players[pid].color_idx if players.has(pid) else 0
-		rows.append([ci, sc.damage, sc.xp, sc.revives, sc.deaths])
+		var sh: int = players[pid].shape_idx if players.has(pid) else 0
+		var nm: String = String(lobby_players.get(pid, {}).get("name", "Player"))
+		rows.append([ci, sc.damage, sc.xp, sc.revives, sc.deaths, sh, nm])
 	rows.sort_custom(func(a, b): return a[1] > b[1])
 	var packed := PackedFloat32Array()
+	var names := PackedStringArray()
 	for r in rows:
-		packed.append_array(PackedFloat32Array([r[0], r[1], r[2], r[3], r[4]]))
+		packed.append_array(PackedFloat32Array([r[0], r[1], r[2], r[3], r[4], r[5]]))
+		names.append(r[6])
 	if OS.get_environment("NICESWARM_TEST") == "score":
 		print("[test] scoreboard rows=%d damage(P1)=%d kills=%d" % [rows.size(), int(round(rows[0][1])) if not rows.is_empty() else 0, kills])
-	net.send_end(won, elapsed, level, kills, packed)
-	apply_end(won, elapsed, level, kills, packed)
+	net.send_end(won, elapsed, level, kills, packed, names)
+	apply_end(won, elapsed, level, kills, packed, names)
 
 
-func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array) -> void:
+func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array, names: PackedStringArray = PackedStringArray()) -> void:
 	if not playing or game_over:
 		return
 	game_over = true
@@ -1961,13 +2009,14 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 	var t := int(elapsed_)
 	end_stats.text = "Survived %02d:%02d   •   Level %d   •   %d kills" \
 		% [t / 60, t % 60, level_, kills_]
-	_fill_scoreboard(scores)
+	_fill_scoreboard(scores, names)
 	end_hint.text = "R play again   ·   M main menu" if is_host() else "Waiting for host…   ·   M main menu"
 	end_panel.visible = true
 
 
-## Build the end-screen scoreboard from packed [color_idx, dmg, xp, rev, deaths]×N rows.
-func _fill_scoreboard(scores: PackedFloat32Array) -> void:
+## Build the end-screen scoreboard from packed [color_idx, dmg, xp, rev, deaths, shape_idx]×N
+## rows + a parallel names array. The PLAYER cell shows the shape glyph + real name, in colour.
+func _fill_scoreboard(scores: PackedFloat32Array, names: PackedStringArray = PackedStringArray()) -> void:
 	for c in scoreboard_box.get_children():
 		c.queue_free()
 	for h in ["PLAYER", "DAMAGE", "XP", "REVIVES", "DEATHS"]:
@@ -1978,11 +2027,14 @@ func _fill_scoreboard(scores: PackedFloat32Array) -> void:
 		header.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 		scoreboard_box.add_child(header)
 	var i := 0
-	while i + 4 < scores.size():
+	var ri := 0
+	while i + 5 < scores.size():
 		var ci := int(scores[i])
+		var sh := int(scores[i + 5])
 		var col := Player.COLORS[ci % Player.COLORS.size()]
-		var cells := ["P%d" % (ci + 1), str(int(round(scores[i + 1]))), str(int(scores[i + 2])),
-			str(int(scores[i + 3])), str(int(scores[i + 4]))]
+		var nm: String = names[ri] if ri < names.size() else "Player %d" % (ci + 1)
+		var cells := ["%s %s" % [Player.shape_glyph(sh), nm], str(int(round(scores[i + 1]))),
+			str(int(scores[i + 2])), str(int(scores[i + 3])), str(int(scores[i + 4]))]
 		for j in cells.size():
 			var cell := Label.new()
 			cell.text = cells[j]
@@ -1990,7 +2042,8 @@ func _fill_scoreboard(scores: PackedFloat32Array) -> void:
 			cell.add_theme_font_size_override("font_size", 20)
 			cell.add_theme_color_override("font_color", col)
 			scoreboard_box.add_child(cell)
-		i += 5
+		i += 6
+		ri += 1
 
 
 func _restart() -> void:
@@ -2035,6 +2088,32 @@ func apply_hud_state(elapsed_: float, xp_: int, needed: int, level_: int, kills_
 	spawner.net_difficulty = difficulty_
 
 
+## Host: measure each peer's round-trip time (ms) via ENet into net_pings (the host itself = 0).
+func _refresh_pings() -> void:
+	net_pings.clear()
+	var peer := multiplayer.multiplayer_peer
+	if not net.active or not (peer is ENetMultiplayerPeer):
+		return
+	for pid in peer_ids:
+		if pid == 1:
+			net_pings[pid] = 0
+			continue
+		var ep: ENetPacketPeer = (peer as ENetMultiplayerPeer).get_peer(pid)
+		if ep != null:
+			net_pings[pid] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+
+
+## Clients: receive the host-measured pings; override the host's own entry with our local
+## round-trip to the host (peer 1), since the host's self-ping is 0.
+func apply_pings(pings: Dictionary) -> void:
+	net_pings = pings
+	var peer := multiplayer.multiplayer_peer
+	if not is_host() and net.active and peer is ENetMultiplayerPeer:
+		var ep: ENetPacketPeer = (peer as ENetMultiplayerPeer).get_peer(1)
+		if ep != null:
+			net_pings[1] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+
+
 func apply_player_hp(pid: int, hp_: int, max_: int, downed_: bool) -> void:
 	var p: Player = players.get(pid)
 	if p == null:
@@ -2065,15 +2144,17 @@ func apply_revive(pid: int, ratio: float) -> void:
 func apply_pause(pause: bool) -> void:
 	if not playing:
 		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
-	if pause and not is_host() and ingame_menu:
-		_force_close_ingame_menu()  # an incoming host pause supersedes our own local menu
+	var was := paused_menu
 	paused_menu = pause
 	get_tree().paused = pause
 	if pause:
 		gameui._refresh_pause_roster()
+		pause_panel.visible = not ingame_menu  # if MY menu is open, show that instead of the generic panel
 	else:
 		_cancel_countdown()  # authoritative unpause arrived — end any cosmetic countdown
-	pause_panel.visible = pause
+		pause_panel.visible = false
+		if was:
+			Sfx.play("alert")  # the run resumed for everyone
 
 
 func apply_event(type: int, pos: Vector2) -> void:
@@ -2085,7 +2166,7 @@ func apply_event(type: int, pos: Vector2) -> void:
 
 
 func apply_world_state(kind: int, tick: int, chunk: int, total: int,
-		data: PackedFloat32Array) -> void:
+		data: PackedByteArray) -> void:
 	if is_host() or not playing:
 		return
 	if tick <= last_tick[kind]:
@@ -2095,24 +2176,24 @@ func apply_world_state(kind: int, tick: int, chunk: int, total: int,
 	tb.chunks[chunk] = data
 	if tb.chunks.size() < total:
 		return
-	var merged := PackedFloat32Array()
+	var merged := PackedByteArray()
 	for c in total:
 		merged.append_array(tb.chunks[c])
 	kb.clear()
 	if last_tick[kind] < 0 and OS.get_environment("NICESWARM_NET") != "":
-		print("[test] first world state kind=%d entries=%d" % [kind, merged.size() / 4])
+		print("[test] first world state kind=%d entries=%d" % [kind, merged.size() / ENT_BYTES])
 	last_tick[kind] = tick
 	_apply_state(kind, merged)
 
 
-func _apply_state(kind: int, data: PackedFloat32Array) -> void:
+func _apply_state(kind: int, data: PackedByteArray) -> void:
 	var seen := {}
-	var i := 0
-	while i + 3 < data.size():
-		var id := int(data[i])
-		var pos := Vector2(data[i + 1], data[i + 2])
-		var f := data[i + 3]
-		i += 4
+	var buf := StreamPeerBuffer.new()
+	buf.data_array = data
+	while buf.get_available_bytes() >= ENT_BYTES:
+		var id := buf.get_u32()
+		var pos := Vector2(buf.get_16() / POS_SCALE, buf.get_16() / POS_SCALE)
+		var f := buf.get_u16()
 		seen[id] = true
 		match kind:
 			STATE_ENEMIES:
@@ -2211,7 +2292,7 @@ func _apply_state(kind: int, data: PackedFloat32Array) -> void:
 
 
 func _send_state(kind: int) -> void:
-	var data := PackedFloat32Array()
+	var buf := StreamPeerBuffer.new()
 	# NOTE: assignments below stay untyped — assigning a freed instance to a
 	# typed var raises before any is_instance_valid check could run
 	match kind:
@@ -2221,41 +2302,45 @@ func _send_state(kind: int) -> void:
 				if not is_instance_valid(e) or e.is_queued_for_deletion():
 					enemies_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					e.global_position.x, e.global_position.y,
-					float(e.type_id) + (1000.0 if e.slow_timer > 0.0 else 0.0)]))
+				_put_entity(buf, id, e.global_position,
+					e.type_id + (1000 if e.slow_timer > 0.0 else 0))
 		STATE_GEMS:
 			for id in gems_by_id.keys():
 				var g = gems_by_id[id]
 				if not is_instance_valid(g) or g.is_queued_for_deletion():
 					gems_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					g.global_position.x, g.global_position.y, float(g.value)]))
+				_put_entity(buf, id, g.global_position, int(g.value))
 		STATE_PICKUPS:
 			for id in pickups_by_id.keys():
 				var pk = pickups_by_id[id]
 				if not is_instance_valid(pk) or pk.is_queued_for_deletion():
 					pickups_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					pk.global_position.x, pk.global_position.y,
-					float(PICKUP_KINDS.find(pk.kind))]))
+				_put_entity(buf, id, pk.global_position, PICKUP_KINDS.find(pk.kind))
 		STATE_TELEGRAPHS:
 			for id in telegraphs_by_id.keys():
 				var tz = telegraphs_by_id[id]
 				if not is_instance_valid(tz) or tz.is_queued_for_deletion():
 					telegraphs_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					tz.global_position.x, tz.global_position.y,
-					tz.radius + tz.effect * 10000.0]))
+				_put_entity(buf, id, tz.global_position,
+					int(round(tz.radius + tz.effect * 10000.0)))
 	tick_counter += 1
-	var per := 80 * 4  # 80 entries per chunk keeps packets under typical MTU
+	var data := buf.data_array
+	var per := 80 * ENT_BYTES  # 80 entries per chunk keeps packets under typical MTU
 	var total := maxi(1, int(ceil(float(data.size()) / per)))
 	for c in total:
 		net.send_world_state(kind, tick_counter, c, total,
 			data.slice(c * per, mini((c + 1) * per, data.size())))
+
+
+## Append one entity record (10 bytes): u32 id | s16 x*16 | s16 y*16 | u16 f.
+func _put_entity(buf: StreamPeerBuffer, id: int, pos: Vector2, f: int) -> void:
+	buf.put_u32(id)
+	buf.put_16(clampi(int(round(pos.x * POS_SCALE)), -32768, 32767))
+	buf.put_16(clampi(int(round(pos.y * POS_SCALE)), -32768, 32767))
+	buf.put_u16(clampi(f, 0, 65535))
 
 
 # --- input ---------------------------------------------------------------------
@@ -2293,11 +2378,13 @@ func _input(event: InputEvent) -> void:
 			ingame_menu_hint.text = "Settings — coming soon"
 		elif key == KEY_L and codex_view == "":
 			_leave_from_menu()  # deliberate, hub-root only — never a stray key while reading a codex
-	elif paused_menu:  # a host paused us (client): wait for resume, or leave with M
-		if key == KEY_M:
+	elif paused_menu:  # paused by another player's menu (or a reconnect): open my own menu, or leave with M
+		if key == KEY_ESCAPE:
+			_open_ingame_menu()  # open my own menu while the run is already paused
+		elif key == KEY_M:
 			_to_menu()
 	elif key == KEY_ESCAPE:
-		_open_ingame_menu()  # universal: ESC opens the menu (host pauses for all; client goes safe)
+		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 
 
 ## Leave the current run and return to the main menu. Disconnects from co-op
@@ -2323,33 +2410,52 @@ func _to_menu() -> void:
 ## the host (and solo) globally pause the run; a client can't pause the shared sim, so it
 ## holds its own avatar still and asks the host to make it invulnerable (auto-safe).
 func _open_ingame_menu() -> void:
-	if not is_host() and get_tree().paused:
-		return  # already frozen by a host pause — don't stack a local menu on top
+	if ingame_menu:
+		return
 	ingame_menu = true
 	gameui._close_codex()  # always open on the hub root, never a stale codex view
 	ingame_menu_panel.visible = true
+	pause_panel.visible = false  # my own menu replaces any "PAUSED" panel I was shown
+	# Opening any player's menu pauses the whole run for everyone (host-authoritative).
 	if is_host():
-		get_tree().paused = true
-		net.send_set_paused(true)  # clients show the remote "PAUSED" panel + freeze
+		set_menu_open(local_id, true)
 	else:
-		var me: Player = players.get(local_id)
-		if me != null:
-			me.menu_frozen = true
-		net.send_set_safe(local_id, true)
+		net.send_request_pause(local_id, true)
 
 
-## Close the hub and return to play behind a short countdown (never an instant resume).
+## Close the hub. The run resumes (for everyone) only once NO player still has a menu open.
 func _resume_from_ingame_menu() -> void:
 	ingame_menu = false
 	ingame_menu_panel.visible = false
 	if is_host():
-		net.send_resume_countdown()  # clients run the same cosmetic countdown
-		_begin_resume_countdown(func() -> void:
-			get_tree().paused = false
-			net.send_set_paused(false))
+		set_menu_open(local_id, false)
 	else:
-		# stay safe through the countdown; clear on completion (idempotent teardown)
-		_begin_resume_countdown(_clear_local_safe)
+		net.send_request_pause(local_id, false)
+		pause_panel.visible = paused_menu  # still paused by another player's menu? keep the panel
+
+
+## Host: track which players have a menu open and pause/resume the whole run accordingly.
+## The run is paused for everyone while ANY player's menu is open; it resumes (with the
+## alert cue) once the last one closes. Defers to the level-up / game-over flows, which own
+## the pause in their own right.
+func set_menu_open(pid: int, open: bool) -> void:
+	if not is_host():
+		return
+	if open:
+		menu_open_pids[pid] = true
+	else:
+		menu_open_pids.erase(pid)
+	if leveling or game_over:
+		return
+	var want: bool = not menu_open_pids.is_empty()
+	if want == paused_menu:
+		return
+	if want:
+		apply_pause(true)
+		net.send_set_paused(true)
+	else:
+		net.send_set_paused(false)
+		apply_pause(false)
 
 
 ## Deliberate "leave game" from inside the hub (the L key) — the old accidental ESC path.
@@ -2366,6 +2472,11 @@ func _force_close_ingame_menu() -> void:
 	if ingame_menu_panel != null:
 		ingame_menu_panel.visible = false
 	_clear_local_safe()
+	# drop our menu-pause contribution (the level-up / game-over / leave flows own the pause now)
+	if is_host():
+		menu_open_pids.erase(local_id)
+	elif net.active:
+		net.send_request_pause(local_id, false)
 
 
 ## Drop our local "menu safe" state and tell the host we're vulnerable + mobile again.
@@ -2403,17 +2514,12 @@ func begin_resume_countdown_remote() -> void:
 
 
 func _begin_resume_countdown(on_complete: Callable) -> void:
-	# Headless / fast-forward: no UI and no 2s stall (keeps smoke tests + FF fast).
-	# Solo: no "get ready" beat — the player paused themselves, so resume instantly.
-	if DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0 or is_solo():
-		if on_complete.is_valid():
-			on_complete.call()
-		return
-	_countdown_done = on_complete
-	countdown_time = RESUME_COUNTDOWN
-	countdown_label.text = str(int(ceil(RESUME_COUNTDOWN)))
-	countdown_panel.visible = true
-	Sfx.play("clock")
+	# No resume countdown — resume immediately and just play an alert cue so everyone
+	# knows the world is live again. (Headless/FF: silent + instant, keeps tests fast.)
+	if not (DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0):
+		Sfx.play("alert")
+	if on_complete.is_valid():
+		on_complete.call()
 
 
 func _tick_countdown(delta: float) -> void:

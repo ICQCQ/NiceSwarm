@@ -90,6 +90,7 @@ func _make_sounds() -> void:
 	_synth("revive", 0.3, 400.0, 820.0, W_TRI, 0.0, 0.02, 0.6)
 	_synth("click", 0.03, 820.0, 820.0, W_SQUARE, 0.0, 0.002, 0.35)
 	_synth("clock", 0.06, 1500.0, 760.0, W_TRI, 0.0, 0.001, 0.55)       # resume-countdown tick
+	_synth("alert", 0.2, 760.0, 1320.0, W_SQUARE, 0.0, 0.004, 0.65)     # game-resume alert
 	_synth("telegraph", 0.22, 300.0, 620.0, W_SQUARE, 0.1, 0.01, 0.5)  # bombardier warning
 
 

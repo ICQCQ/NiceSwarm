@@ -7,12 +7,21 @@ extends RefCounted
 const ARENA := Rect2(-1200, -1200, 2400, 2400)
 const WIN_TIME := 600.0          # survive this long (s) to win
 const MAX_WEAPONS := 5           # weapon slots per player per run
-const MAX_WEAPON_LEVEL := 3      # per-weapon cap before it can be merged
-const MAX_FUSION_TIER := 2       # fusion depth cap: base+base->T1, T1+T1->T2 (final, no T3)
+const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3 — longer grind to fusion)
+const MAX_FUSION_TIER := 3       # fusion depth cap: base+base->T1, T1+T1->T2, T2+T2->T3 (final)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
-const ENEMY_CAP := 300           # hard limit on live enemies (was 220 — denser flood)
-const TELEGRAPH_WARN := 1.3      # seconds to dodge a telegraphed strike
-const MAX_TELEGRAPHS := 9        # cap simultaneous danger zones (was 6 — more caster area-denial late)
+
+# --- player stat-upgrade caps: a pick stops being offered, and its value is clamped, here ---
+const STAT_CAP_POWER := 6.0        # power_stat (pick-driven damage multiplier)
+const STAT_CAP_AREA := 2.0         # area_mult
+const STAT_CAP_DURATION := 2.5     # duration_mult
+const STAT_CAP_RATE := 1.0 / 2.0   # rate_mult floor → caps Haste at 2x faster
+const STAT_CAP_SPEED := 396.0      # move_speed cap (1.8x base 220)
+const STAT_CAP_MAGNET := 270.0     # pickup_range cap (3x base 90)
+const STAT_CAP_MAX_HP := 15        # max_hp cap from Vitality
+const ENEMY_CAP := 220           # hard limit on live enemies
+const TELEGRAPH_WARN := 1.5      # seconds to dodge a telegraphed strike
+const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed
 const NET_PORT := 24565          # default co-op port
 
 # --- weapon progression ---
@@ -27,7 +36,9 @@ const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, to
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
 const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
 const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
-const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
+const ENEMY_HP_PER_LEVEL := 0.05       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
+const DIFF_HEAT := 3.12          # how much clear-rate heat accelerates the climb (was 2.4, +30%)
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
 const DIFF_WARMUP_FLOOR := 0.25  # early-game climb fraction at t=0
@@ -83,22 +94,16 @@ const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as 
 # leveling speed (player is weaker for longer, killing the late-game snowball). Tunable balance knob.
 const XP_GAIN_MULT := 0.5
 const XP_BASE := 5            # cost to reach level 2
-const XP_BAND_EARLY := 13     # levels 1..13 use the early step
-const XP_BAND_MID := 33       # levels 14..33 use the mid step; 34+ use the late step
-const XP_STEP_EARLY := 2      # +per level in the early band (fast dopamine)
-const XP_STEP_MID := 4        # +per level in the mid band
-const XP_STEP_LATE := 7       # +per level in the late band (aggressive; calibrated with waves on)
+const XP_GROWTH := 1.12       # exponential per-level growth: each level costs XP_GROWTH× the last
 
 
-## Cost AT `lvl` to reach the next level — three-band step curve, divided by `rate`.
-## Closed form (no loop). Pure + static so it's unit-testable without a Main instance.
+## Cost AT `lvl` to reach the next level — an EXPONENTIAL (geometric) curve, divided by `rate`:
+## need(lvl) = XP_BASE * XP_GROWTH^(lvl-1). The requirement compounds — gentle early (build comes
+## online fast), then steepens sharply late so high levels are genuinely earned. Pure + static so
+## it's unit-testable without a Main instance.
 static func xp_for_level(lvl: int, rate: float) -> int:
-	var n := lvl - 1  # levels gained so far
-	var e := mini(n, XP_BAND_EARLY - 1)
-	var m := clampi(n - (XP_BAND_EARLY - 1), 0, XP_BAND_MID - XP_BAND_EARLY)
-	var l := maxi(n - (XP_BAND_MID - 1), 0)
-	var need := XP_BASE + XP_STEP_EARLY * e + XP_STEP_MID * m + XP_STEP_LATE * l
-	return maxi(1, int(round(float(need) / maxf(rate, 0.0001))))
+	var need := XP_BASE * pow(XP_GROWTH, lvl - 1)
+	return maxi(1, int(round(need / maxf(rate, 0.0001))))
 
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
 const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds
@@ -111,6 +116,21 @@ const DIFF_SPIKE := 1.0          # weight of heat_spike in the difficulty climb
 # --- boss spawns: a tough "boss" class enemy after enough kills ---
 const BOSS_KILL_BASE := 60       # total kills before the first boss
 const BOSS_KILL_INTERVAL := 90   # extra kills required for each subsequent boss
+# Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
+# build. It scales with: the party's recent damage output, party level, and player count.
+const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
+const BOSS_FIGHT_SECONDS := 8.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
+const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
+
+
+## Boss HP from the three factors the design calls for: the party's recent DPS (so the
+## fight scales to the party's actual output), party level, and player count. `tier_floor`
+## is the boss tier's static/difficulty base — a floor so a boss is never trivial when
+## recent DPS is momentarily low. Pure + static, so it's unit-testable without a Main.
+static func boss_hp(tier_floor: float, recent_dps: float, level: int, players: int) -> float:
+	var base := maxf(tier_floor, recent_dps * BOSS_FIGHT_SECONDS)
+	return base * (1.0 + BOSS_HP_PER_LEVEL * (level - 1)) * (1.0 + BOSS_HP_PER_PLAYER * (players - 1))
 
 # --- bouncer: special population, separate from the normal pool/desired_pop ---
 const BOUNCER_UNLOCK := 165.0       # bouncers start appearing at this elapsed time

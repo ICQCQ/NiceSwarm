@@ -109,6 +109,11 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, radius, Color(col.r, col.g, col.b, a))
 		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(col.r, col.g, col.b, 0.8), 2.5)
 		return
+	# Instant strikes (DAMAGE/DISRUPT) vanish the moment they fire — don't keep rendering the
+	# circle on the client puppet during the ~sync-latency window before the removal diff frees
+	# it (the removal diff still plays the detonation flash). FIELD/INTERCEPT returned above.
+	if t >= warn:
+		return
 	var p := clampf(t / warn, 0.0, 1.0)
 	# danger fill grows as the strike nears
 	draw_circle(Vector2.ZERO, radius, Color(col.r, col.g, col.b, 0.10 + 0.22 * p))
