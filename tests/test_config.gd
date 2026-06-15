@@ -8,7 +8,7 @@ func run(t) -> void:
 	# core run
 	t.eq(GameConfig.WIN_TIME, 600.0, "WIN_TIME is 10 minutes")
 	t.eq(GameConfig.MAX_WEAPONS, 5, "MAX_WEAPONS")
-	t.eq(GameConfig.MAX_WEAPON_LEVEL, 3, "MAX_WEAPON_LEVEL")
+	t.eq(GameConfig.MAX_WEAPON_LEVEL, 7, "MAX_WEAPON_LEVEL")
 	t.eq(GameConfig.MAX_FUSION_TIER, 2, "MAX_FUSION_TIER")
 	t.gt(GameConfig.WEAPON_LEVEL_POWER, 0.0, "WEAPON_LEVEL_POWER positive (weapons scale with party level)")
 	t.eq(GameConfig.MAX_CHOICES, 6, "MAX_CHOICES")

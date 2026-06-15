@@ -88,7 +88,7 @@ and **every player picks their own** upgrade; the run resumes once all have pick
 | Tag | Colour | Meaning |
 |-----|--------|---------|
 | `[NEW]` | green | learn a weapon you don't own (while < `MAX_WEAPONS` = 5) |
-| `[Lv n]` | blue | level an owned weapon (cap `MAX_WEAPON_LEVEL` = 3) — adds damage + counts |
+| `[Lv n]` | blue | level an owned weapon (cap `MAX_WEAPON_LEVEL` = 7) — adds damage + counts |
 | `[FUSE]` | gold | combine two maxed weapons into a **signature** new weapon |
 | `[AMALGAM]` | orange | combine two maxed weapons with no recipe → generic `WeaponFused` |
 | `[STAT]` | pale | a passive stat boost (below) |
@@ -119,7 +119,7 @@ At ~L45 that's ≈2.1× base damage (dialed back from 0.04 to curb the late-game
 a single tunable knob (FF/lethality-probe calibrated).
 
 ### Weapon → fusion slot economy
-5 slots, level cap 3. Hit Lv3 on two weapons and you can **fuse** them: removes 2, adds 1
+5 slots, level cap 7. Hit Lv7 on two weapons and you can **fuse** them: removes 2, adds 1
 (frees a slot). Fusion depth is **capped at `MAX_FUSION_TIER` = 2**: two base weapons fuse to
 a tier-1 fusion; two tier-1 fusions can fuse once more into a **final tier-2** fusion that can
 never be merged again (no T3+). Fused weapons still level as a unit. Breadth (many weapons) vs
@@ -248,7 +248,7 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | Const | Value | Meaning |
 |-------|-------|---------|
 | `WIN_TIME` | 600 s | run length |
-| `MAX_WEAPONS` / `MAX_WEAPON_LEVEL` | 5 / 3 | slots / level cap before fuse |
+| `MAX_WEAPONS` / `MAX_WEAPON_LEVEL` | 5 / 7 | slots / level cap before fuse |
 | `MAX_FUSION_TIER` | 2 | fusion depth cap: base+base→T1, T1+T1→T2 (final, no T3) |
 | `WEAPON_LEVEL_POWER` | 0.025 | weapon base damage ×(1 + this·(party_level−1)) |
 | `XP_GAIN_MULT` | 0.5 | base XP-gain multiplier (half leveling speed) |

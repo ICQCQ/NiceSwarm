@@ -7,7 +7,7 @@ extends RefCounted
 const ARENA := Rect2(-1200, -1200, 2400, 2400)
 const WIN_TIME := 600.0          # survive this long (s) to win
 const MAX_WEAPONS := 5           # weapon slots per player per run
-const MAX_WEAPON_LEVEL := 3      # per-weapon cap before it can be merged
+const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3 — longer grind to fusion)
 const MAX_FUSION_TIER := 2       # fusion depth cap: base+base->T1, T1+T1->T2 (final, no T3)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
 const ENEMY_CAP := 300           # hard limit on live enemies (was 220 — denser flood)

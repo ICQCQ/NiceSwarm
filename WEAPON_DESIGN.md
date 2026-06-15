@@ -42,7 +42,7 @@ in `weapon_flame.gd`) is the only user so far.
 
 1. `extends WeaponBase`; set `weapon_id` + `display_name` in `_init()` (never `@onready`).
 2. Damage = `BASE * player.damage_mult * (1.0 + GROWTH * (level - 1))`. With
-   `MAX_WEAPON_LEVEL == 3`, GROWTH ≈ 0.3–0.5 so level 3 ≈ a meaningful ceiling.
+   `MAX_WEAPON_LEVEL == 7`, GROWTH ≈ 0.3–0.5 so per-level damage keeps climbing to a high Lv7 ceiling.
 3. Cadence (cooldown / tick / spin) multiplied by `player.rate_mult`.
 4. **Every** distance literal multiplied by `player.area_mult`. If a value lives on a
    spawned node (projectile/field), add a field there and set it from the weapon.
