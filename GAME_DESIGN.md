@@ -120,9 +120,9 @@ a single tunable knob (FF/lethality-probe calibrated).
 
 ### Weapon → fusion slot economy
 5 slots, level cap 7. Hit Lv7 on two weapons and you can **fuse** them: removes 2, adds 1
-(frees a slot). Fusion depth is **capped at `MAX_FUSION_TIER` = 2**: two base weapons fuse to
-a tier-1 fusion; two tier-1 fusions can fuse once more into a **final tier-2** fusion that can
-never be merged again (no T3+). Fused weapons still level as a unit. Breadth (many weapons) vs
+(frees a slot). Fusion depth is **capped at `MAX_FUSION_TIER` = 3**: two base weapons fuse to
+a tier-1 fusion; two T1s fuse to a T2; two T2s fuse once more into a **final tier-3** fusion that
+can never be merged again. Fused weapons still level as a unit. Breadth (many weapons) vs
 depth (few, deeply fused) is the central build tension; the cap keeps a single slot's power
 bounded. The cap is enforced both in the pick pool and in `player.merge_weapons`
 (`Fusions.can_merge`).
@@ -249,7 +249,7 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 |-------|-------|---------|
 | `WIN_TIME` | 600 s | run length |
 | `MAX_WEAPONS` / `MAX_WEAPON_LEVEL` | 5 / 7 | slots / level cap before fuse |
-| `MAX_FUSION_TIER` | 2 | fusion depth cap: base+base→T1, T1+T1→T2 (final, no T3) |
+| `MAX_FUSION_TIER` | 3 | fusion depth cap: base+base→T1, T1+T1→T2, T2+T2→T3 (final) |
 | `WEAPON_LEVEL_POWER` | 0.025 | weapon base damage ×(1 + this·(party_level−1)) |
 | `XP_GAIN_MULT` | 0.5 | base XP-gain multiplier (half leveling speed) |
 | `ENEMY_CAP` | 300 | hard live-enemy limit |
