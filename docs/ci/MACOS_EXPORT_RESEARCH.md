@@ -10,7 +10,19 @@ Research for extending the GitHub Actions release pipeline (today: Windows x86_6
 
 Decision (from the requester): **two separate per-arch zips for macOS** (not a single
 universal binary), and **add Windows arm64** alongside the existing Windows x86_64 build.
-Status: **research complete, not yet applied** — apply the artifacts below as one PR.
+Status: **IMPLEMENTED** — presets, workflow, `update_check.gd`, and the required
+`project.godot` change are applied on this branch.
+
+**Local validation (Windows host, Godot 4.6.3):** Windows-arm64 exported fully (≈84 MB exe).
+Both macOS presets cleared configuration validation and reached the template stage, failing
+only on the Scoop install's *missing macOS templates* (`godot_macos_release.{x86_64,arm64}` —
+present on `macos-latest` via `include-templates`). Unit suite: `1059 passed, 0 failed`.
+
+**Gotcha found during validation (now fixed):** macOS **arm64/universal** export refuses to
+run unless **`rendering/textures/vram_compression/import_etc2_astc=true`** is set in
+`project.godot` ("Cannot export for universal or arm64 if ETC2 ASTC texture format is
+disabled"). Added that key. Harmless to other targets — the project has effectively no
+compressed textures.
 
 Sources: [Godot — Exporting for macOS](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_macos.html),
 [Godot — Running on macOS](https://github.com/godotengine/godot-docs/blob/master/tutorials/export/running_on_macos.rst),

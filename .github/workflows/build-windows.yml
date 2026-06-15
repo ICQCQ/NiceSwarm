@@ -1,10 +1,16 @@
-name: Build Windows EXE
+name: Build desktop binaries
 
-# Builds the distributable Windows .exe (same steps as build.ps1) and publishes it.
+# Builds the distributable desktop binaries and publishes them:
+#   - Windows x86_64  (NiceSwarm.exe + NiceSwarm-debug.exe)
+#   - Windows arm64   (NiceSwarm-arm64.exe)
+#   - macOS x86_64    (NiceSwarm-x86_64.zip, ad-hoc signed)
+#   - macOS arm64     (NiceSwarm-arm64.zip, ad-hoc signed)
 # Runs on:
 #   - push to `publish`  -> rolling "latest" prerelease (always-current dev build)
-#   - version tags (v*)  -> attaches the exe to a versioned GitHub Release
-#   - manual dispatch    -> uploads the exe as a downloadable artifact
+#   - version tags (v*)  -> attaches the binaries to a versioned GitHub Release
+#   - manual dispatch    -> uploads the binaries as downloadable artifacts
+# Two jobs: export-windows (windows-latest) and export-macos (macos-latest, needs
+# export-windows so they don't race the `latest` release tag).
 
 on:
   push:
@@ -141,6 +147,33 @@ jobs:
           "$hash  NiceSwarm-debug.exe" | Out-File -Encoding ascii -NoNewline "build/NiceSwarm-debug.exe.sha256"
           Write-Host "debug sha256: $hash"
 
+      # Windows arm64 (release): cross-packaged from the x86_64 runner — the editor just bundles
+      # the arm64 template, so the host arch doesn't matter. Official Windows-arm64 templates ship
+      # since Godot 4.3. Same Start-Process detach workaround as the x86_64 exports above.
+      - name: Export Windows arm64 release
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath godot -ArgumentList '--headless --path . --export-release "Windows Desktop arm64" "build/NiceSwarm-arm64.exe"' -NoNewWindow -Wait -PassThru -RedirectStandardOutput godot-export-arm-out.txt -RedirectStandardError godot-export-arm-err.txt
+          Get-Content godot-export-arm-out.txt, godot-export-arm-err.txt -ErrorAction SilentlyContinue
+          Write-Host "godot arm64 export exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "godot arm64 export failed with exit code $($p.ExitCode)" }
+
+      - name: Verify arm64 exe was produced
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "build/NiceSwarm-arm64.exe")) {
+            throw "arm64 export failed - no exe produced (check arm64 export template)"
+          }
+          $mb = [math]::Round((Get-Item "build/NiceSwarm-arm64.exe").Length / 1MB, 1)
+          Write-Host "Built build/NiceSwarm-arm64.exe ($mb MB)"
+
+      - name: Compute arm64 exe SHA256 sidecar
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "build/NiceSwarm-arm64.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  NiceSwarm-arm64.exe" | Out-File -Encoding ascii -NoNewline "build/NiceSwarm-arm64.exe.sha256"
+          Write-Host "arm64 sha256: $hash"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -150,6 +183,8 @@ jobs:
             build/NiceSwarm.exe.sha256
             build/NiceSwarm-debug.exe
             build/NiceSwarm-debug.exe.sha256
+            build/NiceSwarm-arm64.exe
+            build/NiceSwarm-arm64.exe.sha256
           if-no-files-found: error
 
       - name: Publish versioned Release (on v* tags)
@@ -161,6 +196,8 @@ jobs:
             build/NiceSwarm.exe.sha256
             build/NiceSwarm-debug.exe
             build/NiceSwarm-debug.exe.sha256
+            build/NiceSwarm-arm64.exe
+            build/NiceSwarm-arm64.exe.sha256
           generate_release_notes: true
 
       - name: Publish rolling 'latest' prerelease (on publish branch)
@@ -176,3 +213,89 @@ jobs:
             build/NiceSwarm.exe.sha256
             build/NiceSwarm-debug.exe
             build/NiceSwarm-debug.exe.sha256
+            build/NiceSwarm-arm64.exe
+            build/NiceSwarm-arm64.exe.sha256
+
+  # macOS: one job, two per-arch exports (x86_64 + arm64), each ad-hoc signed so the arm64
+  # slice runs on Apple Silicon at all. Plain foreground `run:` steps — unlike the Windows
+  # job there's no GUI-subsystem detach, so no Start-Process dance. `needs: export-windows`
+  # serializes Release creation so the two jobs don't race the `latest` tag.
+  export-macos:
+    runs-on: macos-latest
+    needs: export-windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stamp build commit into BuildVersion
+        run: |
+          commit=$(git rev-parse --short HEAD)
+          sed -i '' -E "s/const COMMIT := \"[^\"]*\"/const COMMIT := \"$commit\"/" \
+            scripts/config/build_version.gd
+          echo "Build commit: $commit"; cat scripts/config/build_version.gd
+
+      - name: Set up Godot 4.6
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import project
+        run: godot --headless --path . --import || true
+
+      # One export per arch + a per-arch sidecar. The game hashes its OWN inner Mach-O at
+      # runtime (OS.get_executable_path() -> NiceSwarm.app/Contents/MacOS/NiceSwarm), so the
+      # sidecar must hash that exact file, AFTER ad-hoc signing (the export does the signing)
+      # and BEFORE zipping — hashing the .zip would never match the running build.
+      - name: Export macOS per-arch (.zip, ad-hoc signed)
+        run: |
+          mkdir -p build
+          for arch in x86_64 arm64; do
+            preset="macOS $arch"
+            out="build/NiceSwarm-$arch.zip"
+            godot --headless --path . --export-release "$preset" "$out"
+            test -f "$out" || { echo "no zip produced for $arch"; exit 1; }
+            mb=$(echo "scale=1; $(stat -f%z "$out")/1048576" | bc)
+            echo "Built $out (${mb} MB)"
+            rm -rf "build/_u_$arch" && unzip -q "$out" -d "build/_u_$arch"
+            app=$(find "build/_u_$arch" -maxdepth 1 -name '*.app' | head -n1)
+            bin="$app/Contents/MacOS/$(basename "$app" .app)"
+            hash=$(shasum -a 256 "$bin" | awk '{print $1}')
+            printf '%s  NiceSwarm-%s.zip' "$hash" "$arch" > "$out.sha256"
+            echo "macOS $arch inner-binary sha256: $hash"
+          done
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NiceSwarm-macos
+          path: |
+            build/NiceSwarm-x86_64.zip
+            build/NiceSwarm-x86_64.zip.sha256
+            build/NiceSwarm-arm64.zip
+            build/NiceSwarm-arm64.zip.sha256
+          if-no-files-found: error
+
+      - name: Publish versioned Release (on v* tags)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/NiceSwarm-x86_64.zip
+            build/NiceSwarm-x86_64.zip.sha256
+            build/NiceSwarm-arm64.zip
+            build/NiceSwarm-arm64.zip.sha256
+
+      - name: Publish rolling 'latest' prerelease (on publish branch)
+        if: github.ref == 'refs/heads/publish'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build (publish)
+          prerelease: true
+          files: |
+            build/NiceSwarm-x86_64.zip
+            build/NiceSwarm-x86_64.zip.sha256
+            build/NiceSwarm-arm64.zip
+            build/NiceSwarm-arm64.zip.sha256

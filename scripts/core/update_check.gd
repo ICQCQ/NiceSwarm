@@ -8,11 +8,12 @@ extends Node
 
 signal update_available(remote_hash: String)
 
-# Rolling "latest" release: stable URLs because the tag name is fixed. The debug exe is a
-# distinct asset with its own hash, so a debug build must compare against its own sidecar —
-# otherwise it would forever mismatch NiceSwarm.exe.sha256 and nag about a non-existent update.
-const SHA_URL_RELEASE := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/NiceSwarm.exe.sha256"
-const SHA_URL_DEBUG := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/NiceSwarm-debug.exe.sha256"
+# Rolling "latest" release: stable URLs because the tag name is fixed. The shipped assets are
+# per-platform AND per-arch — Windows x86_64 keeps its legacy bare names (NiceSwarm.exe /
+# NiceSwarm-debug.exe) so already-installed builds keep matching; everything else gets an
+# -arch suffix. The sidecar filename is computed at runtime from platform + arch + debug
+# (see _sidecar_url) so a build only ever compares against its OWN asset.
+const REL_BASE := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/"
 const RELEASES_URL := "https://github.com/ICQCQ/NiceSwarm/releases/tag/latest"
 const SKIP_CFG := "user://update_skip.cfg"
 const TIMEOUT := 6.0
@@ -34,11 +35,25 @@ func check() -> void:
 	add_child(_http)
 	_http.request_completed.connect(_on_completed)
 	# Reached only inside an exported build (the has_feature("template") guard above), so
-	# is_debug_build() here reliably distinguishes the debug export template from the release one.
-	var sha_url := SHA_URL_DEBUG if OS.is_debug_build() else SHA_URL_RELEASE
-	if _http.request(sha_url) != OK:
+	# is_debug_build() / arch feature tags here reliably reflect the running export.
+	if _http.request(_sidecar_url()) != OK:
 		_http.queue_free()
 		_http = null
+
+
+## URL of the .sha256 sidecar for the running platform + arch + build flavour. Mirrors the CI
+## asset naming: Windows x86_64 keeps legacy bare names; arm64 and macOS get an -arch suffix.
+## macOS ships release-only (no debug build), so it ignores is_debug_build().
+func _sidecar_url() -> String:
+	var arch := "arm64" if OS.has_feature("arm64") else "x86_64"
+	if OS.get_name() == "macOS":
+		return REL_BASE + "NiceSwarm-%s.zip.sha256" % arch
+	var asset := "NiceSwarm"
+	if arch == "arm64":
+		asset += "-arm64"  # x86_64 stays bare (legacy, pre-arm64 builds)
+	if OS.is_debug_build():
+		asset += "-debug"
+	return REL_BASE + asset + ".exe.sha256"
 
 
 func _on_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
