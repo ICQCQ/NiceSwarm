@@ -296,7 +296,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 		e.cast_damage = d.cd
 		e.cast_effect = d.get("effect", 0)
 		e.cast_cooldown = d.get("cdt", 3.0)
-		e.cast_timer = e.cast_cooldown
+		e.cast_timer = e.cast_cooldown + randf_range(0.5, 2.5)
 		e.keep_dist = d.keep
 	# boss mechanics: map-wide/pattern "slam" attacks + per-tier hard-to-kill gimmicks
 	e.boss = d.get("boss", false)

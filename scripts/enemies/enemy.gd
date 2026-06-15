@@ -174,7 +174,7 @@ func _physics_process(delta: float) -> void:
 		velocity = move * spd + knockback
 		cast_timer -= delta
 		if cast_timer <= 0.0:
-			cast_timer = cast_cooldown
+			cast_timer = cast_cooldown + randf_range(1.0, 4.0)
 			if cast_pattern == 1:
 				# Diviner: paint a line of strikes out from the target along a random angle
 				var d := Vector2.from_angle(randf() * TAU)

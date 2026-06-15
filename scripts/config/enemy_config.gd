@@ -26,9 +26,9 @@ const CLASSES := {
 		# uniform_tier (on tier 0, applies to the whole class): every unlocked
 		# tier is equally likely — Bomber/Diviner/Oracle stay evenly mixed
 		# instead of skewing toward Oracle late-game (see EnemySpawner.class_tier).
-		{"name": "Bomber", "hp0": 10.0, "hpk": 4.0, "spd": 110.0, "spdk": 1.0, "r": 15.0, "dmg": 1, "xp": 4, "col": Color(0.55, 0.12, 0.12), "shape": "circle", "caster": true, "pattern": 0, "cr": 97.75, "cd": 2, "cdt": 2.15, "keep": 280.0, "uniform_tier": true},
-		{"name": "Diviner", "hp0": 14.0, "hpk": 5.0, "spd": 90.0, "spdk": 0.0, "r": 16.0, "dmg": 1, "xp": 6, "col": Color(0.4, 0.2, 0.6), "shape": "circle", "caster": true, "pattern": 1, "cr": 72.25, "cd": 2, "cdt": 2.6, "keep": 330.0},
-		{"name": "Oracle", "hp0": 24.0, "hpk": 6.0, "spd": 80.0, "spdk": 0.0, "r": 18.0, "dmg": 2, "xp": 9, "col": Color(0.55, 0.25, 0.72), "shape": "circle", "caster": true, "pattern": 2, "cr": 63.75, "cd": 2, "cdt": 3.0, "keep": 360.0},
+		{"name": "Bomber", "hp0": 10.0, "hpk": 4.0, "spd": 110.0, "spdk": 1.0, "r": 15.0, "dmg": 1, "xp": 4, "col": Color(0.55, 0.12, 0.12), "shape": "circle", "caster": true, "pattern": 0, "cr": 97.75, "cd": 2, "cdt": 1.15, "keep": 280.0, "uniform_tier": true},
+		{"name": "Diviner", "hp0": 14.0, "hpk": 5.0, "spd": 90.0, "spdk": 0.0, "r": 16.0, "dmg": 1, "xp": 6, "col": Color(0.4, 0.2, 0.6), "shape": "circle", "caster": true, "pattern": 1, "cr": 72.25, "cd": 2, "cdt": 1.6, "keep": 330.0},
+		{"name": "Oracle", "hp0": 24.0, "hpk": 6.0, "spd": 80.0, "spdk": 0.0, "r": 18.0, "dmg": 2, "xp": 9, "col": Color(0.55, 0.25, 0.72), "shape": "circle", "caster": true, "pattern": 2, "cr": 63.75, "cd": 2, "cdt": 2.0, "keep": 360.0},
 	],
 	"warden": [  # armored — shrugs off a fraction of every hit (resist); focus-fire to drop
 		{"name": "Shieldling", "hp0": 10.0, "hpk": 3.0, "spd": 70.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 3, "col": Color(0.55, 0.6, 0.72), "shape": "square", "resist": 0.4, "pull_imm": true},
@@ -107,8 +107,8 @@ const SPAWN_POOL := [
 	{"cls": "sentinel",  "weight": 1, "unlock": 150.0},
 	{"cls": "burster",   "weight": 1, "unlock": 180.0},
 	{"cls": "disruptor", "weight": 1, "unlock": 210.0},
-	{"cls": "defiler",   "weight": 1, "unlock": 300.0},
-	{"cls": "interceptor", "weight": 1, "unlock": 240.0},
+	{"cls": "defiler",   "weight": 1, "unlock": 280.0},
+	{"cls": "interceptor", "weight": 1, "unlock": 300.0},
 ]
 
 # Periodic "special" spawns (tanks/elites/casters), one per key. Each fires on
