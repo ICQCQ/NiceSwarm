@@ -78,7 +78,7 @@ func build() -> void:
 	main.hint_label.text = Main.HINT_COOP
 	main.banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
 	main.banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	main.banner_label.offset_top = 150.0
+	main.banner_label.offset_top = 90.0  # centered, just below the difficulty/threat readout (not over the left HUD list)
 	main.banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	main.banner_label.modulate.a = 0.0
 
