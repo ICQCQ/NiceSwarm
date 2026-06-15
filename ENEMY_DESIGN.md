@@ -39,7 +39,7 @@ Each tier is a dictionary:
 | `boss` + `slam_pattern`/`slam_radius`/`slam_damage`/`slam_cooldown` | boss map-wide/pattern slam attack (see Bosses) |
 | `enrage_resist` | extra `resist` that ramps up to this value as hp drops toward 0 |
 | `immune_cycle`+`immune_pool` | rotates `immune` through this list of `DMG_*` every `immune_cycle` seconds |
-| `summon_cls`+`summon_count`+`summon_cooldown` | periodically calls in `summon_count` enemies of `summon_cls` |
+| `summon_cls`+`summon_count`+`summon_cooldown`(+`summon_tier`) | periodically calls in `summon_count` enemies of `summon_cls`; `summon_tier` (default -1) pins a specific tier instead of the normal `class_tier` roll |
 | `icast_pattern`+`icast_radius`+`icast_life`+`icast_count`+`icast_cooldown` | Interceptor — periodically casts lingering jamming field(s) (see Interceptor below) |
 
 ## Damage types
@@ -187,16 +187,24 @@ independent of the normal AI, so it interrupts chasing/casting on its own cooldo
 
 - **3 — checkerboard grid**, centered on the boss: a 5×5 grid of strikes spaced
   `slam_radius·1.6` apart in a checkerboard (half the cells), covering a large area
-  around it — find the gaps.
-- **4 — rotating sweep**: 4 strikes radiating outward from the target along an angle
-  that advances 60° every cast (`slam_rot`) — a full rotation every 6 casts, forcing
-  continuous repositioning.
+  around it — find the gaps. Cast with `ignore_cap=true` so the full 13-strike
+  grid always lands, even if MAX_TELEGRAPHS is already saturated by casters.
+- **4 — massive slow strike**: one huge telegraph (`slam_radius`) centered on the
+  target, with a much longer warn time (`slam_warn`, e.g. 3 s vs the normal 1.3 s)
+  — a big read-and-reposition check instead of a snap dodge. Also `ignore_cap=true`.
+- **5 — explosion ring**: a ring of small telegraphs (`slam_radius` each), centered
+  on the boss, with the ring's radius equal to the target's *current* distance from
+  the boss — escape by stepping toward or away from the boss before it lands.
+  Strike count scales with the ring's circumference (clamped 8–20). `ignore_cap=true`.
 
 | Tier | Name | Hard-to-kill mechanic | Slam |
 |------|------|------------------------|------|
 | 0 | Juggernaut | `shield_cycle`/`shield_time` (2.5 s shielded / 1.5 s open) + `cc_imm` (can't be slowed/knocked back) | 3 — grid |
-| 1 | Harbinger | `immune_cycle` (4 s) rotates `immune_type` through PHYS→FIRE→ICE→ENERGY — match your damage type | 4 — sweep |
-| 2 | Eclipse | `enrage_resist` (0.5) — armor ramps up to +50% as hp drops toward 0 + `summon_cls`/`summon_count`/`summon_cooldown` calls in 2 brawlers every 9 s | 3 — grid |
+| 1 | Harbinger | `immune_cycle` (4 s) rotates `immune_type` through PHYS→FIRE→ICE→ENERGY — match your damage type | 4 — massive slow strike |
+| 2 | Eclipse | `enrage_resist` (0.5) — armor ramps up to +50% as hp drops toward 0 + `summon_cls`/`summon_tier`/`summon_count`/`summon_cooldown` calls in 2 Dispersers every 9 s | 5 — explosion ring |
+
+Disperser (Interceptor T2) always drops an extra jamming field on every live boss,
+on top of its normal bouncer/boss targets — see `icast_pattern: 2` in `enemy.gd`.
 
 ## Designed, not yet implemented
 

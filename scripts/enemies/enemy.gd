@@ -63,14 +63,14 @@ var keep_dist := 300.0
 # still periodically unleash a map-wide/pattern attack via cast_telegraph.
 var boss := false
 var max_hp := 0.0
-# slam_pattern: -1 = none, 3 = checkerboard grid centered on self, 4 = rotating
-# sweep radiating from the target (advances `slam_rot` each cast).
+# slam_pattern: -1 = none, 3 = checkerboard grid centered on self, 4 = a single
+# massive, slow-telegraphed strike at the target (see slam_warn).
 var slam_pattern := -1
 var slam_radius := 100.0
 var slam_damage := 2
 var slam_cooldown := 5.0
 var slam_timer := 0.0
-var slam_rot := 0.0
+var slam_warn := -1.0  # pattern 4: telegraph warn time (-1 = TELEGRAPH_WARN default)
 var enrage_resist := 0.0  # extra resist as hp drops toward 0 (on top of `resist`)
 var immune_cycle := 0.0   # seconds between immune_type rotations (0 = off)
 var immune_pool: Array = []
@@ -79,6 +79,7 @@ var summon_cls := ""      # periodically calls in reinforcements of this class
 var summon_count := 0
 var summon_cooldown := 0.0
 var summon_timer := 0.0
+var summon_tier := -1     # -1 = normal class_tier roll, >=0 = always this tier
 # Interceptor: periodically casts a jamming field via main.cast_intercept_zone.
 # icast_pattern: 4 = on itself (Jammer, has down time between casts), 1 = random
 # spot nearby (sized by THREAT), 2 = lingering fields on N random enemies,
@@ -264,7 +265,7 @@ func _physics_process(delta: float) -> void:
 		if summon_timer <= 0.0:
 			summon_timer = summon_cooldown
 			for i in summon_count:
-				main_ref.spawner.spawn_enemy(summon_cls)
+				main_ref.spawner.spawn_enemy(summon_cls, summon_tier)
 	# Interceptor T1-3: periodically cast a jamming field (destroys player
 	# projectiles) via main.cast_intercept_zone — see EnemyGrid.in_interceptor_zone.
 	if icast_pattern > 0:
@@ -281,6 +282,9 @@ func _physics_process(delta: float) -> void:
 				2:  # lingering fields on a handful of other live enemies — prefer
 					# Bouncers (their ricochet path drags the field around
 					# unpredictably); fall back to Bosses if none are alive.
+					# Bosses always get an extra field on top, regardless — their
+					# slams are dangerous enough that the jamming denial should
+					# always be in play during a boss fight.
 					var bouncers: Array[Enemy] = []
 					var bosses: Array[Enemy] = []
 					for e in EnemyGrid.all():
@@ -295,6 +299,9 @@ func _physics_process(delta: float) -> void:
 					targets.shuffle()
 					for i in mini(icast_count, targets.size()):
 						main_ref.cast_intercept_zone(targets[i].global_position, icast_radius, icast_life)
+					if not bosses.is_empty() and targets != bosses:
+						for b in bosses:
+							main_ref.cast_intercept_zone(b.global_position, icast_radius, icast_life)
 				3:  # a single long line of fields across the arena, random angle
 					var dir := Vector2.from_angle(randf() * TAU)
 					var span := arena.size.length()
@@ -384,22 +391,36 @@ func apply_push(from_pos: Vector2, strength: float) -> void:
 ## the player to actually move rather than just tank the hits.
 func _do_slam() -> void:
 	match slam_pattern:
-		3:  # checkerboard grid centered on self — clears safe lanes to dodge into
+		3:  # checkerboard grid centered on self — clears safe lanes to dodge into.
+			# ignore_cap=true: a 13-strike grid would otherwise get silently
+			# truncated by MAX_TELEGRAPHS (or blocked entirely if casters already
+			# filled it) — the boss slam must always land in full.
 			var cell := slam_radius * 1.6
 			for gx in range(-2, 3):
 				for gy in range(-2, 3):
 					if (gx + gy) % 2 != 0:
 						continue
 					var pp := global_position + Vector2(gx, gy) * cell
-					main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0)
-		4:  # rotating sweep — a line of strikes from the target that rotates each cast
+					main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0, -1.0, true)
+		4:  # one massive, slow-telegraphed strike at the target — a long wind-up
+			# (slam_warn) forces a real reposition instead of a snap dodge.
 			var target: Node2D = main_ref.nearest_alive_player(global_position)
 			if target == null:
 				return
-			slam_rot += PI / 3.0  # 60° per cast — full rotation every 6 casts
-			for k in 4:
-				var pp := target.global_position + Vector2.from_angle(slam_rot) * (60.0 + k * 90.0)
-				main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0)
+			main_ref.cast_telegraph(target.global_position, slam_radius, slam_damage, 0, slam_warn, true)
+		5:  # ring of small explosions centered on the boss, with radius equal to
+			# the target's current distance — escape by stepping toward or away
+			# from the boss before it lands. ignore_cap=true: the ring is many
+			# small telegraphs and must always land in full.
+			var ring_target: Node2D = main_ref.nearest_alive_player(global_position)
+			if ring_target == null:
+				return
+			var ring_r := global_position.distance_to(ring_target.global_position)
+			var step := slam_radius * 1.5
+			var count := clampi(int(TAU * ring_r / step), 8, 20)
+			for k in count:
+				var pp := global_position + Vector2.from_angle(TAU * k / count) * ring_r
+				main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0, -1.0, true)
 
 
 func apply_burn(dps: float, duration: float, stack_mult: float = 1.0) -> void:

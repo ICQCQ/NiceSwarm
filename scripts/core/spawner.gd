@@ -304,6 +304,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.slam_radius = d.get("slam_radius", 100.0)
 	e.slam_damage = d.get("slam_damage", 2)
 	e.slam_cooldown = d.get("slam_cooldown", 5.0)
+	e.slam_warn = d.get("slam_warn", -1.0)
 	if e.slam_pattern >= 0:
 		e.slam_timer = e.slam_cooldown * 0.6  # short delay before the first slam
 	e.enrage_resist = d.get("enrage_resist", 0.0)
@@ -316,6 +317,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.summon_cls = d.get("summon_cls", "")
 	e.summon_count = d.get("summon_count", 0)
 	e.summon_cooldown = d.get("summon_cooldown", 0.0)
+	e.summon_tier = d.get("summon_tier", -1)
 	e.summon_timer = e.summon_cooldown
 	e.icast_pattern = d.get("icast_pattern", 0)
 	e.icast_radius = d.get("icast_radius", 0.0)
