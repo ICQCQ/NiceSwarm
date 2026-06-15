@@ -530,10 +530,13 @@ func on_server_disconnected() -> void:
 ## and waiting (in-game), or does the host have no run at all (lobby)?
 func on_rejoin_check_result(available: bool, in_lobby: bool) -> void:
 	if not available:
-		net.leave()
+		# Our saved old peer-id slot is gone (ghost expired / host re-hosted). Fall back to a
+		# name-based session check: if a same-name ghost is still around the host reclaims it
+		# for us, otherwise we join fresh. (Keeps the connection — no leave/error.)
 		rejoin_pending = false
 		_clear_rejoin_state()
-		_show_menu("Could not rejoin -- that session has already started without you.")
+		net.send_session_check(profile_name, profile_color_idx, profile_shape_idx)
+		status_label.text = "Reconnecting..."
 		return
 	if in_lobby:
 		rejoin_pending = false
@@ -571,6 +574,26 @@ func handle_rejoin_request(new_id: int, old_pid: int) -> void:
 	if p == null or not p.disconnected:
 		net.send_rejoin_reject(new_id, "Could not rejoin -- that player slot is no longer available.")
 		return
+	_take_over_slot(new_id, old_pid)
+
+
+## Host: find a still-ghosted (disconnected) player slot whose lobby name matches `pname`,
+## so a brand-new game instance can reclaim it by name alone. Returns the old peer id, or 0.
+func _disconnected_pid_by_name(pname: String) -> int:
+	if pname == "":
+		return 0
+	for pid in players:
+		var p: Player = players[pid]
+		if p.disconnected and String(lobby_players.get(pid, {}).get("name", "")) == pname:
+			return pid
+	return 0
+
+
+## Host: hand a still-ghosted disconnected slot `old_pid` to reconnected peer `new_id` --
+## reuses the Player node (weapons/levels intact) and sends the rejoiner a full rebuild.
+## Shared by both rejoin paths: same-instance (saved old peer-id) and same-name (new instance).
+func _take_over_slot(new_id: int, old_pid: int) -> void:
+	var p: Player = players[old_pid]
 	players.erase(old_pid)
 	players[new_id] = p
 	p.peer_id = new_id
@@ -668,6 +691,13 @@ func handle_session_check(new_id: int, player_name: String, color_idx: int, shap
 		return
 	if players.has(new_id):
 		return  # already joined -- ignore a duplicate request
+	# Name-based rejoin: a NEW game instance (no saved old peer-id) reclaims a still-ghosted
+	# disconnected slot with the same player name, recovering that character's weapons/levels
+	# instead of starting fresh. Checked before the capacity gate (the ghost already holds a slot).
+	var rejoin_pid := _disconnected_pid_by_name(player_name)
+	if rejoin_pid != 0:
+		_take_over_slot(new_id, rejoin_pid)
+		return
 	if peer_ids.size() >= Net.MAX_PLAYERS:
 		net.send_late_join_reject(new_id, "The party is full.")
 		return
