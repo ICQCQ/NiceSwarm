@@ -1809,7 +1809,7 @@ func _roll_choices() -> void:
 	for i in choice_buttons.size():
 		if i < current_choices.size():
 			var u: Dictionary = current_choices[i]
-			choice_buttons[i].text = "%d.  %s — %s" % [i + 1, u.name, u.desc]
+			choice_buttons[i].text = "%d.  %s" % [i + 1, u.name]
 			var col: Color = CAT_COLORS.get(u.get("cat", "stat"), Color.WHITE)
 			choice_buttons[i].add_theme_color_override("font_color", col)
 			choice_buttons[i].add_theme_color_override("font_color_hover", col.lightened(0.2))
