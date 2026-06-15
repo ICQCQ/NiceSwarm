@@ -84,6 +84,23 @@ const WEAPON_ICON := {
 }
 const SUP := ["", "¹", "²", "³"]  # superscript weapon level for the HUD badge (max level 3)
 
+# Headless playstyle sims (NICESWARM_SIM): each style = priority weapons to learn/level toward,
+# plus the fusion to aim for. _sim_pick_for follows this when auto-resolving level-ups.
+const SIM_STYLES := {
+	"railgun":   {"prio": ["bolt", "lightning"], "fuse": ["bolt", "lightning"]},
+	"pulsar":    {"prio": ["nova", "orbit"], "fuse": ["nova", "orbit"]},
+	"supernova": {"prio": ["flame", "nova"], "fuse": ["flame", "nova"]},
+	"glacier":   {"prio": ["frost", "gravity"], "fuse": ["frost", "gravity"]},
+	"prism":     {"prio": ["laser", "orbit"], "fuse": ["laser", "orbit"]},
+	"toxicpyre": {"prio": ["flame", "venom"], "fuse": ["flame", "venom"]},
+	"warhead":   {"prio": ["missiles", "nova"], "fuse": ["missiles", "nova"]},
+	"singular":  {"prio": ["gravity", "nova"], "fuse": ["gravity", "nova"]},
+	"cluster":   {"prio": ["mines", "missiles"], "fuse": ["mines", "missiles"]},
+	"storm":     {"prio": ["glaive", "lightning"], "fuse": ["glaive", "lightning"]},
+	"frostbite": {"prio": ["frost", "venom"], "fuse": ["frost", "venom"]},
+	"greedy":    {"prio": ["bolt", "orbit", "nova", "flame", "frost"], "fuse": []},
+}
+
 # --- session / network ---
 var net: Net
 var spawner: EnemySpawner
@@ -164,6 +181,10 @@ const THREAT_TIERS := [
 var countdown_time := 0.0       # >0 while the resume countdown is ticking
 var _countdown_done := Callable()  # runs when the countdown reaches zero (the real resume)
 var _ff_min := -1               # NICESWARM_FF: last game-minute printed during a fast-forward run
+var sim_mode := false           # NICESWARM_SIM: autopilot playstyle run; prints one [sim] line then quits
+var sim_style := ""
+var _sim_seed := 0
+var sim_age_sum := 0.0          # sum of enemy ages at death -> average time-to-kill
 
 # upgrade-category accent colors (option buttons + descriptions)
 const CAT_COLORS := {
@@ -293,6 +314,8 @@ func _ready() -> void:
 		"join":
 			ip_edit.text = "127.0.0.1"
 			_on_join_pressed()
+	if OS.get_environment("NICESWARM_SIM") != "":
+		_start_sim()
 
 
 func is_host() -> bool:
@@ -1186,6 +1209,108 @@ func _ff_census() -> String:
 	return "nodes=%d phys=%.2fms | %s" % [total, phys, ", ".join(parts)]
 
 
+## NICESWARM_SIM="style=railgun,players=2,seed=3,ff=40": a headless autopilot run. Spawns N
+## kiting-bot players, follows the playstyle's pick priority, and on win/wipe prints one [sim]
+## line then quits. Mortal (no god mode) so "how far does this build get" is a real result.
+func _start_sim() -> void:
+	var cfg := {}
+	for kv in OS.get_environment("NICESWARM_SIM").split(",", false):
+		var p := kv.split("=")
+		if p.size() == 2:
+			cfg[p[0].strip_edges()] = p[1].strip_edges()
+	sim_mode = true
+	sim_style = cfg.get("style", "greedy")
+	_sim_seed = int(cfg.get("seed", "1"))
+	seed(_sim_seed)  # reproducible enemy field per seed (overrides _ready's randomize())
+	var n := clampi(int(cfg.get("players", "1")), 1, 4)
+	var ff := maxf(float(cfg.get("ff", "40")), 1.0)
+	local_id = 1
+	var ids := []
+	for i in n:
+		ids.append(i + 1)
+	start_game(ids)
+	for pid in players:
+		players[pid].bot = true  # host drives every player as a kiting bot
+	Engine.time_scale = ff
+	# Effectively uncap physics steps/frame so heavy late-game frames never under-simulate
+	# (time-dilate) and skew the result; when the CPU can't keep up the run just stretches in
+	# wall-clock, faithfully. Pick a modest ff so it stays close to real-time.
+	Engine.max_physics_steps_per_frame = 100000
+
+
+## Host: during a sim level-up, resolve one not-yet-chosen player per frame (the wait-for-all
+## flow then resumes / chains naturally). One per frame avoids re-entrancy with chained picks.
+func _sim_autopick() -> void:
+	for pid in peer_ids:
+		if not picked_ids.has(pid):
+			apply_choice(pid, _sim_pick_for(players[pid]))
+			return
+
+
+## The id this playstyle picks from a freshly-rolled option set for player p.
+func _sim_pick_for(p: Player) -> String:
+	var style: Dictionary = SIM_STYLES.get(sim_style, SIM_STYLES["greedy"])
+	var opts := _sim_roll(p)
+	var best_id := ""
+	var best := -1.0
+	for c in opts:
+		var sc := _sim_score(c, style.prio, style.fuse)
+		if sc > best:
+			best = sc
+			best_id = c.id
+	return best_id if best_id != "" else ("st_power" if opts.is_empty() else opts[0].id)
+
+
+## A realistic option set for player p — like _roll_choices (merge guaranteed, cfg_choices wide),
+## but for any player and returned rather than shown on a panel.
+func _sim_roll(p: Player) -> Array:
+	var pool := _build_choice_pool(p)
+	var merges := pool.filter(func(e): return e.get("cat", "") in ["fuse", "amalgam"])
+	var rest := pool.filter(func(e): return not (e.get("cat", "") in ["fuse", "amalgam"]))
+	rest.shuffle()
+	var chosen := []
+	if not merges.is_empty():
+		merges.shuffle()
+		chosen.append(merges[0])
+	for e in rest:
+		if chosen.size() >= cfg_choices:
+			break
+		chosen.append(e)
+	return chosen
+
+
+## Score an option for the active playstyle: fuse-to-target >> level/learn priority weapons >>
+## power/survival stats >> off-build picks.
+func _sim_score(c: Dictionary, prio: Array, fuse: Array) -> float:
+	var id: String = c.id
+	if id.begins_with("merge_"):
+		var pair := id.trim_prefix("merge_").split("|")
+		if fuse.size() == 2 and pair.has(fuse[0]) and pair.has(fuse[1]):
+			return 100.0  # exactly the fusion this build wants
+		return 30.0       # some other fusion — still strong
+	if id.begins_with("learn_"):
+		var wid := id.trim_prefix("learn_")
+		if wid in prio:
+			return 80.0 - float(prio.find(wid))
+		if wid in fuse:
+			return 78.0
+		return 6.0
+	if id.begins_with("lv_"):
+		var wid := id.trim_prefix("lv_")
+		if wid in prio or wid in fuse:
+			return 70.0   # push toward MAX so the fusion unlocks
+		return 42.0       # leveling the fusion product / anything owned
+	match id:
+		"st_hp": return 48.0      # survival-capped bot: stack max HP first
+		"st_power": return 36.0
+		"st_speed": return 34.0
+		"st_dash": return 32.0
+		"st_rate": return 28.0
+		"st_area": return 24.0
+		"st_duration": return 18.0
+	return 12.0
+
+
 func reset_game() -> void:
 	if not playing:
 		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
@@ -1286,7 +1411,7 @@ func _register_player(p: Player) -> void:
 ## starting weapons" choice (host-triggered, broadcast like any level-up).
 func _grant_starters() -> void:
 	var test := OS.get_environment("NICESWARM_TEST")
-	var headless := test != "" or OS.get_environment("NICESWARM_NET") != ""
+	var headless := test != "" or OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_SIM") != ""
 	if not headless:
 		if is_host():
 			_trigger_picks(true, true)  # free + starter
@@ -1400,9 +1525,12 @@ func _process(delta: float) -> void:
 						wl.append("%s:L%d" % [w.weapon_id, w.level])
 					print("[ff]   loadout: %s" % ", ".join(wl))
 				print("[ff]   census: %s" % _ff_census())
-	# NICESWARM_FF: auto-resolve level-up picks headless, else the first level-up pauses forever
-	if Engine.time_scale > 1.0 and leveling and not i_chose and not current_choices.is_empty():
-		_choose_upgrade(0)
+	# Headless: auto-resolve level-up picks (sim-aware; else the first level-up pauses forever).
+	if leveling and (sim_mode or Engine.time_scale > 1.0):
+		if sim_mode:
+			_sim_autopick()
+		elif not i_chose and not current_choices.is_empty():
+			_choose_upgrade(0)
 	_update_hud()
 
 
@@ -1501,6 +1629,8 @@ func nearest_enemy_to(pos: Vector2, max_range: float) -> Node2D:
 ## and hits any player still inside. Synced to clients via STATE_TELEGRAPHS so the
 ## reacting player sees the warning and can dash out.
 func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0) -> void:
+	if telegraphs_by_id.size() >= GameConfig.MAX_TELEGRAPHS:
+		return  # arena already saturated with danger zones — don't blanket it (undodgeable)
 	var tz := TelegraphZone.new()
 	tz.radius = radius
 	tz.warn = TELEGRAPH_WARN
@@ -1524,6 +1654,8 @@ func _on_enemy_killed(enemy: Enemy) -> void:
 	if enemy.xp_value <= 0:  # shard bullets: no kill credit, no gem, no drop
 		return
 	kills += 1
+	if sim_mode:
+		sim_age_sum += enemy.age
 	spawner.add_kill()
 	# bursters spit a ring of shard bullets on death (deferred — see EnemySpawner.spawn_burst)
 	if enemy.burst_count > 0 and enemies_by_id.size() + enemy.burst_count <= ENEMY_CAP:
@@ -1959,6 +2091,12 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 		return
 	game_over = true
 	_force_close_ingame_menu()  # never end a run with a player stuck frozen/invulnerable
+	if sim_mode:
+		var ttk := sim_age_sum / float(maxi(kills_, 1))
+		print("[sim] style=%s party=%d seed=%d result=%s time=%.1f diff=%.1f level=%d kills=%d ttk=%.2f" \
+			% [sim_style, peer_ids.size(), _sim_seed, ("WIN" if won else "DEAD"), elapsed_, spawner.diff(), level_, kills_, ttk])
+		get_tree().quit(0)
+		return
 	if Engine.time_scale > 1.0:  # NICESWARM_FF: final calibration line, then drop the clock back
 		print("[ff] END won=%s min=%.1f level=%d kills=%d gems=%d" \
 			% [str(won), elapsed_ / 60.0, level_, kills_, gems_by_id.size()])
