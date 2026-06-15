@@ -140,6 +140,22 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-16 — Session 4: enemy soft-separation (no stacking) (branch `publish`)
+- **Goal:** enemies should not pile up on a single point / overlap each other.
+- **Approach:** kept `collision_mask = 0` (physics collision between 220 bodies is the
+  documented O(n²) cliff). Added a boids-style **soft separation** steering force in
+  `Enemy._separation()` (host-only): query the shared per-frame `EnemyGrid.near(pos, radius)`,
+  sum a unit-capped push away from overlapping neighbors (linear falloff, 0 at first touch →
+  1 at full overlap), and add `_separation() * spd * SEPARATION_STRENGTH (0.7)` to velocity
+  before `move_and_slide`. Skipped for manual movers (bounce/straight shards phase through)
+  and immovable enemies (`knockback_immune`/`cc_immune`, incl. bosses) — they still part the
+  swarm around them since they appear in others' queries. Puppets are unaffected (early-return).
+- **Verified:** headless smoke + `zoo` (all enemy types) clean; unit suite 1059 passed, 0 failed;
+  god lethality probe (`god=1,ff=4`) ran a full 10:00 → `result=WIN`, 0 errors, physics peaked
+  ~11–13ms at the 220-enemy swarm (within budget). Updated CLAUDE.md collision note.
+- **Tuning:** `SEPARATION_STRENGTH` in `enemy.gd` — raise for firmer spacing, lower if the
+  swarm feels too "pushy" / jittery.
+
 ### 2026-06-15 — Session 3: balance overhaul + docs + unit tests (branch `balance/curve-waves`)
 - Rebased the balance branch onto the post-`sync-from-master` `publish`, re-grounding the
   plan against the refactored code (spawning now in `scripts/core/spawner.gd`; two-track

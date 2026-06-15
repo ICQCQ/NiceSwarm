@@ -20,6 +20,12 @@ const SPAWN_RAMP_FLOOR := 0.15   # speed multiplier at the instant of spawn
 # move_mode 4 (flee, Interceptor): wanders until a player comes within this range
 const FLEE_RANGE := 220.0
 
+# Soft separation: how hard overlapping neighbors push each other apart, as a
+# fraction of the enemy's own move speed. NOT physics collision — this is a
+# boids-style steering force over the shared per-frame grid, so the swarm spreads
+# out instead of stacking on one point without the O(n^2) contact-solver cost.
+const SEPARATION_STRENGTH := 0.7
+
 var age := 0.0   # seconds alive (host sim only); drives the spawn speed ramp
 var hp := 2.0
 var speed := 90.0
@@ -111,9 +117,11 @@ func _ready() -> void:
 	if not bullet:
 		add_to_group("enemies")
 	collision_layer = 0 if bullet else 2
-	# enemies no longer collide with each other: 220 mutually-colliding CharacterBody2D
-	# bodies was an O(n^2) contact-solver cost. Projectile hits use collision_layer 2 +
-	# distance checks, and contact damage is distance-based, so nothing else needs this.
+	# enemies don't physically collide with each other: 220 mutually-colliding
+	# CharacterBody2D bodies was an O(n^2) contact-solver cost. Projectile hits use
+	# collision_layer 2 + distance checks, and contact damage is distance-based, so
+	# nothing else needs the mask. Overlap is instead avoided with a cheap boids-style
+	# separation steering force (see _separation) over the shared per-frame grid.
 	collision_mask = 0
 	var cs := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -238,6 +246,12 @@ func _physics_process(delta: float) -> void:
 		velocity = (target.global_position - global_position).normalized() * spd + knockback
 	else:
 		velocity = knockback
+	# Soft separation: nudge away from overlapping neighbors so the swarm spreads
+	# out rather than stacking on one point. Skipped for manual movers (bounce/
+	# straight shards phase through) and for immovable enemies (bosses/tier-3),
+	# which still part the swarm around them since they show up in others' queries.
+	if not manual and not knockback_immune and not cc_immune:
+		velocity += _separation() * spd * SEPARATION_STRENGTH
 	knockback = knockback.move_toward(Vector2.ZERO, 600.0 * delta)
 	if not manual:
 		move_and_slide()
@@ -386,6 +400,28 @@ func apply_push(from_pos: Vector2, strength: float) -> void:
 	var kbr := 0.3 if radius >= 20.0 else 1.0
 	knockback += (global_position - from_pos).normalized() * strength * kbr
 	knockback = knockback.limit_length(280.0)
+
+
+## Boids-style separation steering: a unit-capped push away from every neighbor
+## whose body overlaps ours. Uses the shared per-frame grid (EnemyGrid.near with
+## our own radius — the documented contract for a `dist <= radius + e.radius`
+## check), so it's O(local) and reuses the index weapons already rebuild. Falloff
+## is linear (0 at first touch, 1 at full overlap) so contact stays gentle.
+func _separation() -> Vector2:
+	var push := Vector2.ZERO
+	for n in EnemyGrid.near(global_position, radius):
+		if n == self:
+			continue
+		var combined := radius + n.radius
+		var d := global_position - n.global_position
+		var dist := d.length()
+		if dist >= combined:
+			continue
+		if dist > 0.001:
+			push += d / dist * (1.0 - dist / combined)
+		else:  # exactly stacked — shove along a per-enemy fixed angle to unstick
+			push += Vector2.from_angle(float(get_instance_id() % 360))
+	return push.limit_length(1.0)
 
 
 ## Boss attack: map-wide/pattern telegraphs via main.cast_telegraph, forcing
