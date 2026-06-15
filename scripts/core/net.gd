@@ -189,7 +189,7 @@ func send_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) -
 		rpc_player_state.rpc(pid, pos, facing, dashing)
 
 
-func send_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedFloat32Array) -> void:
+func send_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedByteArray) -> void:
 	if active:
 		rpc_world_state.rpc(kind, tick, chunk, total, data)
 
@@ -366,7 +366,7 @@ func rpc_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) ->
 
 
 @rpc("authority", "call_remote", "unreliable")
-func rpc_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedFloat32Array) -> void:
+func rpc_world_state(kind: int, tick: int, chunk: int, total: int, data: PackedByteArray) -> void:
 	main.apply_world_state(kind, tick, chunk, total, data)
 
 

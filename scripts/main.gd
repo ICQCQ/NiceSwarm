@@ -27,6 +27,12 @@ const STATE_ENEMIES := 0
 const STATE_GEMS := 1
 const STATE_PICKUPS := 2
 const STATE_TELEGRAPHS := 3
+# World-state wire format: each entity is a compact 10-byte record
+#   u32 id | s16 x*POS_SCALE | s16 y*POS_SCALE | u16 f   (vs the old 16-byte 4×float32).
+# Positions are fixed-point ×16 (1/16 px) — well within the ±1200 px arena (s16 holds ±32767
+# → ±2047 px) and far finer than the screen, so it's lossless to the eye and halves the x,y bytes.
+const POS_SCALE := 16.0
+const ENT_BYTES := 10
 const EVENT_BOMB := 0
 const TELEGRAPH_WARN := GameConfig.TELEGRAPH_WARN
 
@@ -2158,7 +2164,7 @@ func apply_event(type: int, pos: Vector2) -> void:
 
 
 func apply_world_state(kind: int, tick: int, chunk: int, total: int,
-		data: PackedFloat32Array) -> void:
+		data: PackedByteArray) -> void:
 	if is_host() or not playing:
 		return
 	if tick <= last_tick[kind]:
@@ -2168,24 +2174,24 @@ func apply_world_state(kind: int, tick: int, chunk: int, total: int,
 	tb.chunks[chunk] = data
 	if tb.chunks.size() < total:
 		return
-	var merged := PackedFloat32Array()
+	var merged := PackedByteArray()
 	for c in total:
 		merged.append_array(tb.chunks[c])
 	kb.clear()
 	if last_tick[kind] < 0 and OS.get_environment("NICESWARM_NET") != "":
-		print("[test] first world state kind=%d entries=%d" % [kind, merged.size() / 4])
+		print("[test] first world state kind=%d entries=%d" % [kind, merged.size() / ENT_BYTES])
 	last_tick[kind] = tick
 	_apply_state(kind, merged)
 
 
-func _apply_state(kind: int, data: PackedFloat32Array) -> void:
+func _apply_state(kind: int, data: PackedByteArray) -> void:
 	var seen := {}
-	var i := 0
-	while i + 3 < data.size():
-		var id := int(data[i])
-		var pos := Vector2(data[i + 1], data[i + 2])
-		var f := data[i + 3]
-		i += 4
+	var buf := StreamPeerBuffer.new()
+	buf.data_array = data
+	while buf.get_available_bytes() >= ENT_BYTES:
+		var id := buf.get_u32()
+		var pos := Vector2(buf.get_16() / POS_SCALE, buf.get_16() / POS_SCALE)
+		var f := buf.get_u16()
 		seen[id] = true
 		match kind:
 			STATE_ENEMIES:
@@ -2284,7 +2290,7 @@ func _apply_state(kind: int, data: PackedFloat32Array) -> void:
 
 
 func _send_state(kind: int) -> void:
-	var data := PackedFloat32Array()
+	var buf := StreamPeerBuffer.new()
 	# NOTE: assignments below stay untyped — assigning a freed instance to a
 	# typed var raises before any is_instance_valid check could run
 	match kind:
@@ -2294,41 +2300,45 @@ func _send_state(kind: int) -> void:
 				if not is_instance_valid(e) or e.is_queued_for_deletion():
 					enemies_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					e.global_position.x, e.global_position.y,
-					float(e.type_id) + (1000.0 if e.slow_timer > 0.0 else 0.0)]))
+				_put_entity(buf, id, e.global_position,
+					e.type_id + (1000 if e.slow_timer > 0.0 else 0))
 		STATE_GEMS:
 			for id in gems_by_id.keys():
 				var g = gems_by_id[id]
 				if not is_instance_valid(g) or g.is_queued_for_deletion():
 					gems_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					g.global_position.x, g.global_position.y, float(g.value)]))
+				_put_entity(buf, id, g.global_position, int(g.value))
 		STATE_PICKUPS:
 			for id in pickups_by_id.keys():
 				var pk = pickups_by_id[id]
 				if not is_instance_valid(pk) or pk.is_queued_for_deletion():
 					pickups_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					pk.global_position.x, pk.global_position.y,
-					float(PICKUP_KINDS.find(pk.kind))]))
+				_put_entity(buf, id, pk.global_position, PICKUP_KINDS.find(pk.kind))
 		STATE_TELEGRAPHS:
 			for id in telegraphs_by_id.keys():
 				var tz = telegraphs_by_id[id]
 				if not is_instance_valid(tz) or tz.is_queued_for_deletion():
 					telegraphs_by_id.erase(id)
 					continue
-				data.append_array(PackedFloat32Array([float(id),
-					tz.global_position.x, tz.global_position.y,
-					tz.radius + tz.effect * 10000.0]))
+				_put_entity(buf, id, tz.global_position,
+					int(round(tz.radius + tz.effect * 10000.0)))
 	tick_counter += 1
-	var per := 80 * 4  # 80 entries per chunk keeps packets under typical MTU
+	var data := buf.data_array
+	var per := 80 * ENT_BYTES  # 80 entries per chunk keeps packets under typical MTU
 	var total := maxi(1, int(ceil(float(data.size()) / per)))
 	for c in total:
 		net.send_world_state(kind, tick_counter, c, total,
 			data.slice(c * per, mini((c + 1) * per, data.size())))
+
+
+## Append one entity record (10 bytes): u32 id | s16 x*16 | s16 y*16 | u16 f.
+func _put_entity(buf: StreamPeerBuffer, id: int, pos: Vector2, f: int) -> void:
+	buf.put_u32(id)
+	buf.put_16(clampi(int(round(pos.x * POS_SCALE)), -32768, 32767))
+	buf.put_16(clampi(int(round(pos.y * POS_SCALE)), -32768, 32767))
+	buf.put_u16(clampi(f, 0, 65535))
 
 
 # --- input ---------------------------------------------------------------------
