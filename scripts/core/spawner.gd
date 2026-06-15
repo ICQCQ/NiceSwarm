@@ -185,7 +185,7 @@ func wave_pop_mult() -> float:   # scales desired_pop; valleys thin the field fo
 func run_spawning(delta: float) -> void:
 	var heat_v := heat()
 	var t := clampf(main.elapsed / 540.0, 0.0, 1.0)
-	var interval: float = lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + 0.6 * (main.peer_ids.size() - 1))
+	var interval: float = lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + GameConfig.PARTY_RATE_PER * (main.peer_ids.size() - 1))
 	interval /= maxf(wave_intensity(), 0.1)  # wave peak = faster spawns, valley = slower
 	# keep the arena populated: if the player clears faster than enemies arrive,
 	# ramp spawns to refill toward a target population. The target starts small
@@ -267,7 +267,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.type_id = type_id["%s:%d" % [cls, tier]]
 	e.tier = tier
 	var dl := diff()  # clear-difficulty drives hp/speed/dmg scaling (heat-accelerated)
-	var party: float = 1.0 + 0.5 * (main.peer_ids.size() - 1)
+	var party: float = 1.0 + GameConfig.PARTY_HP_PER * (main.peer_ids.size() - 1)
 	e.hp = (d.hp0 + dl * d.hpk) * party
 	e.speed = d.spd + dl * d.get("spdk", 0.0)
 	e.radius = d.r
