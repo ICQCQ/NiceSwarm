@@ -253,7 +253,7 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | `ENEMY_CAP` | 300 | hard live-enemy limit |
 | `DIFF_BASE` | 1/45 | base difficulty climb rate |
 | `ENEMY_SPEED_DIFF_SCALE` / `ENEMY_HP_DIFF_SCALE` | 0.025 / 0.04 | enemy speed/hp ×(1 + diff·this) — break the late-game kite |
-| `ENEMY_HP_PER_LEVEL` | 0.2 | base enemy hp ×(1 + this·(party_level−1)) — tankier as the party levels (≈×10 by L48) |
+| `ENEMY_HP_PER_LEVEL` | 0.05 | base enemy hp ×(1 + this·(party_level−1)) — tankier as the party levels (≈×3.4 by L48) |
 | `CC_IMMUNE_TIER` | 2 | tier-index ≥ this (the 3rd tier) + bosses resist knockback & gravity suck-in |
 | `BOSS_FIGHT_SECONDS` / `BOSS_DPS_WINDOW` | 8 / 15 s | boss hp ≈ recent_dps·FIGHT (DPS over the last WINDOW s) |
 | `BOSS_HP_PER_LEVEL` / `BOSS_HP_PER_PLAYER` | 0.015 / 0.5 | boss hp ×(1+·(level−1))·(1+·(N−1)) on top of the DPS term |
