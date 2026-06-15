@@ -29,7 +29,7 @@ func _physics_process(delta: float) -> void:
 	for k in expired:
 		hit_cd.erase(k)
 
-	var beams := level
+	var beams := count_level()
 	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.laser.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.laser.growth * (level - 1))
 	# Broad-phase by beam length (grid); +64 margin covers the largest enemy radius (38) so

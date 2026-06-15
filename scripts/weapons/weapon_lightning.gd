@@ -21,7 +21,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.15
 		return
 	var dmg := WeaponConfig.BASE.lightning.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.lightning.growth * (level - 1))
-	var chains := 2 + level
+	var chains := 2 + count_level()
 	var points: Array = [player.global_position]
 	var visited := {}
 	var current: Node2D = first

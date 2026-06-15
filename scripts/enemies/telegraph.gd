@@ -39,7 +39,7 @@ func _physics_process(delta: float) -> void:
 		if t >= warn:  # active hazard — disrupt anyone standing in it
 			for p in main_ref.players.values():
 				if not p.downed \
-						and global_position.distance_to(p.global_position) <= radius + Player.RADIUS:
+						and global_position.distance_to(p.global_position) <= radius + Player.HURT_RADIUS:
 					p.apply_disrupt(0.4)  # short refresh: ends shortly after you leave
 		return
 	if t >= warn:
@@ -57,7 +57,7 @@ func _detonate() -> void:
 	Sfx.play("boom", global_position)
 	for p in main_ref.players.values():
 		if p.downed \
-				or global_position.distance_to(p.global_position) > radius + Player.RADIUS:
+				or global_position.distance_to(p.global_position) > radius + Player.HURT_RADIUS:
 			continue
 		if effect == EFFECT_DISRUPT:
 			p.apply_disrupt(2.5)

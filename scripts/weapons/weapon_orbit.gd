@@ -31,7 +31,7 @@ func _physics_process(delta: float) -> void:
 	for k in expired:
 		hit_cd.erase(k)
 
-	var n := level + 1
+	var n := count_level() + 1
 	var dmg := WeaponConfig.BASE.orbit.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.orbit.growth * (level - 1))
 	var orbit_r := ORBIT_R * player.area_mult
 	var blade_r := BLADE_R * player.area_mult
@@ -52,7 +52,7 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var n := level + 1
+	var n := count_level() + 1
 	var orbit_r := ORBIT_R * player.area_mult
 	var blade_r := BLADE_R * player.area_mult
 	for i in n:

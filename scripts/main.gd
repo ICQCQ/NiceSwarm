@@ -160,6 +160,9 @@ var last_tick := {0: -1, 1: -1, 2: -1, 3: -1}
 
 # --- UI nodes ---
 var ui: CanvasLayer
+const BANNER_LIFE := 2.6  # boss / mini-boss banner duration (seconds)
+var banner_label: Label   # centered boss/mini-boss spawn announcement
+var _banner_t := 0.0      # seconds left on the current banner
 var hp_label: Label
 var timer_label: Label
 var level_label: Label
@@ -418,6 +421,34 @@ func _apply_fast_forward() -> void:
 	print("[ff] fast-forward x%d toward %ds game-time" % [int(mult), int(WIN_TIME)])
 
 
+## NICESWARM_FF instrumentation: walk the live world subtree once and tally spawned
+## nodes by script file, so the per-minute log shows WHICH node types dominate late
+## game (the suspected 8-min cost). Also reports total node count + physics frame time.
+func _ff_census() -> String:
+	if world == null or not is_instance_valid(world):
+		return "no world"
+	var counts := {}
+	var total := 0
+	var stack: Array = [world]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+			total += 1
+			var s = c.get_script()
+			if s != null and s.resource_path != "":
+				var key: String = s.resource_path.get_file().trim_suffix(".gd")
+				counts[key] = int(counts.get(key, 0)) + 1
+	var keys := counts.keys()
+	keys.sort_custom(func(a, b): return counts[a] > counts[b])
+	var parts := PackedStringArray()
+	for k in keys:
+		if int(counts[k]) >= 3:  # drop singletons (player/weapons) — keep the spawn-heavy types
+			parts.append("%s=%d" % [k, counts[k]])
+	var phys := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	return "nodes=%d phys=%.2fms | %s" % [total, phys, ", ".join(parts)]
+
+
 func reset_game() -> void:
 	get_tree().paused = false
 	_clear_world()
@@ -519,6 +550,18 @@ func _grant_starters() -> void:
 					% [p.weapons[0].display_name, p.weapons[0].weapon_id, p.weapons.size()])
 				# regression guard: build the pick pool with a level-1 signature fusion
 				print("[test] pool ok, options=%d" % _build_choice_pool(p).size())
+			"deep":
+				# Synthetic worst case for the late-game regression: every count-scaling
+				# weapon forced far past the Lv3 pool cap — exactly what unbounded fusion
+				# leveling enables. The FF census then shows per-level node-count growth,
+				# and FF auto-merge deepens it into real fusions over the run.
+				for wid in ["frost", "missiles", "lightning", "mines"]:
+					p.add_weapon(wid)
+				for wid in ["bolt", "frost", "missiles", "lightning", "mines"]:
+					var w := p.get_weapon(wid)
+					if w != null:
+						w.level = 10
+				print("[test] deep build: 5 count-weapons forced to L10")
 			"all_fusions":
 				for pair in [["bolt", "nova"], ["frost", "lightning"], ["flame", "venom"],
 						["gravity", "nova"], ["mines", "missiles"], ["laser", "orbit"],
@@ -592,6 +635,13 @@ func _process(delta: float) -> void:
 				_ff_min = m
 				print("[ff] min=%d level=%d xp_need=%d gems=%d enemies=%d diff=%.1f" \
 					% [m, level, _xp_needed(), gems_by_id.size(), enemies_by_id.size(), spawner.difficulty])
+				var p0 = players.get(1)
+				if p0 != null and is_instance_valid(p0):
+					var wl := PackedStringArray()
+					for w in p0.weapons:
+						wl.append("%s:L%d" % [w.weapon_id, w.level])
+					print("[ff]   loadout: %s" % ", ".join(wl))
+				print("[ff]   census: %s" % _ff_census())
 	# NICESWARM_FF: auto-resolve level-up picks headless, else the first level-up pauses forever
 	if Engine.time_scale > 1.0 and leveling and not i_chose and not current_choices.is_empty():
 		_choose_upgrade(0)
@@ -974,16 +1024,23 @@ func _roll_choices() -> void:
 	if me == null:
 		return
 	var pool := _build_choice_pool(me)
-	# If any fusion (merge) is on offer, guarantee one shows — fusions are the
-	# build payoff and shouldn't be missed to a random shuffle.
+	# Guarantee up to two build-advancing options each roll, both protected from
+	# the random shuffle: (1) a fusion/merge when one is available (the build
+	# payoff), and (2) a level-up of an owned weapon/fusion, so you can always
+	# strengthen what you already run. Remaining slots fill randomly from the rest.
 	var merges := pool.filter(func(e): return e.get("cat", "") in ["fuse", "amalgam"])
-	var rest := pool.filter(func(e): return not (e.get("cat", "") in ["fuse", "amalgam"]))
-	rest.shuffle()
+	var levels := pool.filter(func(e): return e.get("cat", "") == "level")
+	var rest := pool.filter(func(e): return not (e.get("cat", "") in ["fuse", "amalgam", "level"]))
+	merges.shuffle()
+	levels.shuffle()
 	var chosen := []
 	if not merges.is_empty():
-		merges.shuffle()
-		chosen.append(merges[0])
-	for e in rest:
+		chosen.append(merges.pop_back())
+	if not levels.is_empty():
+		chosen.append(levels.pop_back())  # always offer an owned-weapon/fusion level-up
+	var filler: Array = levels + rest  # leftover level-ups stay eligible too
+	filler.shuffle()
+	for e in filler:
 		if chosen.size() >= cfg_choices:
 			break
 		chosen.append(e)
@@ -1609,6 +1666,15 @@ func _update_hud() -> void:
 	kills_label.text = "Kills %d" % kills
 	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
 	arrows.queue_redraw()
+	if _banner_t > 0.0 and banner_label != null:
+		_banner_t -= get_process_delta_time()
+		var since := BANNER_LIFE - _banner_t
+		var a := 1.0
+		if since < 0.2:
+			a = since / 0.2
+		elif _banner_t < 0.6:
+			a = _banner_t / 0.6
+		banner_label.modulate.a = clampf(a, 0.0, 1.0)
 	# difficulty number + bar, with the live heat accelerator (▲ how fast it's climbing)
 	var heat := spawner.heat()
 	var diff := spawner.diff()
@@ -1718,6 +1784,11 @@ func _build_ui() -> void:
 	hud_root.add_child(weapons_label)
 	var hint := _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	hint.text = "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
+	banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
+	banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner_label.offset_top = 150.0
+	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner_label.modulate.a = 0.0
 
 	arrows = Control.new()
 	arrows.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1768,6 +1839,22 @@ func _fusion_short(dname: String) -> String:
 	if s.length() < 2:
 		s = dname.replace(" ", "")
 	return s.to_upper().substr(0, 3)
+
+
+func show_banner(text: String, is_boss: bool) -> void:
+	if banner_label == null:
+		return
+	banner_label.text = ("BOSS:  %s" % text) if is_boss else ("ELITE:  %s" % text)
+	banner_label.add_theme_color_override("font_color",
+		Color(1.0, 0.3, 0.3) if is_boss else Color(1.0, 0.78, 0.35))
+	banner_label.add_theme_font_size_override("font_size", 54 if is_boss else 42)
+	_banner_t = BANNER_LIFE
+
+
+## Host: announce a boss / mini-boss (elite) spawn — locally and to all clients.
+func announce_boss(text: String, is_boss: bool) -> void:
+	show_banner(text, is_boss)
+	net.send_announce(text, is_boss)
 
 
 func _make_overlay() -> Array:

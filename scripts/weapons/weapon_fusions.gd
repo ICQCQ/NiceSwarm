@@ -200,7 +200,7 @@ class PlasmaBurst extends WeaponBase:
 			cooldown = 0.1
 			return
 		var dir := (target.global_position - player.global_position).normalized()
-		var n := 1 + level
+		var n := 1 + count_level()
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for i in n:
 			var p := Projectile.new()
@@ -236,7 +236,7 @@ class Cryoshock extends WeaponBase:
 			cooldown = 0.15
 			return
 		var dmg := 2.5 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		var chains := 3 + level
+		var chains := 3 + count_level()
 		var jump := 210.0 * player.area_mult
 		var pts: Array = [player.global_position]
 		var visited := {}
@@ -374,7 +374,7 @@ class PrismHalo extends WeaponBase:
 				exp.append(k)
 		for k in exp:
 			hit_cd.erase(k)
-		var spokes := 1 + level
+		var spokes := 1 + count_level()
 		var length := (150.0 + 20.0 * (level - 1)) * player.area_mult
 		var dmg := 1.6 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -393,7 +393,7 @@ class PrismHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var spokes := 1 + level
+		var spokes := 1 + count_level()
 		var length := (150.0 + 20.0 * (level - 1)) * player.area_mult
 		for s in spokes:
 			var dir := Vector2.from_angle(angle + TAU * float(s) / spokes)
@@ -418,7 +418,7 @@ class GlacialEdge extends WeaponBase:
 		if target == null:
 			cooldown = 0.1
 			return
-		var count := 2 + level
+		var count := 2 + count_level()
 		var base := (target.global_position - player.global_position).normalized()
 		var dmg := 2.8 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		for i in count:
@@ -539,7 +539,7 @@ class FrostHalo extends WeaponBase:
 				exp.append(k)
 		for k in exp:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -556,7 +556,7 @@ class FrostHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -610,7 +610,7 @@ class StormDisc extends WeaponBase:
 		if target == null:
 			cooldown = 0.1
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var base := (target.global_position - player.global_position).normalized()
 		var dmg := 2.5 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		for i in count:
@@ -676,7 +676,7 @@ class ClusterWarhead extends WeaponBase:
 		if player.nearest_enemy(800.0) == null:
 			cooldown = 0.2
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 3.0 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		for i in count:
 			var m := MissileProj.new()
@@ -755,7 +755,7 @@ class ToxicHalo extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -784,7 +784,7 @@ class ToxicHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -818,7 +818,7 @@ class Pulsar extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		while pulse_timers.size() < n:
 			pulse_timers.append(randf() * PULSE_CD)
 		while pulse_timers.size() > n:
@@ -858,7 +858,7 @@ class Pulsar extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -887,7 +887,7 @@ class FrostLance extends WeaponBase:
 			cooldown = 0.1
 			return
 		var base := (target.global_position - player.global_position).normalized()
-		var count := 2 + level
+		var count := 2 + count_level()
 		var shatter_dmg := 3.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var shatter_radius := (60.0 + 12.0 * (level - 1)) * player.area_mult
 		for i in count:
@@ -924,7 +924,7 @@ class PlagueArc extends WeaponBase:
 			cooldown = 0.15
 			return
 		var dmg := 2.2 * player.damage_mult * (1.0 + 0.35 * (level - 1))
-		var chains := 3 + level
+		var chains := 3 + count_level()
 		var pts: Array = [player.global_position]
 		var visited := {}
 		var cur: Node2D = first
@@ -976,7 +976,7 @@ class TeslaHalo extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -1010,7 +1010,7 @@ class TeslaHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -1048,7 +1048,7 @@ class PlasmaStorm extends WeaponBase:
 			var first := player.nearest_enemy(reach + 60.0)
 			if first != null:
 				var bdmg := 2.2 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-				var chains := 2 + level
+				var chains := 2 + count_level()
 				var pts: Array = [player.global_position]
 				var visited := {}
 				var cur: Node2D = first
@@ -1102,7 +1102,7 @@ class Cyclone extends WeaponBase:
 		if cooldown <= 0.0:
 			var target := player.nearest_enemy(650.0)
 			if target != null:
-				var count := 2 + level
+				var count := 2 + count_level()
 				var base := (target.global_position - player.global_position).normalized()
 				for i in count:
 					var g := GlaiveProj.new()
@@ -1168,7 +1168,7 @@ class _Sentry extends WeaponBase:
 	var life_scale := 1.0      # fused Gatling Nest: shorter-lived, faster-redeploying turrets
 	var cooldown_scale := 1.0
 	func _deploy_cap() -> int:
-		return level + 2
+		return count_level() + 2
 	func _physics_process(delta: float) -> void:
 		if player == null or player.downed:
 			return
@@ -1243,7 +1243,7 @@ class NovaBeam extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 		var dmg := 1.4 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -1283,7 +1283,7 @@ class NovaBeam extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
@@ -1308,7 +1308,7 @@ class Barrage extends WeaponBase:
 			cooldown = 0.1
 			return
 		var base := (target.global_position - player.global_position).normalized()
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 1.0 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		var splash := (36.0 + 6.0 * (level - 1)) * player.area_mult
 		for i in count:
@@ -1384,7 +1384,7 @@ class GunTurret extends _Sentry:
 		life_scale = 0.4
 		cooldown_scale = 0.3
 	func _deploy_cap() -> int:
-		return level + 5
+		return count_level() + 5
 
 class HaloTurret extends _Sentry:
 	func _init() -> void:
@@ -1551,7 +1551,7 @@ class EventHorizon extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.2 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
@@ -1569,7 +1569,7 @@ class EventHorizon extends WeaponBase:
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		draw_arc(Vector2.ZERO, orbit_r, 0.0, TAU, 40, Color(0.6, 0.4, 0.9, 0.25), 2.0)
-		var n := 2 + level
+		var n := 2 + count_level()
 		for i in n:
 			var p := Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 			draw_circle(p, blade_r, Color(0.8, 0.6, 1.0))
@@ -1593,7 +1593,7 @@ class VortexBlade extends WeaponBase:
 			cooldown = 0.1
 			return
 		var base := (target.global_position - player.global_position).normalized()
-		var count := 2 + level
+		var count := 2 + count_level()
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
@@ -1697,7 +1697,7 @@ class MineHalo extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -1726,7 +1726,7 @@ class MineHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -1752,7 +1752,7 @@ class IncendiaryRounds extends WeaponBase:
 			cooldown = 0.1
 			return
 		var base_dir := (target.global_position - player.global_position).normalized()
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 1.8 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		var puddle_r := (50.0 + 8.0 * (level - 1)) * player.area_mult
 		var puddle_life := 2.5 * player.duration_mult
@@ -1838,7 +1838,10 @@ class Ricochet extends WeaponBase:
 		if hops_left > 0:
 			p.on_hit = Callable(self, "_chain").bind(hops_left, visited.duplicate(), dmg_scale * 0.7)
 		p.position = from
-		player.get_parent().add_child(p)
+		# _fire is also called from _chain (an on_hit callback) — i.e. during physics
+		# query flush, where a synchronous Area2D add throws "can't change monitoring
+		# state". Defer it; harmless when _fire runs from _physics_process too.
+		player.get_parent().add_child.call_deferred(p)
 	func _chain(enemy: Node2D, hit_pos: Vector2, _world: Node, hops_left: int, visited: Dictionary, dmg_scale: float) -> void:
 		if player == null:
 			return
@@ -2050,7 +2053,7 @@ class CryoBeam extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (170.0 + 25.0 * (level - 1)) * player.area_mult
 		var dmg := 1.2 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -2069,7 +2072,7 @@ class CryoBeam extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (170.0 + 25.0 * (level - 1)) * player.area_mult
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
@@ -2124,7 +2127,7 @@ class CryoMissile extends WeaponBase:
 		if player.nearest_enemy(800.0) == null:
 			cooldown = 0.2
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 2.5 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
 			var m := MissileProj.new()
@@ -2304,7 +2307,7 @@ class ImplosionMine extends WeaponBase:
 		w.position = target.global_position
 		player.get_parent().add_child(w)
 		var dmg := 6.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
-		var count := 1 + level
+		var count := 1 + count_level()
 		for i in count:
 			var m := MineNode.new()
 			m.source_pid = player.peer_id
@@ -2345,7 +2348,7 @@ class ImplosionSalvo extends WeaponBase:
 		w.position = target.global_position
 		player.get_parent().add_child(w)
 		var dmg := 2.6 * player.damage_mult * (1.0 + 0.35 * (level - 1))
-		var count := 1 + level
+		var count := 1 + count_level()
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
@@ -2461,7 +2464,7 @@ class InfernoBlade extends WeaponBase:
 		if target == null:
 			cooldown = 0.1
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var base := (target.global_position - player.global_position).normalized()
 		var dmg := 2.4 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
@@ -2543,7 +2546,7 @@ class PhoenixRocket extends WeaponBase:
 		if player.nearest_enemy(800.0) == null:
 			cooldown = 0.2
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 2.6 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
 			var m := MissileProj.new()
@@ -2585,7 +2588,7 @@ class BlazeHalo extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -2624,7 +2627,7 @@ class BlazeHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -2649,7 +2652,7 @@ class PhotonDisc extends WeaponBase:
 		if target == null:
 			cooldown = 0.1
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var base := (target.global_position - player.global_position).normalized()
 		var dmg := 2.6 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
@@ -2696,7 +2699,7 @@ class RotorMissile extends WeaponBase:
 		if player.nearest_enemy(800.0) == null:
 			cooldown = 0.2
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 2.4 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
 			var m := MissileProj.new()
@@ -2739,7 +2742,7 @@ class BladeTempest extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var total := 2 + level
+		var total := 2 + count_level()
 		# blades that have detached to strike leave a gap in the ring until they return
 		var n := maxi(total - detached, 1)
 		var orbit_r := ORBIT_R * player.area_mult
@@ -2775,7 +2778,7 @@ class BladeTempest extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var total := 2 + level
+		var total := 2 + count_level()
 		var n := maxi(total - detached, 1)
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
@@ -2801,7 +2804,7 @@ class PlagueBlade extends WeaponBase:
 		if target == null:
 			cooldown = 0.1
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var base := (target.global_position - player.global_position).normalized()
 		var dmg := 2.4 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
@@ -2851,7 +2854,7 @@ class IonStorm extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (170.0 + 25.0 * (level - 1)) * player.area_mult
 		var dmg := 1.3 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -2887,7 +2890,7 @@ class IonStorm extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (170.0 + 25.0 * (level - 1)) * player.area_mult
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
@@ -2918,7 +2921,7 @@ class BeamBattery extends WeaponBase:
 				texpired.append(k)
 		for k in texpired:
 			tagged.erase(k)
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (160.0 + 22.0 * (level - 1)) * player.area_mult
 		# beams deal no damage of their own -- they just paint targets
 		for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -2960,7 +2963,7 @@ class BeamBattery extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (160.0 + 22.0 * (level - 1)) * player.area_mult
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
@@ -2991,7 +2994,7 @@ class AcidRay extends WeaponBase:
 				expired.append(k)
 		for k in expired:
 			hit_cd.erase(k)
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (160.0 + 22.0 * (level - 1)) * player.area_mult
 		var dmg := 1.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -3022,7 +3025,7 @@ class AcidRay extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var beams := 1 + level
+		var beams := 1 + count_level()
 		var length := (160.0 + 22.0 * (level - 1)) * player.area_mult
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
@@ -3046,7 +3049,7 @@ class EMPMissile extends WeaponBase:
 		if player.nearest_enemy(800.0) == null:
 			cooldown = 0.2
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 2.4 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
 			var m := MissileProj.new()
@@ -3097,7 +3100,7 @@ class RocketHalo extends WeaponBase:
 				texpired.append(k)
 		for k in texpired:
 			tagged.erase(k)
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		var dmg := 2.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -3136,7 +3139,7 @@ class RocketHalo extends WeaponBase:
 	func _draw() -> void:
 		if player == null or player.downed:
 			return
-		var n := 2 + level
+		var n := 2 + count_level()
 		var orbit_r := ORBIT_R * player.area_mult
 		var blade_r := BLADE_R * player.area_mult
 		for i in n:
@@ -3160,7 +3163,7 @@ class PlagueRocket extends WeaponBase:
 		if player.nearest_enemy(800.0) == null:
 			cooldown = 0.2
 			return
-		var count := 1 + level
+		var count := 1 + count_level()
 		var dmg := 2.6 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		for i in count:
 			var m := MissileProj.new()

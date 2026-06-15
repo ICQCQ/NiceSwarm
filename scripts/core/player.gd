@@ -8,6 +8,7 @@ signal died
 signal health_changed(hp: int, max_hp: int)
 
 const RADIUS := 14.0
+const HURT_RADIUS := RADIUS * 0.8  # forgiving hurtbox — smaller than the drawn body
 const DASH_TIME := 0.18
 const DASH_SPEED_MULT := 3.4
 const COLORS: Array[Color] = [
@@ -59,6 +60,7 @@ func _ready() -> void:
 	circle.radius = RADIUS
 	cs.shape = circle
 	add_child(cs)
+	z_index = 10  # always render above the enemy swarm (enemies are z=0)
 	net_target = global_position
 
 	if is_local:
@@ -291,8 +293,19 @@ func _draw() -> void:
 			col = col.lightened(0.5)
 		elif invuln > 0.0 and fmod(invuln, 0.2) > 0.1:
 			col.a = 0.35
+		# dark backing halo: separates the bright body from the swarm on any color
+		draw_circle(Vector2.ZERO, RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.5 * col.a))
 		draw_circle(Vector2.ZERO, RADIUS, col)
-		draw_circle(Vector2.ZERO, RADIUS * 0.45, Color(0.1, 0.25, 0.4))
+		draw_circle(Vector2.ZERO, RADIUS * 0.45, Color(0.1, 0.25, 0.4, col.a))
+		# crisp bright rim — reads against any enemy color
+		draw_arc(Vector2.ZERO, RADIUS - 0.5, 0.0, TAU, 28, Color(1.0, 1.0, 1.0, 0.85 * col.a), 2.0)
+		# facing notch: a slim bright wedge showing aim/front (player identity)
+		var fa := facing.angle()
+		var notch := PackedVector2Array([
+			Vector2.from_angle(fa) * (RADIUS + 5.0),
+			Vector2.from_angle(fa + 0.45) * (RADIUS - 1.0),
+			Vector2.from_angle(fa - 0.45) * (RADIUS - 1.0)])
+		draw_colored_polygon(notch, Color(1.0, 1.0, 1.0, 0.9 * col.a))
 		if disrupt_timer > 0.0:  # disrupted: a jittery purple ring
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)

@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	if level >= 2:
 		count += 1
 	if level >= 3:
-		count += level - (3 - 1)
+		count += count_level() - (3 - 1)
 	var base := (target.global_position - player.global_position).normalized()
 	for i in count:
 		var g := GlaiveProj.new()

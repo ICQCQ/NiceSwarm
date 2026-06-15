@@ -21,7 +21,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.1
 		return
 	var base := (target.global_position - player.global_position).normalized()
-	var count := 2 + level
+	var count := 2 + count_level()
 	for i in count:
 		var s := FrostShard.new()
 		s.source_pid = player.peer_id
