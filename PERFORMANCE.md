@@ -169,3 +169,64 @@ The orbit-blade halos win biggest because the old code ran `for e in all_enemies
 n:` — O(n · blades) every frame; the grid cuts the candidate count to the local neighbourhood.
 These are headless CPU-µs deltas; real rendered-fps impact still wants the interactive playtest
 above, but the per-call cost reduction is unambiguous and the hit set is provably identical.
+
+---
+
+## 2026-06-15 — Visual-optimization session: measure first, then fix
+
+Branch `worktree-visual-optimization`. Reported symptom: "smoother after the last
+pass, then lags again past ~8 min (still better than before)."
+
+### Measurement harness (so we fix the real cost center, not a guess)
+- `NICESWARM_FF=<mult>` already fast-forwards a headless host to 10:00. Added a
+  per-game-minute **census** (`_ff_census` in `main.gd`): walks the live `world`
+  subtree, tallies spawned nodes by script file, and prints total node count +
+  physics frame time + the player loadout (so deep-fusion state is visible).
+- `NICESWARM_TEST=deep` forces the 5 count-scaling weapons past the Lv3 pool cap
+  (what unbounded fusion leveling enables) to reproduce the late-game worst case.
+
+### Findings (x80 FF to 10:00)
+| min | level | enemies | total nodes | heaviest spawned types |
+|-----|-------|---------|-------------|------------------------|
+| 3   | 1     | 214     | 439         | (just the 220-cap swarm) |
+| 7   | 33    | 228     | 331         | float_text 36, ring_fx 34, missile 26, telegraph 26, frost 23 |
+| 9   | 37    | 222     | 315         | telegraph 45, missile 32, frost 24 |
+
+1. **The 220-enemy swarm is the steady backbone** — ~430 nodes; physics time
+   tracks *enemy count*, pinned at `ENEMY_CAP` from min 3 on.
+2. **The node-count explosion is CONDITIONAL, not automatic.** Even forcing
+   weapons to L10, FF's auto-pick merges them into fresh L1 fusions (merging
+   resets level), so counts stayed modest (~230–270 peak). The cliff needs a
+   player to repeatedly level *one* deep fusion — real, but not guaranteed.
+3. **New finding: short-lived FX accumulate** late game — telegraph up to 45,
+   ring_fx 39, float_text 36 (caster spam + high kill rate).
+4. **Draw cost is invisible to headless** and is the prime suspect for windowed
+   8-min lag (220 enemies re-recording `_draw` every frame, no cull).
+
+### Fixes shipped (each its own commit, verified headless)
+- **Enemy redraw-gate** — `queue_redraw()` only fires when appearance changes
+  (flash/slow/burn/shield + a heading bucket for directional shapes); idle circle
+  enemies (most of the swarm) now redraw ~once instead of 60×/s.
+- **Node-count soft-cap** — `WeaponBase.count_level() = mini(level,
+  MAX_WEAPON_LEVEL)` in every count formula (9 base weapons + 52 fusion sites + 2
+  turret deploy caps); damage/area keep scaling. Deep census: frost shards ~24→~10.
+- **"Flushing queries" fix** (pre-existing, on `publish` too, surfaced by the FF
+  census) — spawning a physics body from inside a hit callback errors mid-flush.
+  Two sources: the dominant one is a **death-spawned enemy** (burster shard /
+  splitter / boss summon) configuring its collision shape in `_ready` (`enemy.gd`),
+  and a **chaining projectile** re-spawning an Area2D (`_fire`/`_chain`). Both now
+  defer the add (`add_child.call_deferred`). FF after: **0** flush/script errors
+  (was up to ~146/run), kills unchanged (736).
+
+> The grid migration originally in this branch was dropped on rebase — `publish`
+> shipped the equivalent independently (see the Benchmarks section above).
+
+Also (visual; parse-verified — feel needs in-window review): player z-above-swarm +
+halo + facing notch, enemy palette mute, 0.8× player hurtbox, boss/mini-boss spawn
+banner, guaranteed owned-weapon upgrade choice each roll.
+
+### Still open
+- The draw-cost win is **unmeasured headless** — verify in-window and with the
+  editor profiler (Debugger → Profiler).
+- Per-node rotation caching for orbit/laser/gravity (the "rotated buffer" idea):
+  only ~3 weapon nodes/player vs 220 enemies — low payoff, deferred.

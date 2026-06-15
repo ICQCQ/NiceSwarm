@@ -19,7 +19,7 @@ func _physics_process(delta: float) -> void:
 	if player.nearest_enemy(800.0) == null:
 		cooldown = 0.2
 		return
-	var count := 1 + level
+	var count := 1 + count_level()
 	for i in count:
 		var m := MissileProj.new()
 		m.source_pid = player.peer_id

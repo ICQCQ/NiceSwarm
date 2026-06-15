@@ -10,6 +10,13 @@ var level := 1
 var player: Player
 
 
+## Node-count level: spawn COUNTS (projectiles/blades/turrets/chains/beams)
+## freeze at the Lv3 value so unbounded fusion leveling can't explode the live
+## entity count. Damage / area / cadence keep scaling with the real `level`.
+func count_level() -> int:
+	return mini(level, GameConfig.MAX_WEAPON_LEVEL)
+
+
 func _ready() -> void:
 	var n := get_parent()
 	while n != null and not (n is Player):

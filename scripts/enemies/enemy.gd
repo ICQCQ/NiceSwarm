@@ -104,8 +104,16 @@ func _ready() -> void:
 	var circle := CircleShape2D.new()
 	circle.radius = radius
 	cs.shape = circle
-	add_child(cs)
+	# Deferred: death-spawned enemies (burster shards, splitter, boss summon) are
+	# added from inside a physics callback (a projectile-hit kill), where
+	# configuring a collision shape mid-flush throws "can't change state while
+	# flushing queries". Enemies have collision_mask=0 so the shape is only for
+	# projectile hit-detection — being live ~1 frame later is harmless.
+	add_child.call_deferred(cs)
 	net_target = global_position
+
+
+var _last_sig := -1  # gate queue_redraw: only re-record _draw when the look changes
 
 
 func _physics_process(delta: float) -> void:
@@ -116,7 +124,13 @@ func _physics_process(delta: float) -> void:
 		if shield_timer <= 0.0:
 			shielded = not shielded
 			shield_timer = shield_time if shielded else shield_cycle
-	queue_redraw()
+	# Only re-record the draw when appearance changes; a plain mover keeps its
+	# cached _draw (the renderer applies the node transform regardless). This is
+	# the big late-game saver — most of the swarm is idle-looking circles.
+	var sig := _appearance_sig()
+	if burn_timer > 0.0 or sig != _last_sig:  # burn embers animate continuously
+		_last_sig = sig
+		queue_redraw()
 	if puppet:
 		global_position = global_position.lerp(net_target, minf(10.0 * delta, 1.0))
 		return
@@ -196,7 +210,7 @@ func _physics_process(delta: float) -> void:
 		if velocity.length() > 1.0:
 			heading = velocity.normalized()
 	if target != null \
-			and global_position.distance_to(target.global_position) <= radius + Player.RADIUS:
+			and global_position.distance_to(target.global_position) <= radius + Player.HURT_RADIUS:
 		target.take_damage(dmg)
 	# boss mechanics (host-authoritative): periodic map-wide/pattern slam,
 	# rotating elemental immunity, and called-in reinforcements.
@@ -328,8 +342,30 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0) -> void:
 		burn_timer = duration
 
 
+## A cheap discrete signature of the enemy's current appearance. _physics_process
+## only re-records the draw when this changes (or burn is animating), so idle
+## movers stop re-running _draw every frame. Heading only matters for directional
+## silhouettes; circles (the common case) are rotation-invariant.
+func _appearance_sig() -> int:
+	var s := 0
+	if flash > 0.0: s |= 1
+	if slow_timer > 0.0: s |= 2
+	if burn_timer > 0.0: s |= 4
+	if shielded: s |= 8
+	if shape == "triangle" or shape == "diamond" or shape == "square" or shape == "hex" or shape == "star":
+		s |= int((heading.angle() + PI) * 6.0) << 4  # ~9.5-degree facing buckets
+	return s
+
+
+## Enemies sit in a slightly darker, less-saturated band so the bright,
+## fully-saturated player reads clearly even inside a dense swarm. Status tints
+## (slow/burn/flash) and the ring overlays below apply on top and stay vivid.
+func _muted(base: Color) -> Color:
+	return Color.from_hsv(base.h, base.s * 0.8, base.v * 0.9, base.a)
+
+
 func _draw() -> void:
-	var c := color
+	var c := _muted(color)
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)
 	if burn_timer > 0.0:

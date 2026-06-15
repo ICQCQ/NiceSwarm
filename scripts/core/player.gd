@@ -8,15 +8,25 @@ signal died
 signal health_changed(hp: int, max_hp: int)
 
 const RADIUS := 14.0
+const HURT_RADIUS := RADIUS * 0.8  # forgiving hurtbox — smaller than the drawn body
 const DASH_TIME := 0.18
 const DASH_SPEED_MULT := 3.4
 const COLORS: Array[Color] = [
 	Color(0.45, 0.9, 1.0), Color(0.5, 1.0, 0.6),
 	Color(1.0, 0.85, 0.4), Color(1.0, 0.55, 0.8),
+	Color(0.7, 0.55, 1.0), Color(1.0, 0.6, 0.3),
 ]
+# Player avatar silhouettes (lobby-selectable). Names match the glyphs the lobby
+# UI shows in the roster/appearance preview.
+const SHAPES: Array[String] = ["circle", "square", "triangle", "diamond", "star"]
+const SHAPE_GLYPHS := {
+	"circle": "●", "square": "■", "triangle": "▲", "diamond": "◆", "star": "★",
+}
 
 var peer_id := 1
 var color_idx := 0
+var shape_idx := 0
+var player_name := "Player"
 var is_local := true
 var arena := Rect2(-1200, -1200, 2400, 2400)
 
@@ -41,6 +51,17 @@ var dash_dir := Vector2.ZERO
 var disrupt_timer := 0.0  # Disruptor debuff: slows movement (dash still works)
 var downed := false
 var revive_progress := 0.0
+## mid-game: owner's connection dropped; held in place until they rejoin. Toggles
+## physics processing on every weapon (and its fused components) so a ghost stops
+## firing/dealing damage entirely without each weapon having to check this flag.
+var disconnected := false:
+	set(value):
+		disconnected = value
+		for w in weapons:
+			w.set_physics_process(not value)
+			if w is WeaponFused:
+				for c in w.components:
+					c.set_physics_process(not value)
 var debug_god := false  # debug panel: ignore all damage
 var safe := false  # host-authoritative: ignore damage while this player's in-game menu is open
 var menu_frozen := false  # local: hold still while our own in-game menu is open
@@ -60,6 +81,7 @@ func _ready() -> void:
 	circle.radius = RADIUS
 	cs.shape = circle
 	add_child(cs)
+	z_index = 10  # always render above the enemy swarm (enemies are z=0)
 	net_target = global_position
 
 	if is_local:
@@ -197,7 +219,7 @@ func nearest_enemy(max_range: float) -> Node2D:
 func take_damage(amount: int) -> void:
 	if hp <= 0 or downed:
 		return
-	if debug_god or safe:
+	if debug_god or safe or disconnected:
 		return
 	if invuln > 0.0 or dash_active > 0.0 or remote_dashing:
 		return
@@ -277,8 +299,33 @@ func gain_vitality() -> void:
 	health_changed.emit(hp, max_hp)
 
 
+## Draws a player avatar silhouette (circle/square/triangle/diamond/star),
+## shared by the in-world Player and the lobby's appearance preview/roster.
+static func draw_shape(node: CanvasItem, shape_idx_: int, radius: float, col: Color,
+		center: Vector2 = Vector2.ZERO) -> void:
+	var shape: String = SHAPES[shape_idx_ % SHAPES.size()]
+	match shape:
+		"square", "diamond", "triangle":
+			var n := 3 if shape == "triangle" else 4
+			var a0 := -PI / 2.0 + (PI / 4.0 if shape == "square" else 0.0)
+			var pts := PackedVector2Array()
+			for i in n:
+				pts.append(center + Vector2.from_angle(a0 + TAU * i / n) * radius)
+			node.draw_colored_polygon(pts, col)
+		"star":
+			var pts := PackedVector2Array()
+			for i in 10:
+				var r := radius if i % 2 == 0 else radius * 0.45
+				pts.append(center + Vector2.from_angle(-PI / 2.0 + TAU * i / 10.0) * r)
+			node.draw_colored_polygon(pts, col)
+		_:
+			node.draw_circle(center, radius, col)
+
+
 func _draw() -> void:
 	var body := COLORS[color_idx % COLORS.size()]
+	if disconnected:
+		body.a = 0.35
 	if downed:
 		draw_circle(Vector2.ZERO, RADIUS, Color(0.25, 0.28, 0.33))
 		draw_line(Vector2(-7, -7), Vector2(7, 7), Color(0.9, 0.3, 0.3), 3.0)
@@ -292,11 +339,21 @@ func _draw() -> void:
 			col = col.lightened(0.5)
 		elif invuln > 0.0 and fmod(invuln, 0.2) > 0.1:
 			col.a = 0.35
-		draw_circle(Vector2.ZERO, RADIUS, col)
-		draw_circle(Vector2.ZERO, RADIUS * 0.45, Color(0.1, 0.25, 0.4))
+		# dark backing halo: separates the bright body from the swarm on any color
+		draw_circle(Vector2.ZERO, RADIUS + 3.0, Color(0.0, 0.0, 0.0, 0.5 * col.a))
+		Player.draw_shape(self, shape_idx, RADIUS, col)
+		draw_circle(Vector2.ZERO, RADIUS * 0.45, Color(0.1, 0.25, 0.4, col.a))
+		# facing notch: a slim bright wedge showing aim/front (player identity)
+		var fa := facing.angle()
+		var notch := PackedVector2Array([
+			Vector2.from_angle(fa) * (RADIUS + 5.0),
+			Vector2.from_angle(fa + 0.45) * (RADIUS - 1.0),
+			Vector2.from_angle(fa - 0.45) * (RADIUS - 1.0)])
+		draw_colored_polygon(notch, Color(1.0, 1.0, 1.0, 0.9 * col.a))
 		if disrupt_timer > 0.0:  # disrupted: a jittery purple ring
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
 	if not is_local:
-		draw_string(ThemeDB.fallback_font, Vector2(-12.0, -RADIUS - 10.0),
-			"P%d" % (color_idx + 1), HORIZONTAL_ALIGNMENT_CENTER, 24.0, 13, body)
+		var label := player_name + (" (away)" if disconnected else "")
+		draw_string(ThemeDB.fallback_font, Vector2(-60.0, -RADIUS - 10.0),
+			label, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 13, body)

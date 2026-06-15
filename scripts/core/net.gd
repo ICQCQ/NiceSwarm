@@ -8,17 +8,40 @@ extends Node
 const PORT := GameConfig.NET_PORT
 const MAX_PLAYERS := 4
 
+# ENet's default peer timeout can take up to ~30s to notice a dead connection
+# (e.g. the other side's window was closed without a clean disconnect). That
+# makes a player look "still connected" long after they're gone, so the host
+# won't ghost them and a rejoin attempt gets rejected as "slot still in use".
+# Tightening it to a few seconds makes ghosting -- and therefore rejoining --
+# responsive on LAN/localhost.
+const PEER_TIMEOUT_MS := 3000
+
 var main: Node
 var active := false  # true when an ENet peer (host or client) is set
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	multiplayer.peer_connected.connect(func(id: int): main.on_peer_connected(id))
+	multiplayer.peer_connected.connect(func(id: int):
+		_tune_peer_timeouts()
+		main.on_peer_connected(id))
 	multiplayer.peer_disconnected.connect(func(id: int): main.on_peer_disconnected(id))
-	multiplayer.connected_to_server.connect(func(): main.on_join_ok())
+	multiplayer.connected_to_server.connect(func():
+		_tune_peer_timeouts()
+		main.on_join_ok())
 	multiplayer.connection_failed.connect(func(): main.on_join_failed())
 	multiplayer.server_disconnected.connect(func(): main.on_server_disconnected())
+
+
+## Shorten ENet's disconnect-detection window for every currently-connected
+## peer (host: each client; client: the host) so a dropped connection is
+## noticed within seconds, not tens of seconds.
+func _tune_peer_timeouts() -> void:
+	var enet_peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet_peer == null:
+		return
+	for p in enet_peer.host.get_peers():
+		p.set_timeout(PEER_TIMEOUT_MS, PEER_TIMEOUT_MS, PEER_TIMEOUT_MS)
 
 
 func host_game(port: int = PORT) -> String:
@@ -39,11 +62,6 @@ func join_game(ip: String, port: int = PORT) -> String:
 	return ""
 
 
-func lock_session() -> void:
-	if active and multiplayer.is_server():
-		multiplayer.multiplayer_peer.refuse_new_connections = true
-
-
 func leave() -> void:
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
@@ -56,6 +74,75 @@ func leave() -> void:
 func send_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 	if active:
 		rpc_run_config.rpc(choices, xp_rate, enemy_scale)
+
+
+# Lobby: a client tells the host its chosen name/color/shape (host relays the
+# merged roster back out via send_lobby_state). No-op offline (nothing to sync).
+func send_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx: int) -> void:
+	if active:
+		rpc_lobby_update.rpc(pid, player_name, color_idx, shape_idx)
+
+
+# Host -> everyone: the full lobby roster (peer_id -> {name, color, shape}).
+func send_lobby_state(roster: Dictionary) -> void:
+	if active:
+		rpc_lobby_state.rpc(roster)
+
+
+# --- mid-game rejoin --------------------------------------------------------
+
+# Client -> host: "is old_pid still a ghosted slot I could rejoin as (or is there
+# no run at all -- just a lobby)?" Non-mutating; sent right after a "Join" click
+# (only if we have a saved session), before committing to a rejoin request.
+func send_rejoin_check(old_pid: int) -> void:
+	if active:
+		rpc_rejoin_check.rpc(old_pid)
+
+
+# Host -> the checking client only: whether a rejoin is possible, and whether
+# it'd land them back in a run (false) or just the lobby (true).
+func send_rejoin_check_result(target: int, available: bool, in_lobby: bool) -> void:
+	if active:
+		rpc_rejoin_check_result.rpc_id(target, available, in_lobby)
+
+
+# Client -> host: "I'm the disconnected player previously known as old_pid --
+# hand my old character back to me." No-op offline (nothing to rejoin).
+func send_rejoin_request(old_pid: int) -> void:
+	if active:
+		rpc_rejoin_request.rpc(old_pid)
+
+
+# Host -> the rejoining client only: everything it needs to rebuild its view of
+# the run (roster, choice history to replay, current HP per player, run config), plus
+# the host's current pause/level-up state so the rejoining client doesn't end up
+# running unpaused while everyone else is frozen on a level-up screen. `resuming`
+# is true when the host is pausing the whole run for a resume countdown to mark
+# this rejoin (everyone -- including this client -- gets the countdown screen).
+func send_rejoin_accept(target: int, ids: PackedInt32Array, roster: Dictionary,
+		history: Dictionary, hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool, resuming: bool) -> void:
+	if active:
+		rpc_rejoin_accept.rpc_id(target, ids, roster, history, hp_snapshot, choices, xp_rate, enemy_scale,
+			paused, leveling, free_choice, picks_starter, resuming)
+
+
+func send_rejoin_reject(target: int, reason: String) -> void:
+	if active:
+		rpc_rejoin_reject.rpc_id(target, reason)
+
+
+# Host -> everyone (except the rejoining client, which rebuilds via
+# rpc_rejoin_accept): re-key the reconnected player's slot to its new peer id.
+func send_player_rejoined(old_pid: int, new_pid: int) -> void:
+	if active:
+		rpc_player_rejoined.rpc(old_pid, new_pid)
+
+
+# Host -> everyone: a player's connection dropped or was restored (ghost/un-ghost).
+func send_player_connection(pid: int, connected: bool) -> void:
+	if active:
+		rpc_player_connection.rpc(pid, connected)
 
 
 func send_start(ids: PackedInt32Array) -> void:
@@ -127,6 +214,11 @@ func send_event(type: int, pos: Vector2) -> void:
 		rpc_event.rpc(type, pos)
 
 
+func send_announce(text: String, is_boss: bool) -> void:
+	if active:
+		rpc_announce.rpc(text, is_boss)
+
+
 func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
 	if active:
 		rpc_end.rpc(won, elapsed, level, kills, scores)
@@ -147,6 +239,54 @@ func rpc_run_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_start(ids: PackedInt32Array) -> void:
 	main.start_game(Array(ids))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx: int) -> void:
+	main.apply_lobby_update(pid, player_name, color_idx, shape_idx)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_lobby_state(roster: Dictionary) -> void:
+	main.apply_lobby_state(roster)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_rejoin_check(old_pid: int) -> void:
+	main.handle_rejoin_check(multiplayer.get_remote_sender_id(), old_pid)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_rejoin_check_result(available: bool, in_lobby: bool) -> void:
+	main.on_rejoin_check_result(available, in_lobby)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_rejoin_request(old_pid: int) -> void:
+	main.handle_rejoin_request(multiplayer.get_remote_sender_id(), old_pid)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_rejoin_accept(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
+		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool, resuming: bool) -> void:
+	main.rejoin_game(ids, roster, history, hp_snapshot, choices, xp_rate, enemy_scale,
+		paused, leveling, free_choice, picks_starter, resuming)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_rejoin_reject(reason: String) -> void:
+	main.on_rejoin_rejected(reason)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_player_rejoined(old_pid: int, new_pid: int) -> void:
+	main.apply_player_rejoined(old_pid, new_pid)
+
+
+@rpc("authority", "call_local", "reliable")
+func rpc_player_connection(pid: int, connected: bool) -> void:
+	main.apply_player_connection(pid, connected)
 
 
 @rpc("any_peer", "call_remote", "unreliable")
@@ -207,6 +347,11 @@ func rpc_resume_countdown() -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_event(type: int, pos: Vector2) -> void:
 	main.apply_event(type, pos)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_announce(text: String, is_boss: bool) -> void:
+	main.show_banner(text, is_boss)
 
 
 @rpc("authority", "call_remote", "reliable")
