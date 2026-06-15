@@ -84,26 +84,10 @@ const WEAPON_ICON := {
 }
 const SUP := ["", "¹", "²", "³"]  # superscript weapon level for the HUD badge (max level 3)
 
-# Headless playstyle sims (NICESWARM_SIM): each style = priority weapons to learn/level toward,
-# plus the fusion to aim for. _sim_pick_for follows this when auto-resolving level-ups.
-const SIM_STYLES := {
-	"railgun":   {"prio": ["bolt", "lightning"], "fuse": ["bolt", "lightning"]},
-	"pulsar":    {"prio": ["nova", "orbit"], "fuse": ["nova", "orbit"]},
-	"supernova": {"prio": ["flame", "nova"], "fuse": ["flame", "nova"]},
-	"glacier":   {"prio": ["frost", "gravity"], "fuse": ["frost", "gravity"]},
-	"prism":     {"prio": ["laser", "orbit"], "fuse": ["laser", "orbit"]},
-	"toxicpyre": {"prio": ["flame", "venom"], "fuse": ["flame", "venom"]},
-	"warhead":   {"prio": ["missiles", "nova"], "fuse": ["missiles", "nova"]},
-	"singular":  {"prio": ["gravity", "nova"], "fuse": ["gravity", "nova"]},
-	"cluster":   {"prio": ["mines", "missiles"], "fuse": ["mines", "missiles"]},
-	"storm":     {"prio": ["glaive", "lightning"], "fuse": ["glaive", "lightning"]},
-	"frostbite": {"prio": ["frost", "venom"], "fuse": ["frost", "venom"]},
-	"greedy":    {"prio": ["bolt", "orbit", "nova", "flame", "frost"], "fuse": []},
-}
-
 # --- session / network ---
 var net: Net
 var spawner: EnemySpawner
+var sim: SimDriver               # headless test harness (NICESWARM_SIM / NICESWARM_FF)
 var playing := false
 var peer_ids: Array = []        # all peer ids in the run, sorted
 var players := {}               # peer_id -> Player
@@ -180,11 +164,6 @@ const THREAT_TIERS := [
 ]
 var countdown_time := 0.0       # >0 while the resume countdown is ticking
 var _countdown_done := Callable()  # runs when the countdown reaches zero (the real resume)
-var _ff_min := -1               # NICESWARM_FF: last game-minute printed during a fast-forward run
-var sim_mode := false           # NICESWARM_SIM: autopilot playstyle run; prints one [sim] line then quits
-var sim_style := ""
-var _sim_seed := 0
-var sim_age_sum := 0.0          # sum of enemy ages at death -> average time-to-kill
 
 # upgrade-category accent colors (option buttons + descriptions)
 const CAT_COLORS := {
@@ -275,11 +254,9 @@ var _update_hash := ""          # sha256 of the newer build, for the Skip-this-v
 var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
-var debug_panel: Control
-var debug_god_btn: Button
-var debug_fuse_a: OptionButton
-var debug_fuse_b: OptionButton
-var debug_spawn_select: OptionButton
+var debug: DebugPanel            # F1 debug/testing panel (ui/debug_panel.gd)
+var hud: GameHud                 # in-run HUD logic / banners (ui/game_hud.gd)
+var gameui: GameUI               # UI tree construction (ui/game_ui.gd)
 
 
 func _ready() -> void:
@@ -296,8 +273,24 @@ func _ready() -> void:
 	spawner.main = self
 	add_child(spawner)
 	spawner.build_type_registry()
+	sim = SimDriver.new()
+	sim.name = "Sim"
+	sim.main = self
+	add_child(sim)
+	debug = DebugPanel.new()
+	debug.name = "Debug"
+	debug.main = self
+	add_child(debug)
+	hud = GameHud.new()
+	hud.name = "Hud"
+	hud.main = self
+	add_child(hud)
+	gameui = GameUI.new()
+	gameui.name = "UI"
+	gameui.main = self
+	add_child(gameui)
 	_load_profile()
-	_build_ui()
+	gameui.build()
 	_show_menu("")
 	_load_last_join_address()
 	_load_rejoin_state()
@@ -318,7 +311,7 @@ func _ready() -> void:
 			ip_edit.text = "127.0.0.1"
 			_on_join_pressed()
 	if OS.get_environment("NICESWARM_SIM") != "":
-		_start_sim()
+		sim.start()
 
 
 func is_host() -> bool:
@@ -1153,7 +1146,7 @@ func start_game(ids: Array) -> void:
 	hud_root.visible = true
 	if hint_label != null:
 		hint_label.text = HINT_SOLO if is_solo() else HINT_COOP
-	_apply_fast_forward()
+	sim.apply_fast_forward()
 	if net.active and not is_host():
 		# Save now (not just on disconnect) so a client whose game crashes/closes
 		# outright -- with no chance to run a disconnect handler -- can still
@@ -1161,157 +1154,6 @@ func start_game(ids: Array) -> void:
 		_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
 	if OS.get_environment("NICESWARM_NET") != "":
 		print("[test] start_game peers=%s local=%d host=%s" % [str(peer_ids), local_id, str(is_host())])
-
-
-## NICESWARM_FF=<mult>: scale the engine clock so a headless host run reaches minute 10 in
-## seconds, faithfully (enemies, weapons, spawning, gems all see the scaled delta). Host
-## only; players are made immortal (reusing player.debug_god) so the run survives to 10:00,
-## and _process prints level/gems each game-minute + auto-resolves level-up picks (no input).
-func _apply_fast_forward() -> void:
-	var ff := OS.get_environment("NICESWARM_FF")
-	if ff == "" or not is_host():
-		return
-	var mult := maxf(ff.to_float(), 1.0)
-	if mult <= 1.0:
-		return
-	Engine.time_scale = mult
-	Engine.max_physics_steps_per_frame = int(ceil(mult)) + 8  # let physics keep pace with the clock
-	for id in players:
-		var p = players[id]
-		if is_instance_valid(p):
-			p.debug_god = true
-	_ff_min = -1
-	print("[ff] fast-forward x%d toward %ds game-time" % [int(mult), int(WIN_TIME)])
-
-
-## NICESWARM_FF instrumentation: walk the live world subtree once and tally spawned
-## nodes by script file, so the per-minute log shows WHICH node types dominate late
-## game (the suspected 8-min cost). Also reports total node count + physics frame time.
-func _ff_census() -> String:
-	if world == null or not is_instance_valid(world):
-		return "no world"
-	var counts := {}
-	var total := 0
-	var stack: Array = [world]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		for c in n.get_children():
-			stack.push_back(c)
-			total += 1
-			var s = c.get_script()
-			if s != null and s.resource_path != "":
-				var key: String = s.resource_path.get_file().trim_suffix(".gd")
-				counts[key] = int(counts.get(key, 0)) + 1
-	var keys := counts.keys()
-	keys.sort_custom(func(a, b): return counts[a] > counts[b])
-	var parts := PackedStringArray()
-	for k in keys:
-		if int(counts[k]) >= 3:  # drop singletons (player/weapons) — keep the spawn-heavy types
-			parts.append("%s=%d" % [k, counts[k]])
-	var phys := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
-	return "nodes=%d phys=%.2fms | %s" % [total, phys, ", ".join(parts)]
-
-
-## NICESWARM_SIM="style=railgun,players=2,seed=3,ff=40": a headless autopilot run. Spawns N
-## kiting-bot players, follows the playstyle's pick priority, and on win/wipe prints one [sim]
-## line then quits. Mortal (no god mode) so "how far does this build get" is a real result.
-func _start_sim() -> void:
-	var cfg := {}
-	for kv in OS.get_environment("NICESWARM_SIM").split(",", false):
-		var p := kv.split("=")
-		if p.size() == 2:
-			cfg[p[0].strip_edges()] = p[1].strip_edges()
-	sim_mode = true
-	sim_style = cfg.get("style", "greedy")
-	_sim_seed = int(cfg.get("seed", "1"))
-	seed(_sim_seed)  # reproducible enemy field per seed (overrides _ready's randomize())
-	var n := clampi(int(cfg.get("players", "1")), 1, 4)
-	var ff := maxf(float(cfg.get("ff", "40")), 1.0)
-	local_id = 1
-	var ids := []
-	for i in n:
-		ids.append(i + 1)
-	start_game(ids)
-	for pid in players:
-		players[pid].bot = true  # host drives every player as a kiting bot
-	Engine.time_scale = ff
-	# Effectively uncap physics steps/frame so heavy late-game frames never under-simulate
-	# (time-dilate) and skew the result; when the CPU can't keep up the run just stretches in
-	# wall-clock, faithfully. Pick a modest ff so it stays close to real-time.
-	Engine.max_physics_steps_per_frame = 100000
-
-
-## Host: during a sim level-up, resolve one not-yet-chosen player per frame (the wait-for-all
-## flow then resumes / chains naturally). One per frame avoids re-entrancy with chained picks.
-func _sim_autopick() -> void:
-	for pid in peer_ids:
-		if not picked_ids.has(pid):
-			apply_choice(pid, _sim_pick_for(players[pid]))
-			return
-
-
-## The id this playstyle picks from a freshly-rolled option set for player p.
-func _sim_pick_for(p: Player) -> String:
-	var style: Dictionary = SIM_STYLES.get(sim_style, SIM_STYLES["greedy"])
-	var opts := _sim_roll(p)
-	var best_id := ""
-	var best := -1.0
-	for c in opts:
-		var sc := _sim_score(c, style.prio, style.fuse)
-		if sc > best:
-			best = sc
-			best_id = c.id
-	return best_id if best_id != "" else ("st_power" if opts.is_empty() else opts[0].id)
-
-
-## A realistic option set for player p — like _roll_choices (merge guaranteed, cfg_choices wide),
-## but for any player and returned rather than shown on a panel.
-func _sim_roll(p: Player) -> Array:
-	var pool := _build_choice_pool(p)
-	var merges := pool.filter(func(e): return e.get("cat", "") in ["fuse", "amalgam"])
-	var rest := pool.filter(func(e): return not (e.get("cat", "") in ["fuse", "amalgam"]))
-	rest.shuffle()
-	var chosen := []
-	if not merges.is_empty():
-		merges.shuffle()
-		chosen.append(merges[0])
-	for e in rest:
-		if chosen.size() >= cfg_choices:
-			break
-		chosen.append(e)
-	return chosen
-
-
-## Score an option for the active playstyle: fuse-to-target >> level/learn priority weapons >>
-## power/survival stats >> off-build picks.
-func _sim_score(c: Dictionary, prio: Array, fuse: Array) -> float:
-	var id: String = c.id
-	if id.begins_with("merge_"):
-		var pair := id.trim_prefix("merge_").split("|")
-		if fuse.size() == 2 and pair.has(fuse[0]) and pair.has(fuse[1]):
-			return 100.0  # exactly the fusion this build wants
-		return 30.0       # some other fusion — still strong
-	if id.begins_with("learn_"):
-		var wid := id.trim_prefix("learn_")
-		if wid in prio:
-			return 80.0 - float(prio.find(wid))
-		if wid in fuse:
-			return 78.0
-		return 6.0
-	if id.begins_with("lv_"):
-		var wid := id.trim_prefix("lv_")
-		if wid in prio or wid in fuse:
-			return 70.0   # push toward MAX so the fusion unlocks
-		return 42.0       # leveling the fusion product / anything owned
-	match id:
-		"st_hp": return 48.0      # survival-capped bot: stack max HP first
-		"st_power": return 36.0
-		"st_speed": return 34.0
-		"st_dash": return 32.0
-		"st_rate": return 28.0
-		"st_area": return 24.0
-		"st_duration": return 18.0
-	return 12.0
 
 
 func reset_game() -> void:
@@ -1516,25 +1358,14 @@ func _process(delta: float) -> void:
 		spawner.run_spawning(delta)
 		_run_revives(delta)
 		if Engine.time_scale > 1.0:  # NICESWARM_FF: log progress at each game-minute
-			var m := int(elapsed / 60.0)
-			if m != _ff_min:
-				_ff_min = m
-				print("[ff] min=%d level=%d xp_need=%d gems=%d enemies=%d diff=%.1f" \
-					% [m, level, _xp_needed(), gems_by_id.size(), enemies_by_id.size(), spawner.difficulty])
-				var p0 = players.get(1)
-				if p0 != null and is_instance_valid(p0):
-					var wl := PackedStringArray()
-					for w in p0.weapons:
-						wl.append("%s:L%d" % [w.weapon_id, w.level])
-					print("[ff]   loadout: %s" % ", ".join(wl))
-				print("[ff]   census: %s" % _ff_census())
+			sim.ff_minute_log()
 	# Headless: auto-resolve level-up picks (sim-aware; else the first level-up pauses forever).
-	if leveling and (sim_mode or Engine.time_scale > 1.0):
-		if sim_mode:
-			_sim_autopick()
+	if leveling and (sim.active or Engine.time_scale > 1.0):
+		if sim.active:
+			sim.autopick()
 		elif not i_chose and not current_choices.is_empty():
 			_choose_upgrade(0)
-	_update_hud()
+	hud.update()
 
 
 func _physics_process(delta: float) -> void:
@@ -1677,8 +1508,8 @@ func _on_enemy_killed(enemy: Enemy) -> void:
 	if enemy.xp_value <= 0:  # shard bullets: no kill credit, no gem, no drop
 		return
 	kills += 1
-	if sim_mode:
-		sim_age_sum += enemy.age
+	if sim.active:
+		sim.age_sum += enemy.age
 	spawner.add_kill()
 	# bursters spit a ring of shard bullets on death (deferred — see EnemySpawner.spawn_burst)
 	if enemy.burst_count > 0 and enemies_by_id.size() + enemy.burst_count <= ENEMY_CAP:
@@ -2114,16 +1945,8 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 		return
 	game_over = true
 	_force_close_ingame_menu()  # never end a run with a player stuck frozen/invulnerable
-	if sim_mode:
-		var ttk := sim_age_sum / float(maxi(kills_, 1))
-		print("[sim] style=%s party=%d seed=%d result=%s time=%.1f diff=%.1f level=%d kills=%d ttk=%.2f" \
-			% [sim_style, peer_ids.size(), _sim_seed, ("WIN" if won else "DEAD"), elapsed_, spawner.diff(), level_, kills_, ttk])
-		get_tree().quit(0)
-		return
-	if Engine.time_scale > 1.0:  # NICESWARM_FF: final calibration line, then drop the clock back
-		print("[ff] END won=%s min=%.1f level=%d kills=%d gems=%d" \
-			% [str(won), elapsed_ / 60.0, level_, kills_, gems_by_id.size()])
-		Engine.time_scale = 1.0
+	if sim.report_end(won, elapsed_, level_, kills_):
+		return  # a sim run printed its [sim] line and quit the process
 	get_tree().paused = true
 	end_title.text = "YOU SURVIVED THE NIGHT" if won \
 		else ("YOU HAVE FALLEN" if is_solo() else "THE PARTY HAS FALLEN")
@@ -2241,7 +2064,7 @@ func apply_pause(pause: bool) -> void:
 	paused_menu = pause
 	get_tree().paused = pause
 	if pause:
-		_refresh_pause_roster()
+		gameui._refresh_pause_roster()
 	else:
 		_cancel_countdown()  # authoritative unpause arrived — end any cosmetic countdown
 	pause_panel.visible = pause
@@ -2437,8 +2260,8 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	var key: int = event.keycode
-	if key == KEY_F1 and debug_panel != null:
-		debug_panel.visible = not debug_panel.visible
+	if key == KEY_F1:
+		debug.toggle()
 		return
 	if countdown_time > 0.0:
 		return  # swallow input while the resume countdown is running
@@ -2453,13 +2276,13 @@ func _input(event: InputEvent) -> void:
 	elif ingame_menu:  # our own in-run menu/hub is open
 		if key == KEY_ESCAPE:
 			if codex_view != "":
-				_close_codex()        # ESC backs out of an open codex before resuming
+				gameui._close_codex()        # ESC backs out of an open codex before resuming
 			else:
 				_resume_from_ingame_menu()
 		elif key == KEY_C:
-			_show_codex("skills")
+			gameui._show_codex("skills")
 		elif key == KEY_V:
-			_show_codex("monsters")
+			gameui._show_codex("monsters")
 		elif key == KEY_O:
 			ingame_menu_hint.text = "Settings — coming soon"
 		elif key == KEY_L and codex_view == "":
@@ -2497,7 +2320,7 @@ func _open_ingame_menu() -> void:
 	if not is_host() and get_tree().paused:
 		return  # already frozen by a host pause — don't stack a local menu on top
 	ingame_menu = true
-	_close_codex()  # always open on the hub root, never a stale codex view
+	gameui._close_codex()  # always open on the hub root, never a stale codex view
 	ingame_menu_panel.visible = true
 	if is_host():
 		get_tree().paused = true
@@ -2533,7 +2356,7 @@ func _leave_from_menu() -> void:
 func _force_close_ingame_menu() -> void:
 	ingame_menu = false
 	_cancel_countdown()
-	_close_codex()
+	gameui._close_codex()
 	if ingame_menu_panel != null:
 		ingame_menu_panel.visible = false
 	_clear_local_safe()
@@ -2610,1032 +2433,3 @@ func _cancel_countdown() -> void:
 		countdown_panel.visible = false
 
 
-# --- HUD -------------------------------------------------------------------------
-
-func _update_hud() -> void:
-	var me: Player = players.get(local_id)
-	var t := int(elapsed)
-	timer_label.text = "%02d:%02d" % [t / 60, t % 60]
-	level_label.text = "Lv %d" % level
-	kills_label.text = "Kills %d" % kills
-	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
-	arrows.queue_redraw()
-	if _banner_t > 0.0 and banner_label != null:
-		_banner_t -= get_process_delta_time()
-		var since := BANNER_LIFE - _banner_t
-		var a := 1.0
-		if since < 0.2:
-			a = since / 0.2
-		elif _banner_t < 0.6:
-			a = _banner_t / 0.6
-		banner_label.modulate.a = clampf(a, 0.0, 1.0)
-	# Threat readout: a named, color-coded tier (CALM…NIGHTMARE) the player can parse
-	# at a glance, a bar that only ever grows toward NIGHTMARE, and a plain-word note
-	# when the climb is accelerating (heat). Display-only — no balance effect.
-	var heat := spawner.heat()
-	var diff := spawner.diff()
-	var ti := 0
-	for j in THREAT_TIERS.size():
-		if diff >= float(THREAT_TIERS[j].at):
-			ti = j
-	var tier: Dictionary = THREAT_TIERS[ti]
-	var cap: float = maxf(float(THREAT_TIERS[THREAT_TIERS.size() - 1].at), 1.0)
-	var filled := clampi(int(round(diff / cap * 8.0)), 0, 8)  # monotonic: fills toward NIGHTMARE
-	var bar := "▮".repeat(filled) + "▯".repeat(8 - filled)
-	var rising := ""
-	if heat >= 0.5:
-		rising = "   ▲▲ SURGING"
-	elif heat >= 0.15:
-		rising = "   ▲ rising"
-	threat_label.text = "THREAT  %s  %s%s" % [tier.name, bar, rising]
-	threat_label.add_theme_color_override("font_color", tier.color)
-	if me == null:
-		return
-	if me.downed:
-		hp_label.text = "DOWNED" if is_solo() else "DOWNED — ally can revive you"
-	else:
-		hp_label.text = "♥".repeat(maxi(me.hp, 0)) + "♡".repeat(me.max_hp - maxi(me.hp, 0))
-	if me.dash_timer <= 0.0:
-		dash_label.text = "Dash READY"
-		dash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.7))
-	else:
-		dash_label.text = "Dash %.1fs" % me.dash_timer
-		dash_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
-	# Skill slots: each owned weapon is a highlighted, hover-able badge; remaining slots
-	# are dim ◇ up to MAX_WEAPONS, with an n/5 count (amber FULL at the cap) — so the
-	# 5-slot limit reads at a glance. Hover a slot for that weapon's current stats.
-	var wparts := []
-	for w in me.weapons:
-		wparts.append("[url=%s][bgcolor=#27344c] %s [/bgcolor][/url]" % [w.weapon_id, _weapon_badge(w)])
-	for _k in range(me.weapons.size(), MAX_WEAPONS):
-		wparts.append("[bgcolor=#161c28][color=#39414f] ◇ [/color][/bgcolor]")
-	var w_full: bool = me.weapons.size() >= MAX_WEAPONS
-	var w_cnt := "WEAPONS %d/%d%s" % [me.weapons.size(), MAX_WEAPONS, "  FULL" if w_full else ""]
-	weapons_label.text = "[right][color=#%s]%s[/color]   %s[/right]" \
-		% ["ff9a55" if w_full else "6b7488", w_cnt, "  ".join(wparts)]
-	# Current stat upgrades, directly under the weapon slots.
-	var sparts := []
-	for sid in STAT_INFO:
-		var slvl := int(me.stat_levels.get(sid, 0))
-		if slvl > 0:
-			sparts.append(_stat_badge(STAT_INFO[sid], slvl))
-	stats_label.text = ("[right][color=#6b7488]STATS[/color]   %s[/right]" % "  ".join(sparts)) if not sparts.is_empty() else ""
-	if weapon_tip.visible and _tip_weapon_id != "":
-		weapon_tip.text = _weapon_tip_text(_tip_weapon_id)  # keep stats live while hovered
-	var lines := []
-	for pid in peer_ids:
-		if pid == local_id:
-			continue
-		var p: Player = players.get(pid)
-		if p == null:
-			continue
-		var tag := " (away)" if p.disconnected else ""
-		if p.downed:
-			lines.append("%s  DOWN %d%%%s" % [p.player_name, int(p.revive_progress * 100.0), tag])
-		else:
-			lines.append("%s  ♥%d/%d%s" % [p.player_name, p.hp, p.max_hp, tag])
-	allies_label.text = "\n".join(lines)
-
-
-func _draw_ally_arrows() -> void:
-	if not playing:
-		return
-	var me: Player = players.get(local_id)
-	if me == null:
-		return
-	var size := arrows.get_viewport_rect().size
-	var xform := get_viewport().get_canvas_transform()
-	for pid in peer_ids:
-		if pid == local_id:
-			continue
-		var p: Player = players.get(pid)
-		if p == null:
-			continue
-		var sp: Vector2 = xform * p.global_position
-		if Rect2(Vector2.ZERO, size).grow(-24.0).has_point(sp):
-			continue
-		var c := sp.clamp(Vector2(40.0, 40.0), size - Vector2(40.0, 40.0))
-		var dir := (sp - c).normalized()
-		if dir == Vector2.ZERO:
-			continue
-		var col := Player.COLORS[p.color_idx % Player.COLORS.size()]
-		var tip := c + dir * 16.0
-		var side := dir.orthogonal() * 9.0
-		arrows.draw_polygon(PackedVector2Array([tip, c - dir * 4.0 + side, c - dir * 4.0 - side]),
-			PackedColorArray([col]))
-
-
-## BBCode badge for one leveled stat (shown in the top-right stats row): the stat's
-## color-coded icon glyph + how many times it's been picked.
-func _stat_badge(info: Dictionary, lvl: int) -> String:
-	return "[color=#%s]%s[/color]×%d" % [info.color.to_html(false), info.icon, lvl]
-
-
-## A weapon slot was hovered: remember which weapon and show its current-stats tooltip.
-## _update_hud refreshes the text each frame so the numbers stay live while hovered.
-func _on_weapon_hover(meta) -> void:
-	_tip_weapon_id = str(meta)
-	weapon_tip.text = _weapon_tip_text(_tip_weapon_id)
-	weapon_tip.visible = _tip_weapon_id != ""
-
-
-func _on_weapon_unhover(_meta) -> void:
-	_tip_weapon_id = ""
-	weapon_tip.visible = false
-
-
-## Current effective stats of one owned weapon, for the hover tooltip. Effective damage
-## and cadence come from WeaponConfig.BASE scaled by level + the local player's Power/Haste
-## (cd = recurring cooldown/tick/re-hit per BASE's contract). Fusions have no BASE row, so
-## they show a qualitative line instead of fabricated numbers.
-func _weapon_tip_text(id: String) -> String:
-	var me: Player = players.get(local_id)
-	if me == null:
-		return ""
-	var w = me.get_weapon(id)
-	if w == null:
-		return ""
-	var lines := ["[color=#cdd6e6]%s[/color]  [color=#9aa4b8]Lv %d[/color]" % [w.display_name, w.level]]
-	if WeaponConfig.BASE.has(id):
-		var b: Dictionary = WeaponConfig.BASE[id]
-		var dmg: float = b.dmg * (1.0 + b.growth * (w.level - 1)) * me.damage_mult
-		var cd: float = b.cd * me.rate_mult
-		lines.append("[color=#ff9a8a]DMG %.1f[/color]   [color=#9fd0ff]every %.2fs[/color]" % [dmg, cd])
-	else:
-		lines.append("[color=#ffd479]fusion[/color] [color=#9aa4b8]— scales with your stats[/color]")
-	if WEAPON_INFO.has(id):
-		lines.append("[color=#7e8aa0]%s[/color]" % WEAPON_INFO[id].level)
-	return "[right]" + "\n".join(lines) + "[/right]"
-
-
-# --- UI construction --------------------------------------------------------------
-
-func _build_ui() -> void:
-	ui = CanvasLayer.new()
-	add_child(ui)
-
-	hud_root = Control.new()
-	hud_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui.add_child(hud_root)
-
-	xp_bar = ProgressBar.new()
-	xp_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	xp_bar.offset_bottom = 12.0
-	xp_bar.show_percentage = false
-	hud_root.add_child(xp_bar)
-
-	hp_label = _make_label(Vector2(16, 20), 30, Color(1.0, 0.35, 0.4))
-	timer_label = _make_label(Vector2(600, 20), 30, Color.WHITE)
-	level_label = _make_label(Vector2(16, 58), 22, Color(0.8, 0.85, 1.0))
-	kills_label = _make_label(Vector2(16, 86), 22, Color(0.8, 0.85, 1.0))
-	dash_label = _make_label(Vector2(16, 114), 22, Color(0.5, 1.0, 0.7))
-	threat_label = _make_label(Vector2(540, 58), 22, Color(0.6, 0.65, 0.75))
-	allies_label = _make_label(Vector2(16, 146), 20, Color(0.85, 0.85, 0.95))
-	weapons_label = RichTextLabel.new()
-	weapons_label.bbcode_enabled = true
-	weapons_label.scroll_active = false
-	weapons_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	weapons_label.mouse_filter = Control.MOUSE_FILTER_PASS  # PASS so [url] slot hover fires
-	weapons_label.meta_underlined = false
-	weapons_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	weapons_label.offset_left = -600.0
-	weapons_label.offset_right = -16.0
-	weapons_label.offset_top = 16.0
-	weapons_label.offset_bottom = 78.0
-	weapons_label.add_theme_font_size_override("normal_font_size", 20)
-	weapons_label.meta_hover_started.connect(_on_weapon_hover)
-	weapons_label.meta_hover_ended.connect(_on_weapon_unhover)
-	hud_root.add_child(weapons_label)
-
-	stats_label = RichTextLabel.new()
-	stats_label.bbcode_enabled = true
-	stats_label.scroll_active = false
-	stats_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	stats_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stats_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	stats_label.offset_left = -600.0
-	stats_label.offset_right = -16.0
-	stats_label.offset_top = 80.0
-	stats_label.offset_bottom = 116.0
-	stats_label.add_theme_font_size_override("normal_font_size", 18)
-	hud_root.add_child(stats_label)
-
-	weapon_tip = RichTextLabel.new()
-	weapon_tip.bbcode_enabled = true
-	weapon_tip.scroll_active = false
-	weapon_tip.fit_content = true
-	weapon_tip.autowrap_mode = TextServer.AUTOWRAP_OFF
-	weapon_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	weapon_tip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	weapon_tip.offset_left = -600.0
-	weapon_tip.offset_right = -16.0
-	weapon_tip.offset_top = 120.0
-	weapon_tip.add_theme_font_size_override("normal_font_size", 16)
-	weapon_tip.visible = false
-	hud_root.add_child(weapon_tip)
-
-	hint_label = _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
-	hint_label.text = HINT_COOP
-	banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
-	banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	banner_label.offset_top = 150.0
-	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner_label.modulate.a = 0.0
-
-	arrows = Control.new()
-	arrows.set_anchors_preset(Control.PRESET_FULL_RECT)
-	arrows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	arrows.draw.connect(_draw_ally_arrows)
-	hud_root.add_child(arrows)
-
-	_build_level_panel()
-	_build_end_panel()
-	_build_pause_panel()
-	_build_ingame_menu_panel()
-	_build_countdown_panel()
-	_build_menu()
-	_build_lobby_panel()
-	if OS.is_debug_build():
-		_build_debug_panel()
-
-
-func _make_label(pos: Vector2, size: int, color: Color) -> Label:
-	var l := Label.new()
-	l.position = pos
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	hud_root.add_child(l)
-	return l
-
-
-## Compact on-screen badge for an owned weapon: a colored ◆ + 3-char code + superscript level.
-## Base weapons use WEAPON_ICON; fusions fall back to gold initials of their display name.
-func _weapon_badge(w) -> String:
-	var code: String
-	var col: String
-	if WEAPON_ICON.has(w.weapon_id):
-		code = WEAPON_ICON[w.weapon_id][0]
-		col = WEAPON_ICON[w.weapon_id][1]
-	else:
-		code = _fusion_short(w.display_name)
-		col = "ffd479"  # fusion = gold
-	var lv := clampi(w.level, 0, SUP.size() - 1)
-	return "[color=#%s]◆%s[/color]%s" % [col, code, SUP[lv]]
-
-
-## Up-to-3-char code for a fusion: initials of each word, or first letters if it's one word.
-func _fusion_short(dname: String) -> String:
-	var s := ""
-	for word in dname.split(" ", false):
-		if not word.is_empty():
-			s += word.substr(0, 1)
-	if s.length() < 2:
-		s = dname.replace(" ", "")
-	return s.to_upper().substr(0, 3)
-
-
-func show_banner(text: String, is_boss: bool) -> void:
-	if banner_label == null:
-		return
-	banner_label.text = ("BOSS:  %s" % text) if is_boss else ("ELITE:  %s" % text)
-	banner_label.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3) if is_boss else Color(1.0, 0.78, 0.35))
-	banner_label.add_theme_font_size_override("font_size", 54 if is_boss else 42)
-	_banner_t = BANNER_LIFE
-
-
-## Host: announce a boss / mini-boss (elite) spawn — locally and to all clients.
-func announce_boss(text: String, is_boss: bool) -> void:
-	show_banner(text, is_boss)
-	net.send_announce(text, is_boss)
-
-
-func _make_overlay() -> Array:
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.visible = false
-	ui.add_child(root)
-	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.0, 0.0, 0.65)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_child(center)
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	center.add_child(vbox)
-	return [root, vbox]
-
-
-func _build_level_panel() -> void:
-	var parts := _make_overlay()
-	level_panel = parts[0]
-	var vbox: VBoxContainer = parts[1]
-	panel_title = Label.new()
-	panel_title.add_theme_font_size_override("font_size", 34)
-	panel_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(panel_title)
-	for i in MAX_CHOICES:
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(640, 56)
-		b.add_theme_font_size_override("font_size", 21)
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.clip_text = false
-		b.pressed.connect(_choose_upgrade.bind(i))
-		vbox.add_child(b)
-		choice_buttons.append(b)
-
-
-func _build_end_panel() -> void:
-	var parts := _make_overlay()
-	end_panel = parts[0]
-	var vbox: VBoxContainer = parts[1]
-	end_title = Label.new()
-	end_title.add_theme_font_size_override("font_size", 52)
-	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(end_title)
-	end_stats = Label.new()
-	end_stats.add_theme_font_size_override("font_size", 24)
-	end_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(end_stats)
-	scoreboard_box = GridContainer.new()
-	scoreboard_box.columns = 5
-	scoreboard_box.add_theme_constant_override("h_separation", 24)
-	scoreboard_box.add_theme_constant_override("v_separation", 4)
-	vbox.add_child(scoreboard_box)
-	end_hint = Label.new()
-	end_hint.add_theme_font_size_override("font_size", 20)
-	end_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(end_hint)
-
-
-func _build_pause_panel() -> void:
-	var parts := _make_overlay()
-	pause_panel = parts[0]
-	var vbox: VBoxContainer = parts[1]
-	var l := Label.new()
-	l.text = "PAUSED"
-	l.add_theme_font_size_override("font_size", 40)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(l)
-
-	var loadout_head := Label.new()
-	loadout_head.text = "YOUR LOADOUT"
-	loadout_head.add_theme_font_size_override("font_size", 20)
-	loadout_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	loadout_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(loadout_head)
-	pause_loadout = Label.new()
-	pause_loadout.add_theme_font_size_override("font_size", 20)
-	pause_loadout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(pause_loadout)
-
-	var roster_head := Label.new()
-	roster_head.text = "ARSENAL"
-	roster_head.add_theme_font_size_override("font_size", 20)
-	roster_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	roster_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(roster_head)
-	pause_roster = Label.new()
-	pause_roster.add_theme_font_size_override("font_size", 17)
-	pause_roster.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(pause_roster)
-
-	var foot := Label.new()
-	foot.text = "ESC resume  ·  M main menu"
-	foot.add_theme_font_size_override("font_size", 16)
-	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
-	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(foot)
-
-
-func _build_ingame_menu_panel() -> void:
-	var parts := _make_overlay()
-	ingame_menu_panel = parts[0]
-	var vbox: VBoxContainer = parts[1]
-	var l := Label.new()
-	l.text = "MENU"
-	l.add_theme_font_size_override("font_size", 40)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(l)
-	# nav breadcrumb for the hub tabs (skill/monster codex, settings)
-	ingame_menu_hint = Label.new()
-	ingame_menu_hint.add_theme_font_size_override("font_size", 18)
-	ingame_menu_hint.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	ingame_menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(ingame_menu_hint)
-	# skill / monster codex body — hidden (and skipped by the VBox layout) until a tab opens
-	codex_body = RichTextLabel.new()
-	codex_body.bbcode_enabled = true
-	codex_body.scroll_active = true
-	codex_body.custom_minimum_size = Vector2(840, 480)
-	codex_body.add_theme_font_size_override("normal_font_size", 15)
-	codex_body.add_theme_font_size_override("bold_font_size", 16)
-	codex_body.visible = false
-	vbox.add_child(codex_body)
-	var foot := Label.new()
-	foot.text = "ESC resume   ·   C skill codex   ·   V monster codex   ·   O settings   ·   L leave game"
-	foot.add_theme_font_size_override("font_size", 16)
-	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
-	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(foot)
-
-
-## Open a codex tab inside the hub: swap the menu body for a scrollable list + breadcrumb.
-## C = skills, V = monsters; ESC (or _force_close) backs out via _close_codex.
-func _show_codex(kind: String) -> void:
-	codex_view = kind
-	if kind == "skills":
-		ingame_menu_hint.text = "SKILL CODEX      V monsters  ·  ESC back"
-		codex_body.text = _skill_codex_bbcode()
-	else:
-		ingame_menu_hint.text = "MONSTER CODEX      C skills  ·  ESC back"
-		codex_body.text = _monster_codex_bbcode()
-	codex_body.visible = true
-	codex_body.scroll_to_line(0)
-
-
-func _close_codex() -> void:
-	codex_view = ""
-	if codex_body != null:
-		codex_body.visible = false
-		codex_body.text = ""
-	if ingame_menu_hint != null:
-		ingame_menu_hint.text = ""
-
-
-## Every weapon (with its HUD badge) + the stats, each with a one-line description.
-func _skill_codex_bbcode() -> String:
-	var s := "[b]WEAPONS[/b]      max one, then merge two maxed weapons into a fusion\n\n"
-	for wid in WEAPON_INFO:
-		var info: Dictionary = WEAPON_INFO[wid]
-		var ic: Array = WEAPON_ICON.get(wid, ["?", "ffffff"])
-		s += "[color=#%s]◆%s[/color]  [b]%s[/b] — %s\n" % [ic[1], ic[0], info.name, info.learn]
-	s += "\n[b]STATS[/b]      stack with every level-up\n\n"
-	var stat_desc := {
-		"Power": "more weapon damage", "Haste": "attack faster",
-		"Area": "bigger blasts, reach and projectiles", "Duration": "effects last longer",
-		"Speed": "move faster", "Vitality": "+1 max health",
-		"Magnet": "wider pickup range", "Dash": "shorter dash cooldown",
-	}
-	for sid in STAT_INFO:
-		var nm: String = STAT_INFO[sid]
-		s += "•  [b]%s[/b] — %s\n" % [nm, stat_desc.get(nm, "")]
-	return s
-
-
-## Every enemy archetype with its tier names (Grunt → Bruiser → …), colored by the class,
-## and a one-line behavior note. Built from EnemyConfig.CLASSES so new classes appear here too.
-func _monster_codex_bbcode() -> String:
-	var blurb := {
-		"brawler": "baseline chasers", "rusher": "fast, fragile darters",
-		"tank": "huge, slow, heavy hits; immune to pull", "caster": "ranged, telegraphed strikes",
-		"warden": "armored — shrugs off part of every hit", "burster": "spits a ring of shards on death",
-		"shard": "a burster's bullet — phases through, expires", "sentinel": "phases an unbreakable shield — strike between",
-		"wisp": "immune to ENERGY; drifts unpredictably", "bouncer": "ricochets, phases, can't be interrupted",
-		"disruptor": "zones that slow you and lock your dash", "defiler": "lays lingering disrupt fields on the ground",
-		"elite": "tanky special — always drops a chest", "boss": "periodic giant — a unique gimmick + map-wide slams",
-	}
-	var s := "[b]ENEMIES[/b]      tiers escalate with time, level and difficulty\n\n"
-	for cls in EnemyConfig.CLASSES:
-		var tiers: Array = EnemyConfig.CLASSES[cls]
-		var names := []
-		for t in tiers:
-			names.append(t.name)
-		var col: Color = tiers[0].col
-		s += "[color=#%s]●[/color]  [b]%s[/b] — %s\n" % [col.to_html(false), " → ".join(names), blurb.get(cls, "")]
-	return s
-
-
-func _build_countdown_panel() -> void:
-	var parts := _make_overlay()
-	countdown_panel = parts[0]
-	var vbox: VBoxContainer = parts[1]
-	var head := Label.new()
-	head.text = "RESUMING"
-	head.add_theme_font_size_override("font_size", 24)
-	head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(head)
-	countdown_label = Label.new()
-	countdown_label.add_theme_font_size_override("font_size", 96)
-	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(countdown_label)
-
-
-## Debug-build-only testing panel: F1 toggles it. God mode + one-click weapon
-## grant/level-up for the local player, routed through the normal upgrade-pick
-## RPC so co-op peers stay in sync.
-func _build_debug_panel() -> void:
-	debug_panel = Control.new()
-	debug_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	debug_panel.offset_left = -260.0
-	debug_panel.offset_right = -16.0
-	debug_panel.offset_top = 100.0
-	debug_panel.offset_bottom = 700.0
-	debug_panel.visible = false
-	ui.add_child(debug_panel)
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.0, 0.0, 0.0, 0.6)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	debug_panel.add_child(bg)
-
-	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(8, 8)
-	debug_panel.add_child(vbox)
-
-	var title := Label.new()
-	title.text = "DEBUG (F1)"
-	title.add_theme_font_size_override("font_size", 16)
-	title.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
-	vbox.add_child(title)
-
-	debug_god_btn = Button.new()
-	debug_god_btn.text = "God Mode: OFF"
-	debug_god_btn.pressed.connect(_debug_toggle_god)
-	vbox.add_child(debug_god_btn)
-
-	var levelup_btn := Button.new()
-	levelup_btn.text = "Instant Level Up"
-	levelup_btn.pressed.connect(_debug_level_up)
-	vbox.add_child(levelup_btn)
-
-	var reset_btn := Button.new()
-	reset_btn.text = "Reset Weapons + Stats"
-	reset_btn.pressed.connect(_debug_reset_loadout)
-	vbox.add_child(reset_btn)
-
-	var grant_head := Label.new()
-	grant_head.text = "Grant / level weapon"
-	grant_head.add_theme_font_size_override("font_size", 14)
-	grant_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(grant_head)
-
-	var grid := GridContainer.new()
-	grid.columns = 4
-	vbox.add_child(grid)
-	for wid in WEAPON_INFO:
-		var b := Button.new()
-		b.text = wid
-		b.add_theme_font_size_override("font_size", 12)
-		b.custom_minimum_size = Vector2(56, 26)
-		b.pressed.connect(_debug_grant_weapon.bind(wid))
-		grid.add_child(b)
-
-	var fuse_head := Label.new()
-	fuse_head.text = "Grant fusion"
-	fuse_head.add_theme_font_size_override("font_size", 14)
-	fuse_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(fuse_head)
-
-	var fuse_row := HBoxContainer.new()
-	vbox.add_child(fuse_row)
-	debug_fuse_a = OptionButton.new()
-	debug_fuse_b = OptionButton.new()
-	for wid in WEAPON_INFO:
-		debug_fuse_a.add_item(wid)
-		debug_fuse_b.add_item(wid)
-	debug_fuse_b.selected = 1
-	fuse_row.add_child(debug_fuse_a)
-	fuse_row.add_child(debug_fuse_b)
-	var fuse_btn := Button.new()
-	fuse_btn.text = "Fuse"
-	fuse_btn.pressed.connect(_debug_grant_fusion)
-	vbox.add_child(fuse_btn)
-
-	var stat_head := Label.new()
-	stat_head.text = "Stat up"
-	stat_head.add_theme_font_size_override("font_size", 14)
-	stat_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(stat_head)
-
-	var stat_grid := GridContainer.new()
-	stat_grid.columns = 4
-	vbox.add_child(stat_grid)
-	for sid in STAT_INFO:
-		var sb := Button.new()
-		sb.text = STAT_INFO[sid].label
-		sb.add_theme_font_size_override("font_size", 12)
-		sb.custom_minimum_size = Vector2(56, 26)
-		sb.pressed.connect(_debug_stat_up.bind(sid))
-		stat_grid.add_child(sb)
-
-	var spawn_head := Label.new()
-	spawn_head.text = "Spawn enemy (host)"
-	spawn_head.add_theme_font_size_override("font_size", 14)
-	spawn_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	vbox.add_child(spawn_head)
-
-	var spawn_row := HBoxContainer.new()
-	vbox.add_child(spawn_row)
-	debug_spawn_select = OptionButton.new()
-	debug_spawn_select.custom_minimum_size = Vector2(170, 26)
-	for ty in spawner.types:
-		var d: Dictionary = ty.data
-		debug_spawn_select.add_item("%s (%s T%d)" % [d.get("name", ty.cls), ty.cls, ty.tier])
-	spawn_row.add_child(debug_spawn_select)
-	var spawn_btn := Button.new()
-	spawn_btn.text = "Spawn"
-	spawn_btn.pressed.connect(_debug_spawn_enemy)
-	spawn_row.add_child(spawn_btn)
-
-
-func _debug_toggle_god() -> void:
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	p.debug_god = not p.debug_god
-	debug_god_btn.text = "God Mode: ON" if p.debug_god else "God Mode: OFF"
-
-
-## Grants the weapon if the local player doesn't have it yet, otherwise
-## levels it up (capped at MAX_WEAPON_LEVEL) — handy for testing fusions.
-func _debug_grant_weapon(id: String) -> void:
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	var w := p.get_weapon(id)
-	if w == null:
-		net.submit_choice(local_id, "learn_" + id)
-	elif w.level < MAX_WEAPON_LEVEL:
-		net.submit_choice(local_id, "lv_" + id)
-
-
-func _debug_stat_up(id: String) -> void:
-	if players.get(local_id) == null:
-		return
-	net.submit_choice(local_id, id)
-
-
-## Strips the local player of every weapon (including the starting bolt) and
-## resets every stat multiplier to its starting value — a clean slate for
-## re-testing weapons without restarting the run.
-func _debug_reset_loadout() -> void:
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	for w in p.weapons:
-		w.queue_free()
-	p.weapons.clear()
-	p.damage_mult = 1.0
-	p.rate_mult = 1.0
-	p.area_mult = 1.0
-	p.duration_mult = 1.0
-	p.move_speed = 220.0
-	p.pickup_range = 90.0
-	p.dash_cooldown = 2.5
-	p.stat_levels.clear()
-	p.max_hp = 5
-	p.hp = mini(p.hp, p.max_hp)
-	p.health_changed.emit(p.hp, p.max_hp)
-
-
-## Force the party to its next level-up pick immediately (host-only — the
-## same path real XP gain uses, so picks/sync behave normally).
-func _debug_level_up() -> void:
-	if not is_host() or leveling or game_over:
-		return
-	xp = _xp_needed()
-	_maybe_open_picks()
-
-
-## Host-only: spawns one enemy of the selected type near a player — same path
-## as normal spawns (spawner.spawn_enemy), for testing specific classes/tiers.
-func _debug_spawn_enemy() -> void:
-	if not is_host():
-		return
-	var idx := debug_spawn_select.selected
-	if idx < 0 or idx >= spawner.types.size():
-		return
-	var ty: Dictionary = spawner.types[idx]
-	spawner.spawn_enemy(ty.cls, ty.tier)
-
-
-## Maxes both selected weapons (granting them first if missing) and fuses
-## them — signature recipe if one exists, otherwise the generic WeaponFused.
-func _debug_grant_fusion() -> void:
-	var a := debug_fuse_a.get_item_text(debug_fuse_a.selected)
-	var b := debug_fuse_b.get_item_text(debug_fuse_b.selected)
-	if a == b:
-		return
-	var p: Player = players.get(local_id)
-	if p == null:
-		return
-	for id in [a, b]:
-		_debug_grant_weapon(id)
-		var w := p.get_weapon(id)
-		while w != null and w.level < MAX_WEAPON_LEVEL:
-			net.submit_choice(local_id, "lv_" + id)
-			w = p.get_weapon(id)
-	net.submit_choice(local_id, "merge_" + Fusions.key(a, b))
-
-
-func _refresh_pause_roster() -> void:
-	var me: Player = players.get(local_id)
-	if me == null:
-		return
-	var loadout := []
-	for w in me.weapons:
-		loadout.append("%s — Lv %d" % [w.display_name, w.level])
-	pause_loadout.text = "\n".join(loadout) if not loadout.is_empty() else "—"
-
-	# which base weapons are absorbed into a fusion
-	var fused_ids := {}
-	for w in me.weapons:
-		if w is WeaponFused:
-			for c in w.components:
-				fused_ids[c.weapon_id] = true
-
-	var lines := []
-	var row := []
-	var i := 0
-	for wid in WEAPON_INFO:
-		var status: String
-		var owned := me.get_weapon(wid)
-		if owned != null:
-			status = "Lv %d" % owned.level
-		elif fused_ids.has(wid):
-			status = "fused"
-		else:
-			status = "—"
-		row.append((WEAPON_INFO[wid].name as String).rpad(17) + status)
-		i += 1
-		if row.size() == 2:  # two weapons per line
-			lines.append("   ".join(row))
-			row = []
-	if not row.is_empty():
-		lines.append("   ".join(row))
-	pause_roster.text = "\n".join(lines)
-
-
-## A label + a button that cycles an option; `get_text` returns the current value
-## string, `advance` steps to the next. The button relabels itself on each press.
-func _make_cycler(parent: Node, label: String, get_text: Callable, advance: Callable) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	parent.add_child(row)
-	var l := Label.new()
-	l.text = label
-	l.add_theme_font_size_override("font_size", 18)
-	l.custom_minimum_size = Vector2(220, 38)
-	row.add_child(l)
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(132, 38)
-	b.add_theme_font_size_override("font_size", 18)
-	b.text = get_text.call()
-	b.pressed.connect(func():
-		advance.call()
-		b.text = get_text.call())
-	row.add_child(b)
-
-
-## Left panel on the main menu: persistent name/color/shape, used whenever this
-## player solos, hosts, or joins a session -- no separate lobby appearance step.
-func _build_profile_panel(parent: Node) -> void:
-	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(220, 0)
-	box.add_theme_constant_override("separation", 12)
-	parent.add_child(box)
-
-	var head := Label.new()
-	head.text = "PROFILE"
-	head.add_theme_font_size_override("font_size", 18)
-	head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(head)
-
-	profile_preview_label = Label.new()
-	profile_preview_label.custom_minimum_size = Vector2(0, 64)
-	profile_preview_label.add_theme_font_size_override("font_size", 48)
-	profile_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	profile_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	box.add_child(profile_preview_label)
-
-	profile_name_edit = LineEdit.new()
-	profile_name_edit.custom_minimum_size = Vector2(0, 44)
-	profile_name_edit.add_theme_font_size_override("font_size", 20)
-	profile_name_edit.max_length = 16
-	profile_name_edit.text = profile_name
-	profile_name_edit.text_submitted.connect(func(_t): _on_profile_appearance_changed())
-	profile_name_edit.focus_exited.connect(_on_profile_appearance_changed)
-	box.add_child(profile_name_edit)
-
-	var btn_row := HBoxContainer.new()
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_row.add_theme_constant_override("separation", 8)
-	box.add_child(btn_row)
-
-	var color_btn := Button.new()
-	color_btn.text = "Color"
-	color_btn.custom_minimum_size = Vector2(100, 44)
-	color_btn.add_theme_font_size_override("font_size", 18)
-	color_btn.pressed.connect(_on_profile_color_pressed)
-	btn_row.add_child(color_btn)
-
-	var shape_btn := Button.new()
-	shape_btn.text = "Shape"
-	shape_btn.custom_minimum_size = Vector2(100, 44)
-	shape_btn.add_theme_font_size_override("font_size", 18)
-	shape_btn.pressed.connect(_on_profile_shape_pressed)
-	btn_row.add_child(shape_btn)
-
-	_refresh_profile_preview()
-
-
-func _build_menu() -> void:
-	var parts := _make_overlay()
-	menu_panel = parts[0]
-	menu_panel.visible = true
-	var vbox: VBoxContainer = parts[1]
-
-	# Profile panel: a fixed strip on the left edge of the screen, independent of
-	# the centered menu content -- doesn't push the main buttons off-center.
-	var profile_strip := Control.new()
-	profile_strip.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	profile_strip.offset_right = 260
-	menu_panel.add_child(profile_strip)
-	var profile_center := CenterContainer.new()
-	profile_center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	profile_strip.add_child(profile_center)
-	_build_profile_panel(profile_center)
-
-	var title := Label.new()
-	title.text = "NICESWARM"
-	title.add_theme_font_size_override("font_size", 64)
-	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-
-	var sub := Label.new()
-	sub.text = "co-op arena survival   ·   v. %s (%s)" % [VERSION, BuildVersion.commit_label()]
-	# Mark the debug exe (an exported debug-template build) so bug reports name the right build.
-	# Gated on has_feature("template") so the editor — also is_debug_build() — isn't tagged.
-	if OS.has_feature("template") and OS.is_debug_build():
-		sub.text += "   ·   debug"
-	sub.add_theme_font_size_override("font_size", 20)
-	sub.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(sub)
-
-	# Update notice (hidden until UpdateCheck finds a newer published build).
-	update_banner = VBoxContainer.new()
-	update_banner.visible = false
-	update_banner.add_theme_constant_override("separation", 4)
-	vbox.add_child(update_banner)
-	var up_label := Label.new()
-	up_label.text = "⬆  A newer build is available on GitHub"
-	up_label.add_theme_font_size_override("font_size", 18)
-	up_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-	up_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	update_banner.add_child(up_label)
-	var up_row := HBoxContainer.new()
-	up_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	up_row.add_theme_constant_override("separation", 8)
-	update_banner.add_child(up_row)
-	var up_get := Button.new()
-	up_get.text = "Get Update"
-	up_get.add_theme_font_size_override("font_size", 18)
-	up_get.pressed.connect(_on_update_get_pressed)
-	up_row.add_child(up_get)
-	var up_skip := Button.new()
-	up_skip.text = "Skip"
-	up_skip.add_theme_font_size_override("font_size", 18)
-	up_skip.pressed.connect(_on_update_skip_pressed)
-	up_row.add_child(up_skip)
-
-	var solo := Button.new()
-	solo.text = "Play Solo"
-	solo.custom_minimum_size = Vector2(360, 52)
-	solo.add_theme_font_size_override("font_size", 22)
-	solo.pressed.connect(_on_solo_pressed)
-	vbox.add_child(solo)
-
-	var host := Button.new()
-	host.text = "Host Co-op"
-	host.custom_minimum_size = Vector2(360, 52)
-	host.add_theme_font_size_override("font_size", 22)
-	host.pressed.connect(_on_host_pressed)
-	vbox.add_child(host)
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	vbox.add_child(row)
-	ip_edit = LineEdit.new()
-	ip_edit.text = "127.0.0.1"
-	ip_edit.custom_minimum_size = Vector2(252, 52)
-	ip_edit.add_theme_font_size_override("font_size", 20)
-	row.add_child(ip_edit)
-	var join := Button.new()
-	join.text = "Join"
-	join.custom_minimum_size = Vector2(100, 52)
-	join.add_theme_font_size_override("font_size", 22)
-	join.pressed.connect(_on_join_pressed)
-	row.add_child(join)
-
-	var port_row := HBoxContainer.new()
-	port_row.add_theme_constant_override("separation", 8)
-	vbox.add_child(port_row)
-	var port_label := Label.new()
-	port_label.text = "Port"
-	port_label.add_theme_font_size_override("font_size", 20)
-	port_label.custom_minimum_size = Vector2(100, 40)
-	port_row.add_child(port_label)
-	port_edit = LineEdit.new()
-	port_edit.text = str(Net.PORT)
-	port_edit.custom_minimum_size = Vector2(252, 40)
-	port_edit.add_theme_font_size_override("font_size", 20)
-	port_row.add_child(port_edit)
-
-	# difficulty config cyclers (used by Solo and Host)
-	_make_cycler(vbox, "Options / level-up", func(): return str(CHOICES_OPTS[cfg_choices_i]),
-		func(): cfg_choices_i = (cfg_choices_i + 1) % CHOICES_OPTS.size())
-	_make_cycler(vbox, "XP rate", func(): return str(XP_OPTS[cfg_xp_i]) + "x",
-		func(): cfg_xp_i = (cfg_xp_i + 1) % XP_OPTS.size())
-	_make_cycler(vbox, "Enemy scale", func(): return str(SCALE_OPTS[cfg_scale_i]) + "x",
-		func(): cfg_scale_i = (cfg_scale_i + 1) % SCALE_OPTS.size())
-
-	status_label = Label.new()
-	status_label.add_theme_font_size_override("font_size", 18)
-	status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
-	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(status_label)
-
-
-## Shown after a successful host/join, before the run starts: connection status,
-## your name/color/shape, the roster of everyone in the session, the host's game
-## config (read-only for clients, live-editable for the host), and start/leave.
-func _build_lobby_panel() -> void:
-	var parts := _make_overlay()
-	lobby_panel = parts[0]
-	lobby_panel.visible = false
-	var vbox: VBoxContainer = parts[1]
-
-	var title := Label.new()
-	title.text = "LOBBY"
-	title.add_theme_font_size_override("font_size", 48)
-	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-
-	lobby_status_label = Label.new()
-	lobby_status_label.add_theme_font_size_override("font_size", 18)
-	lobby_status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
-	lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(lobby_status_label)
-
-	# Two columns: left (appearance + roster) expands to fill, right (config)
-	# shrinks to fit its content. custom_minimum_size on `columns` gives the
-	# left column extra width to expand into beyond its own natural minimum.
-	var columns := HBoxContainer.new()
-	columns.custom_minimum_size = Vector2(900, 0)
-	columns.add_theme_constant_override("separation", 24)
-	vbox.add_child(columns)
-
-	var left := VBoxContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.add_theme_constant_override("separation", 16)
-	columns.add_child(left)
-
-	var players_head := Label.new()
-	players_head.text = "PLAYERS"
-	players_head.add_theme_font_size_override("font_size", 18)
-	players_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	players_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left.add_child(players_head)
-
-	lobby_roster_box = VBoxContainer.new()
-	lobby_roster_box.add_theme_constant_override("separation", 4)
-	left.add_child(lobby_roster_box)
-
-	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 4)
-	columns.add_child(right)
-
-	var config_head := Label.new()
-	config_head.text = "GAME CONFIG"
-	config_head.add_theme_font_size_override("font_size", 18)
-	config_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	config_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	right.add_child(config_head)
-
-	lobby_config_box = VBoxContainer.new()
-	lobby_config_box.add_theme_constant_override("separation", 4)
-	right.add_child(lobby_config_box)
-
-	lobby_start_btn = Button.new()
-	lobby_start_btn.text = "Start Game"
-	lobby_start_btn.custom_minimum_size = Vector2(360, 52)
-	lobby_start_btn.add_theme_font_size_override("font_size", 22)
-	lobby_start_btn.visible = false
-	lobby_start_btn.pressed.connect(_on_start_pressed)
-	vbox.add_child(lobby_start_btn)
-
-	var leave_btn := Button.new()
-	leave_btn.text = "Leave Lobby"
-	leave_btn.custom_minimum_size = Vector2(360, 52)
-	leave_btn.add_theme_font_size_override("font_size", 22)
-	leave_btn.pressed.connect(_on_lobby_leave_pressed)
-	vbox.add_child(leave_btn)

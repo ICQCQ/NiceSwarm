@@ -350,7 +350,7 @@ func spawn_enemy(cls: String, tier: int = -1) -> void:
 	main.world.add_child(e)
 	if cls == "boss" or cls == "elite":
 		var nm: String = EnemyConfig.CLASSES[cls][tier].get("name", cls)
-		main.announce_boss(nm, cls == "boss")
+		main.hud.announce_boss(nm, cls == "boss")
 	if cls == "bouncer":
 		bouncer_live += 1
 

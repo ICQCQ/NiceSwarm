@@ -409,7 +409,7 @@ func rpc_event(type: int, pos: Vector2) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_announce(text: String, is_boss: bool) -> void:
-	main.show_banner(text, is_boss)
+	main.hud.show_banner(text, is_boss)
 
 
 @rpc("authority", "call_remote", "reliable")
