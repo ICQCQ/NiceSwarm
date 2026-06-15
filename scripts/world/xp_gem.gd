@@ -39,12 +39,13 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	# Condensed gems (value funneled in at the gem cap) read as a big red orb that grows
-	# with value, so a pile of XP is visually distinct from a normal green drop.
+	# Condensed gems (value funneled in at the gem cap) read as a big gold orb that grows
+	# with value, so a pile of XP is visually distinct from a normal green drop — and gold
+	# reads as "valuable loot", not the danger-red reserved for enemies.
 	if value >= GameConfig.GEM_CONDENSED_THRESHOLD:
 		var cr := clampf(10.0 + float(value) * 0.12, 10.0, 28.0)
-		draw_circle(Vector2.ZERO, cr, Color(1.0, 0.3, 0.3))
-		draw_circle(Vector2.ZERO, cr * 0.45, Color(1.0, 0.8, 0.55))
+		draw_circle(Vector2.ZERO, cr, Color(1.0, 0.85, 0.4))
+		draw_circle(Vector2.ZERO, cr * 0.45, Color(1.0, 1.0, 1.0))
 		return
 	var r := 5.0 if value <= 1 else 8.0
 	draw_circle(Vector2.ZERO, r, Color(0.45, 1.0, 0.55))

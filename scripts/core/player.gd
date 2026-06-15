@@ -11,10 +11,13 @@ const RADIUS := 14.0
 const HURT_RADIUS := RADIUS * 0.8  # forgiving hurtbox — smaller than the drawn body
 const DASH_TIME := 0.18
 const DASH_SPEED_MULT := 3.4
+# Players sit in the cool/bright band (blue/green/yellow) so they read as the
+# approachable anchor; the warm band (red/orange/deep-violet) is reserved for
+# enemies. No slot may be pink/orange/purple — those collide with enemy hues.
 const COLORS: Array[Color] = [
-	Color(0.45, 0.9, 1.0), Color(0.5, 1.0, 0.6),
-	Color(1.0, 0.85, 0.4), Color(1.0, 0.55, 0.8),
-	Color(0.7, 0.55, 1.0), Color(1.0, 0.6, 0.3),
+	Color(0.45, 0.9, 1.0), Color(0.55, 1.0, 0.55),
+	Color(1.0, 0.85, 0.35), Color(0.25, 0.95, 0.8),
+	Color(0.45, 0.62, 1.0), Color(0.8, 1.0, 0.45),
 ]
 # Player avatar silhouettes (lobby-selectable). Names match the glyphs the lobby
 # UI shows in the roster/appearance preview.

@@ -31,30 +31,30 @@ const CLASSES := {
 		{"name": "Oracle", "hp0": 24.0, "hpk": 6.0, "spd": 80.0, "spdk": 0.0, "r": 18.0, "dmg": 2, "xp": 9, "col": Color(0.55, 0.25, 0.72), "shape": "circle", "caster": true, "pattern": 2, "cr": 63.75, "cd": 2, "cdt": 2.0, "keep": 360.0},
 	],
 	"warden": [  # armored — shrugs off a fraction of every hit (resist); focus-fire to drop
-		{"name": "Shieldling", "hp0": 10.0, "hpk": 3.0, "spd": 70.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 3, "col": Color(0.55, 0.6, 0.72), "shape": "square", "resist": 0.4, "pull_imm": true},
-		{"name": "Bulwark", "hp0": 24.0, "hpk": 6.0, "spd": 66.0, "spdk": 1.0, "r": 20.0, "dmg": 2, "xp": 6, "col": Color(0.62, 0.67, 0.8), "shape": "square", "resist": 0.55, "pull_imm": true},
+		{"name": "Shieldling", "hp0": 10.0, "hpk": 3.0, "spd": 70.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 3, "col": Color(0.72, 0.5, 0.4), "shape": "square", "resist": 0.4, "pull_imm": true},
+		{"name": "Bulwark", "hp0": 24.0, "hpk": 6.0, "spd": 66.0, "spdk": 1.0, "r": 20.0, "dmg": 2, "xp": 6, "col": Color(0.8, 0.58, 0.45), "shape": "square", "resist": 0.55, "pull_imm": true},
 	],
 	"burster": [  # follows then SPITS a ring of enemy bullets (shards) on death — dodge the burst
-		{"name": "Spore", "hp0": 8.0, "hpk": 2.0, "spd": 72.0, "spdk": 1.0, "r": 14.0, "dmg": 1, "xp": 2, "col": Color(0.4, 0.72, 0.42), "shape": "star", "burst": 6},
-		{"name": "Brood", "hp0": 18.0, "hpk": 4.0, "spd": 70.0, "spdk": 1.0, "r": 18.0, "dmg": 1, "xp": 4, "col": Color(0.45, 0.82, 0.46), "shape": "star", "burst": 9},
+		{"name": "Spore", "hp0": 8.0, "hpk": 2.0, "spd": 72.0, "spdk": 1.0, "r": 14.0, "dmg": 1, "xp": 2, "col": Color(0.88, 0.62, 0.18), "shape": "star", "burst": 6},
+		{"name": "Brood", "hp0": 18.0, "hpk": 4.0, "spd": 70.0, "spdk": 1.0, "r": 18.0, "dmg": 1, "xp": 4, "col": Color(0.95, 0.7, 0.2), "shape": "star", "burst": 9},
 	],
 	"shard": [  # the enemy bullet a Burster spits: flies straight, phases, expires, 1 hit kills it
-		{"name": "Shard", "hp0": 1.0, "hpk": 0.0, "spd": 230.0, "spdk": 0.0, "r": 7.0, "dmg": 1, "xp": 0, "col": Color(0.6, 0.95, 0.6), "shape": "triangle", "move": 3, "phase": true, "cc_imm": true, "bullet": true, "life": 2.2, "pull_imm": true},
+		{"name": "Shard", "hp0": 1.0, "hpk": 0.0, "spd": 230.0, "spdk": 0.0, "r": 7.0, "dmg": 1, "xp": 0, "col": Color(1.0, 0.5, 0.25), "shape": "triangle", "move": 3, "phase": true, "cc_imm": true, "bullet": true, "life": 2.2, "pull_imm": true},
 	],
 	"sentinel": [  # phases an impenetrable shield on/off — strike between phases
-		{"name": "Sentinel", "hp0": 12.0, "hpk": 4.0, "spd": 80.0, "spdk": 2.0, "r": 16.0, "dmg": 1, "xp": 4, "col": Color(0.35, 0.55, 0.7), "shape": "square", "shield_cycle": 2.8, "shield_time": 1.4, "pull_imm": true},
-		{"name": "Aegis", "hp0": 26.0, "hpk": 7.0, "spd": 82.0, "spdk": 2.0, "r": 19.0, "dmg": 2, "xp": 7, "col": Color(0.4, 0.62, 0.78), "shape": "square", "shield_cycle": 2.4, "shield_time": 1.6, "pull_imm": true},
+		{"name": "Sentinel", "hp0": 12.0, "hpk": 4.0, "spd": 80.0, "spdk": 2.0, "r": 16.0, "dmg": 1, "xp": 4, "col": Color(0.5, 0.3, 0.55), "shape": "square", "shield_cycle": 2.8, "shield_time": 1.4, "pull_imm": true},
+		{"name": "Aegis", "hp0": 26.0, "hpk": 7.0, "spd": 82.0, "spdk": 2.0, "r": 19.0, "dmg": 2, "xp": 7, "col": Color(0.58, 0.36, 0.62), "shape": "square", "shield_cycle": 2.4, "shield_time": 1.6, "pull_imm": true},
 	],
 	"wisp": [  # immune to ENERGY; drifts randomly (doesn't chase), hard to predict
-		{"name": "Mote", "hp0": 8.0, "hpk": 2.5, "spd": 110.0, "spdk": 3.0, "r": 11.0, "dmg": 1, "xp": 3, "col": Color(0.8, 0.7, 1.0), "shape": "diamond", "immune": Enemy.DMG_ENERGY, "move": 1},
-		{"name": "Wisp", "hp0": 16.0, "hpk": 4.5, "spd": 120.0, "spdk": 3.0, "r": 13.0, "dmg": 1, "xp": 5, "col": Color(0.86, 0.76, 1.0), "shape": "diamond", "immune": Enemy.DMG_ENERGY, "move": 1},
+		{"name": "Mote", "hp0": 8.0, "hpk": 2.5, "spd": 110.0, "spdk": 3.0, "r": 11.0, "dmg": 1, "xp": 3, "col": Color(0.66, 0.45, 0.95), "shape": "diamond", "immune": Enemy.DMG_ENERGY, "move": 1},
+		{"name": "Wisp", "hp0": 16.0, "hpk": 4.5, "spd": 120.0, "spdk": 3.0, "r": 13.0, "dmg": 1, "xp": 5, "col": Color(0.72, 0.5, 1.0), "shape": "diamond", "immune": Enemy.DMG_ENERGY, "move": 1},
 	],
 	"bouncer": [  # ricochets around the arena, phases through everything, can't be interrupted
 		# special population: NOT in SPAWN_POOL — EnemySpawner.run_spawning tops
 		# bouncers up to their own (growing) cap once BOUNCER_UNLOCK passes,
 		# independent of the normal pool's desired_pop.
-		{"name": "Caroms", "hp0": 14.0, "hpk": 3.0, "spd": 190.0, "spdk": 2.0, "r": 14.0, "dmg": 2, "xp": 4, "col": Color(0.95, 0.85, 0.3), "shape": "diamond", "move": 2, "phase": true, "cc_imm": true, "pull_imm": true},
-		{"name": "Pinball", "hp0": 28.0, "hpk": 5.0, "spd": 220.0, "spdk": 2.0, "r": 16.0, "dmg": 2, "xp": 7, "col": Color(1.0, 0.9, 0.35), "shape": "diamond", "move": 2, "phase": true, "cc_imm": true, "pull_imm": true},
+		{"name": "Caroms", "hp0": 14.0, "hpk": 3.0, "spd": 190.0, "spdk": 2.0, "r": 14.0, "dmg": 2, "xp": 4, "col": Color(1.0, 0.35, 0.5), "shape": "diamond", "move": 2, "phase": true, "cc_imm": true, "pull_imm": true},
+		{"name": "Pinball", "hp0": 28.0, "hpk": 5.0, "spd": 220.0, "spdk": 2.0, "r": 16.0, "dmg": 2, "xp": 7, "col": Color(1.0, 0.4, 0.55), "shape": "diamond", "move": 2, "phase": true, "cc_imm": true, "pull_imm": true},
 	],
 	"disruptor": [  # telegraphs zones that don't hurt but slow you and lock your dash
 		{"name": "Hexer", "hp0": 12.0, "hpk": 4.0, "spd": 95.0, "spdk": 1.0, "r": 15.0, "dmg": 1, "xp": 5, "col": Color(0.6, 0.3, 0.7), "shape": "diamond", "caster": true, "pattern": 0, "effect": 1, "cr": 100.0, "cd": 0, "cdt": 2.4, "keep": 300.0},
@@ -66,13 +66,13 @@ const CLASSES := {
 	],
 	"interceptor": [  # projects/casts jamming fields that destroy player projectiles; always flees
 		# Jammer: periodically re-casts a jamming field on itself — has down time between casts.
-		{"name": "Jammer", "hp0": 12.0, "hpk": 4.0, "spd": 65.0, "spdk": 1.0, "r": 17.0, "dmg": 1, "xp": 6, "col": Color(0.25, 0.75, 0.85), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 4, "icast_radius": 110.0, "icast_life": 2.5, "icast_cooldown": 5.0},
+		{"name": "Jammer", "hp0": 12.0, "hpk": 4.0, "spd": 65.0, "spdk": 1.0, "r": 17.0, "dmg": 1, "xp": 6, "col": Color(0.6, 0.15, 0.28), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 4, "icast_radius": 110.0, "icast_life": 2.5, "icast_cooldown": 5.0},
 		# Scrambler: casts a field at a random spot nearby (not on itself); sized by current THREAT.
-		{"name": "Scrambler", "hp0": 18.0, "hpk": 5.0, "spd": 75.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 8, "col": Color(0.3, 0.8, 0.9), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 1, "icast_radius": 90.0, "icast_life": 3.0, "icast_cooldown": 5.0},
+		{"name": "Scrambler", "hp0": 18.0, "hpk": 5.0, "spd": 75.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 8, "col": Color(0.7, 0.2, 0.32), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 1, "icast_radius": 90.0, "icast_life": 3.0, "icast_cooldown": 5.0},
 		# Disperser: drops lingering fields on several nearby enemies at once.
-		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.35, 0.85, 0.95), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 100.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
+		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.8, 0.25, 0.35), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 100.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
 		# Overseer: rare — casts a single very long line of fields across the arena at a random angle.
-		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.4, 0.9, 1.0), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 20.0},
+		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.9, 0.3, 0.4), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 20.0},
 	],
 	"elite": [  # tanky specials that always drop a chest
 		{"name": "Elite", "hp0": 40.0, "hpk": 18.0, "spd": 100.0, "spdk": 0.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.95, 0.35, 0.5), "shape": "circle", "elite": true, "pull_imm": true},
