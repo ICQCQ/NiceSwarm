@@ -19,7 +19,9 @@ func _physics_process(delta: float) -> void:
 	var radius := (130.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.nova.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.nova.growth * (level - 1))
 	var hit_any := false
-	for e in Main.instance.all_enemies():
+	# Broad-phase by blast radius (grid); +64 margin covers the largest enemy radius (38)
+	# so a grazing hit at radius+e.radius is never dropped. The precise test is unchanged.
+	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 			ignite(e, dmg)

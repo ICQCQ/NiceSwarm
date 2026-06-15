@@ -32,7 +32,9 @@ func _physics_process(delta: float) -> void:
 	var beams := level
 	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.laser.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.laser.growth * (level - 1))
-	for e in Main.instance.all_enemies():
+	# Broad-phase by beam length (grid); +64 margin covers the largest enemy radius (38) so
+	# an enemy grazed at the beam tip is never dropped. The per-beam line test is unchanged.
+	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
 		var rel: Vector2 = e.global_position - global_position
