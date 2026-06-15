@@ -255,6 +255,7 @@ var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
 var debug: DebugPanel            # F1 debug/testing panel (ui/debug_panel.gd)
+var hud: GameHud                 # in-run HUD logic / banners (ui/game_hud.gd)
 
 
 func _ready() -> void:
@@ -279,6 +280,10 @@ func _ready() -> void:
 	debug.name = "Debug"
 	debug.main = self
 	add_child(debug)
+	hud = GameHud.new()
+	hud.name = "Hud"
+	hud.main = self
+	add_child(hud)
 	_load_profile()
 	_build_ui()
 	_show_menu("")
@@ -1355,7 +1360,7 @@ func _process(delta: float) -> void:
 			sim.autopick()
 		elif not i_chose and not current_choices.is_empty():
 			_choose_upgrade(0)
-	_update_hud()
+	hud.update()
 
 
 func _physics_process(delta: float) -> void:
@@ -2423,164 +2428,6 @@ func _cancel_countdown() -> void:
 		countdown_panel.visible = false
 
 
-# --- HUD -------------------------------------------------------------------------
-
-func _update_hud() -> void:
-	var me: Player = players.get(local_id)
-	var t := int(elapsed)
-	timer_label.text = "%02d:%02d" % [t / 60, t % 60]
-	level_label.text = "Lv %d" % level
-	kills_label.text = "Kills %d" % kills
-	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
-	arrows.queue_redraw()
-	if _banner_t > 0.0 and banner_label != null:
-		_banner_t -= get_process_delta_time()
-		var since := BANNER_LIFE - _banner_t
-		var a := 1.0
-		if since < 0.2:
-			a = since / 0.2
-		elif _banner_t < 0.6:
-			a = _banner_t / 0.6
-		banner_label.modulate.a = clampf(a, 0.0, 1.0)
-	# Threat readout: a named, color-coded tier (CALM…NIGHTMARE) the player can parse
-	# at a glance, a bar that only ever grows toward NIGHTMARE, and a plain-word note
-	# when the climb is accelerating (heat). Display-only — no balance effect.
-	var heat := spawner.heat()
-	var diff := spawner.diff()
-	var ti := 0
-	for j in THREAT_TIERS.size():
-		if diff >= float(THREAT_TIERS[j].at):
-			ti = j
-	var tier: Dictionary = THREAT_TIERS[ti]
-	var cap: float = maxf(float(THREAT_TIERS[THREAT_TIERS.size() - 1].at), 1.0)
-	var filled := clampi(int(round(diff / cap * 8.0)), 0, 8)  # monotonic: fills toward NIGHTMARE
-	var bar := "▮".repeat(filled) + "▯".repeat(8 - filled)
-	var rising := ""
-	if heat >= 0.5:
-		rising = "   ▲▲ SURGING"
-	elif heat >= 0.15:
-		rising = "   ▲ rising"
-	threat_label.text = "THREAT  %s  %s%s" % [tier.name, bar, rising]
-	threat_label.add_theme_color_override("font_color", tier.color)
-	if me == null:
-		return
-	if me.downed:
-		hp_label.text = "DOWNED" if is_solo() else "DOWNED — ally can revive you"
-	else:
-		hp_label.text = "♥".repeat(maxi(me.hp, 0)) + "♡".repeat(me.max_hp - maxi(me.hp, 0))
-	if me.dash_timer <= 0.0:
-		dash_label.text = "Dash READY"
-		dash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.7))
-	else:
-		dash_label.text = "Dash %.1fs" % me.dash_timer
-		dash_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
-	# Skill slots: each owned weapon is a highlighted, hover-able badge; remaining slots
-	# are dim ◇ up to MAX_WEAPONS, with an n/5 count (amber FULL at the cap) — so the
-	# 5-slot limit reads at a glance. Hover a slot for that weapon's current stats.
-	var wparts := []
-	for w in me.weapons:
-		wparts.append("[url=%s][bgcolor=#27344c] %s [/bgcolor][/url]" % [w.weapon_id, _weapon_badge(w)])
-	for _k in range(me.weapons.size(), MAX_WEAPONS):
-		wparts.append("[bgcolor=#161c28][color=#39414f] ◇ [/color][/bgcolor]")
-	var w_full: bool = me.weapons.size() >= MAX_WEAPONS
-	var w_cnt := "WEAPONS %d/%d%s" % [me.weapons.size(), MAX_WEAPONS, "  FULL" if w_full else ""]
-	weapons_label.text = "[right][color=#%s]%s[/color]   %s[/right]" \
-		% ["ff9a55" if w_full else "6b7488", w_cnt, "  ".join(wparts)]
-	# Current stat upgrades, directly under the weapon slots.
-	var sparts := []
-	for sid in STAT_INFO:
-		var slvl := int(me.stat_levels.get(sid, 0))
-		if slvl > 0:
-			sparts.append(_stat_badge(STAT_INFO[sid], slvl))
-	stats_label.text = ("[right][color=#6b7488]STATS[/color]   %s[/right]" % "  ".join(sparts)) if not sparts.is_empty() else ""
-	if weapon_tip.visible and _tip_weapon_id != "":
-		weapon_tip.text = _weapon_tip_text(_tip_weapon_id)  # keep stats live while hovered
-	var lines := []
-	for pid in peer_ids:
-		if pid == local_id:
-			continue
-		var p: Player = players.get(pid)
-		if p == null:
-			continue
-		var tag := " (away)" if p.disconnected else ""
-		if p.downed:
-			lines.append("%s  DOWN %d%%%s" % [p.player_name, int(p.revive_progress * 100.0), tag])
-		else:
-			lines.append("%s  ♥%d/%d%s" % [p.player_name, p.hp, p.max_hp, tag])
-	allies_label.text = "\n".join(lines)
-
-
-func _draw_ally_arrows() -> void:
-	if not playing:
-		return
-	var me: Player = players.get(local_id)
-	if me == null:
-		return
-	var size := arrows.get_viewport_rect().size
-	var xform := get_viewport().get_canvas_transform()
-	for pid in peer_ids:
-		if pid == local_id:
-			continue
-		var p: Player = players.get(pid)
-		if p == null:
-			continue
-		var sp: Vector2 = xform * p.global_position
-		if Rect2(Vector2.ZERO, size).grow(-24.0).has_point(sp):
-			continue
-		var c := sp.clamp(Vector2(40.0, 40.0), size - Vector2(40.0, 40.0))
-		var dir := (sp - c).normalized()
-		if dir == Vector2.ZERO:
-			continue
-		var col := Player.COLORS[p.color_idx % Player.COLORS.size()]
-		var tip := c + dir * 16.0
-		var side := dir.orthogonal() * 9.0
-		arrows.draw_polygon(PackedVector2Array([tip, c - dir * 4.0 + side, c - dir * 4.0 - side]),
-			PackedColorArray([col]))
-
-
-## BBCode badge for one leveled stat (shown in the top-right stats row): the stat's
-## color-coded icon glyph + how many times it's been picked.
-func _stat_badge(info: Dictionary, lvl: int) -> String:
-	return "[color=#%s]%s[/color]×%d" % [info.color.to_html(false), info.icon, lvl]
-
-
-## A weapon slot was hovered: remember which weapon and show its current-stats tooltip.
-## _update_hud refreshes the text each frame so the numbers stay live while hovered.
-func _on_weapon_hover(meta) -> void:
-	_tip_weapon_id = str(meta)
-	weapon_tip.text = _weapon_tip_text(_tip_weapon_id)
-	weapon_tip.visible = _tip_weapon_id != ""
-
-
-func _on_weapon_unhover(_meta) -> void:
-	_tip_weapon_id = ""
-	weapon_tip.visible = false
-
-
-## Current effective stats of one owned weapon, for the hover tooltip. Effective damage
-## and cadence come from WeaponConfig.BASE scaled by level + the local player's Power/Haste
-## (cd = recurring cooldown/tick/re-hit per BASE's contract). Fusions have no BASE row, so
-## they show a qualitative line instead of fabricated numbers.
-func _weapon_tip_text(id: String) -> String:
-	var me: Player = players.get(local_id)
-	if me == null:
-		return ""
-	var w = me.get_weapon(id)
-	if w == null:
-		return ""
-	var lines := ["[color=#cdd6e6]%s[/color]  [color=#9aa4b8]Lv %d[/color]" % [w.display_name, w.level]]
-	if WeaponConfig.BASE.has(id):
-		var b: Dictionary = WeaponConfig.BASE[id]
-		var dmg: float = b.dmg * (1.0 + b.growth * (w.level - 1)) * me.damage_mult
-		var cd: float = b.cd * me.rate_mult
-		lines.append("[color=#ff9a8a]DMG %.1f[/color]   [color=#9fd0ff]every %.2fs[/color]" % [dmg, cd])
-	else:
-		lines.append("[color=#ffd479]fusion[/color] [color=#9aa4b8]— scales with your stats[/color]")
-	if WEAPON_INFO.has(id):
-		lines.append("[color=#7e8aa0]%s[/color]" % WEAPON_INFO[id].level)
-	return "[right]" + "\n".join(lines) + "[/right]"
-
-
 # --- UI construction --------------------------------------------------------------
 
 func _build_ui() -> void:
@@ -2617,8 +2464,8 @@ func _build_ui() -> void:
 	weapons_label.offset_top = 16.0
 	weapons_label.offset_bottom = 78.0
 	weapons_label.add_theme_font_size_override("normal_font_size", 20)
-	weapons_label.meta_hover_started.connect(_on_weapon_hover)
-	weapons_label.meta_hover_ended.connect(_on_weapon_unhover)
+	weapons_label.meta_hover_started.connect(hud._on_weapon_hover)
+	weapons_label.meta_hover_ended.connect(hud._on_weapon_unhover)
 	hud_root.add_child(weapons_label)
 
 	stats_label = RichTextLabel.new()
@@ -2659,7 +2506,7 @@ func _build_ui() -> void:
 	arrows = Control.new()
 	arrows.set_anchors_preset(Control.PRESET_FULL_RECT)
 	arrows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	arrows.draw.connect(_draw_ally_arrows)
+	arrows.draw.connect(hud._draw_ally_arrows)
 	hud_root.add_child(arrows)
 
 	_build_level_panel()
@@ -2680,48 +2527,6 @@ func _make_label(pos: Vector2, size: int, color: Color) -> Label:
 	l.add_theme_color_override("font_color", color)
 	hud_root.add_child(l)
 	return l
-
-
-## Compact on-screen badge for an owned weapon: a colored ◆ + 3-char code + superscript level.
-## Base weapons use WEAPON_ICON; fusions fall back to gold initials of their display name.
-func _weapon_badge(w) -> String:
-	var code: String
-	var col: String
-	if WEAPON_ICON.has(w.weapon_id):
-		code = WEAPON_ICON[w.weapon_id][0]
-		col = WEAPON_ICON[w.weapon_id][1]
-	else:
-		code = _fusion_short(w.display_name)
-		col = "ffd479"  # fusion = gold
-	var lv := clampi(w.level, 0, SUP.size() - 1)
-	return "[color=#%s]◆%s[/color]%s" % [col, code, SUP[lv]]
-
-
-## Up-to-3-char code for a fusion: initials of each word, or first letters if it's one word.
-func _fusion_short(dname: String) -> String:
-	var s := ""
-	for word in dname.split(" ", false):
-		if not word.is_empty():
-			s += word.substr(0, 1)
-	if s.length() < 2:
-		s = dname.replace(" ", "")
-	return s.to_upper().substr(0, 3)
-
-
-func show_banner(text: String, is_boss: bool) -> void:
-	if banner_label == null:
-		return
-	banner_label.text = ("BOSS:  %s" % text) if is_boss else ("ELITE:  %s" % text)
-	banner_label.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3) if is_boss else Color(1.0, 0.78, 0.35))
-	banner_label.add_theme_font_size_override("font_size", 54 if is_boss else 42)
-	_banner_t = BANNER_LIFE
-
-
-## Host: announce a boss / mini-boss (elite) spawn — locally and to all clients.
-func announce_boss(text: String, is_boss: bool) -> void:
-	show_banner(text, is_boss)
-	net.send_announce(text, is_boss)
 
 
 func _make_overlay() -> Array:
