@@ -11,10 +11,11 @@ const MAX_WEAPON_LEVEL := 3      # per-weapon cap before it can be merged
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
 const ENEMY_CAP := 220           # hard limit on live enemies
 const TELEGRAPH_WARN := 1.3      # seconds to dodge a telegraphed strike
+const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed
 const NET_PORT := 24565          # default co-op port
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
-const DIFF_BASE := 1.0 / 48.0    # base climb rate (gentler = slower ramp)
+const DIFF_BASE := 1.0 / 62.0    # base climb rate (gentler = slower ramp)
 const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
@@ -26,7 +27,7 @@ const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor p
 const SPAWN_RING_MAX := 900.0         # ...up to this far (random within the ring)
 const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player
 const SPAWN_DESIRED_BASE := 6.0       # target live-enemy count at difficulty 0
-const SPAWN_DESIRED_PER_DIFF := 3.0   # +this many target enemies per difficulty point
+const SPAWN_DESIRED_PER_DIFF := 2.5   # +this many target enemies per difficulty point
 const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
 const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population

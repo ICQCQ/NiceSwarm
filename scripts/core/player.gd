@@ -65,6 +65,7 @@ var disconnected := false:
 var debug_god := false  # debug panel: ignore all damage
 var safe := false  # host-authoritative: ignore damage while this player's in-game menu is open
 var menu_frozen := false  # local: hold still while our own in-game menu is open
+var bot := false  # headless sim: host-driven kiting AI (overrides input/puppet movement)
 var weapons: Array = []
 var cam: Camera2D
 
@@ -105,6 +106,10 @@ func _physics_process(delta: float) -> void:
 		return
 	if is_local and menu_frozen:  # our in-game menu is open: hold still (host marks us safe)
 		velocity = Vector2.ZERO
+		_update_cam(delta)
+		return
+	if bot:  # headless sim autopilot
+		_bot_step(delta)
 		_update_cam(delta)
 		return
 
@@ -156,6 +161,98 @@ func _local_move(delta: float) -> void:
 		arena.position + Vector2(RADIUS, RADIUS),
 		arena.end - Vector2(RADIUS, RADIUS)
 	)
+
+
+## Headless-sim autopilot: kite the swarm. Flee the local enemy cluster (nearer enemies push
+## harder), drift back toward the arena center when near an edge, aim at the nearest enemy so
+## directional weapons connect, and dash out when something gets too close.
+func _bot_step(delta: float) -> void:
+	dash_timer = maxf(dash_timer - delta, 0.0)
+	var nearest: Node2D = null
+	var nd := INF
+	var crowd := 0   # threats pressing in close — triggers a proactive escape dash
+	if Main.instance != null:
+		for e in Main.instance.enemies_in_radius(global_position, 220.0):
+			var d := global_position.distance_to(e.global_position)
+			if d < nd:
+				nd = d
+				nearest = e
+			if d < 130.0:
+				crowd += 1
+	# Comet-tail kite: orbit the arena center at ~58% radius, always moving tangentially so the
+	# swarm trails behind and we run into fresh space; a radial nudge holds the orbit ring.
+	var center := arena.get_center()
+	var rel := global_position - center
+	var rl := rel.length()
+	var half := arena.size.x * 0.5
+	var tangent := Vector2.from_angle((rel.angle() if rl > 1.0 else 0.0) + PI * 0.5)
+	var radial := rel.normalized() * ((half * 0.58 - rl) * 0.012) if rl > 1.0 else Vector2.ZERO
+	var dir := (tangent + radial).normalized()
+	# Vacuum XP: drift toward the nearest dropped gem so the kite actually banks the XP it earns —
+	# a pure orbit leaves its kill-tail of gems uncollected -> no levels -> weak build -> death.
+	var gem_off := Vector2.ZERO
+	var gnd := 250000.0  # only divert for gems within ~500px
+	for g in get_tree().get_nodes_in_group("gems"):
+		var gd: float = global_position.distance_squared_to(g.global_position)
+		if gd < gnd:
+			gnd = gd
+			gem_off = g.global_position - global_position
+	if gem_off != Vector2.ZERO:
+		dir = (dir + gem_off.normalized() * 0.8).normalized()
+	# Seek the nearest heart when hurt — with no passive healing, accumulated touches end the run.
+	if hp < max_hp and Main.instance != null:
+		var heart_off := Vector2.ZERO
+		var hnd := 360000.0  # nearest heart within ~600px
+		for pk in Main.instance.pickups_by_id.values():
+			if is_instance_valid(pk) and pk.kind == "heart":
+				var pd: float = global_position.distance_squared_to(pk.global_position)
+				if pd < hnd:
+					hnd = pd
+					heart_off = pk.global_position - global_position
+		if heart_off != Vector2.ZERO:
+			dir = (dir + heart_off.normalized() * (1.2 if hp <= 2 else 0.6)).normalized()
+	if nearest != null:
+		facing = (nearest.global_position - global_position).normalized()
+		if nd < 120.0:  # a close threat bends the path away from it (overrides gem greed)
+			dir = (dir + (global_position - nearest.global_position).normalized() * 1.1).normalized()
+	# Dodge telegraphed strikes: step out of any active danger zone we're standing in (casters
+	# unlock ~150s and their undodged strikes were a major killer for the kite).
+	for tz in get_tree().get_nodes_in_group("telegraphs"):
+		var toff: Vector2 = global_position - tz.global_position
+		var td := toff.length()
+		if td < tz.radius + 55.0:
+			var away := toff.normalized() if td > 1.0 else Vector2.from_angle(facing.angle() + PI)
+			dir = (dir + away * 2.0).normalized()
+	# Revive a downed ally (co-op's key safety net): path to reviver range (~70px) and hold
+	# position there to channel the revive — but only when not swarmed (crowd < 3), never suicidal.
+	if Main.instance != null and crowd < 3:
+		var ally_off := Vector2.ZERO
+		var nad := INF
+		for q in Main.instance.players.values():
+			if q != self and q.downed:
+				var ad: float = global_position.distance_squared_to(q.global_position)
+				if ad < nad:
+					nad = ad
+					ally_off = q.global_position - global_position
+		if ally_off != Vector2.ZERO:
+			if ally_off.length() < 62.0:
+				dir = Vector2.ZERO  # hold to channel the revive
+			else:
+				dir = (dir + ally_off.normalized() * 1.5).normalized()
+	if dash_active > 0.0:
+		dash_active -= delta
+		velocity = dash_dir * move_speed * DASH_SPEED_MULT
+	elif dash_timer <= 0.0 and (nd < 80.0 or crowd >= 3):  # break contact before getting pinned
+		dash_active = DASH_TIME
+		dash_timer = dash_cooldown
+		dash_dir = dir
+		invuln = maxf(invuln, 0.3)
+		velocity = dash_dir * move_speed * DASH_SPEED_MULT
+	else:
+		velocity = dir * move_speed if dir != Vector2.ZERO else Vector2.ZERO
+	move_and_slide()
+	global_position = global_position.clamp(
+		arena.position + Vector2(RADIUS, RADIUS), arena.end - Vector2(RADIUS, RADIUS))
 
 
 func _update_cam(delta: float) -> void:
