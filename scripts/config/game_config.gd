@@ -8,11 +8,18 @@ const ARENA := Rect2(-1200, -1200, 2400, 2400)
 const WIN_TIME := 600.0          # survive this long (s) to win
 const MAX_WEAPONS := 5           # weapon slots per player per run
 const MAX_WEAPON_LEVEL := 3      # per-weapon cap before it can be merged
+const MAX_FUSION_TIER := 2       # fusion depth cap: base+base->T1, T1+T1->T2 (final, no T3)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
 const ENEMY_CAP := 220           # hard limit on live enemies
 const TELEGRAPH_WARN := 1.3      # seconds to dodge a telegraphed strike
 const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed
 const NET_PORT := 24565          # default co-op port
+
+# --- weapon progression ---
+# Every weapon's base damage is multiplied by (1 + WEAPON_LEVEL_POWER * (party_level - 1)),
+# on top of its own Lv1->3 growth and the player's Power picks. Lets weapons you never
+# pour level-ups into still keep pace as the run (and enemy HP) scales. Tunable via FF.
+const WEAPON_LEVEL_POWER := 0.04
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
 const DIFF_BASE := 1.0 / 62.0    # base climb rate (gentler = slower ramp)

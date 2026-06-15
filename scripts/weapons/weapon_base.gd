@@ -7,6 +7,7 @@ extends Node2D
 var weapon_id := ""
 var display_name := ""
 var level := 1
+var tier := 0   # fusion depth: 0 = base weapon, 1 = base+base fusion, 2 = deep (final). See GameConfig.MAX_FUSION_TIER.
 var player: Player
 
 

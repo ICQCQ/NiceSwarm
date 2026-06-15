@@ -31,3 +31,14 @@ func run(t) -> void:
 
 	t.eq(pairs, 78, "13 weapons -> 78 unordered pairs")
 	t.eq(covered, 78, "all 78 pairs have a signature recipe")
+
+	# Fusion depth cap (base+base -> T1, T1+T1 -> T2 final, no T3).
+	t.eq(Fusions.merged_tier(0, 0), 1, "base+base merges to tier 1")
+	t.eq(Fusions.merged_tier(1, 1), 2, "T1+T1 merges to tier 2")
+	t.eq(Fusions.merged_tier(0, 1), 2, "base+T1 merges to tier 2")
+	t.ok(Fusions.can_merge(0, 0), "base+base is mergeable")
+	t.ok(Fusions.can_merge(1, 1), "T1+T1 is mergeable (-> final T2)")
+	t.ok(Fusions.can_merge(0, 1), "base+T1 is mergeable")
+	t.ok(not Fusions.can_merge(2, 0), "a final T2 fusion can't be merged again")
+	t.ok(not Fusions.can_merge(2, 1), "T2 + T1 is blocked")
+	t.ok(not Fusions.can_merge(2, 2), "T2 + T2 is blocked")

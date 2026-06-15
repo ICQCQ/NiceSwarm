@@ -172,6 +172,7 @@ func _reset_loadout() -> void:
 	for w in p.weapons:
 		w.queue_free()
 	p.weapons.clear()
+	p.power_stat = 1.0   # damage_mult is derived from this each frame
 	p.damage_mult = 1.0
 	p.rate_mult = 1.0
 	p.area_mult = 1.0

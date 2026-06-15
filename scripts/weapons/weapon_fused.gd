@@ -2,8 +2,9 @@ class_name WeaponFused
 extends WeaponBase
 ## Fusion of two maxed attacks living in ONE weapon slot. The component
 ## weapons keep firing as child nodes; each fusion level-up raises every
-## component's level by one (formulas scale past 5), so fused parts keep
-## growing. A level-5 fusion can be merged again for deeper layers.
+## component's level by one (damage/area/cadence scale past Lv3; spawn counts
+## freeze via count_level), so fused parts keep growing. A tier-1 fusion can be
+## merged once more into a final tier-2 fusion (GameConfig.MAX_FUSION_TIER) — no T3.
 
 var components: Array = []  # leaf WeaponBase nodes
 

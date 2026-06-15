@@ -753,3 +753,33 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   banner only. Updated CLAUDE.md "Running" with the CI dual-exe note.
 - **Next:** merge `worktree-ci-debug-exe` → `publish` to trigger the release
   (push to `publish` is what publishes the rolling `latest` build).
+
+### 2026-06-16 — Session 5: weapon progression revamp + fusion depth cap (worktree `revamp-weapon-progression`)
+- User: "revamp weapon level progression and fusion weapon capped." Clarified to two
+  changes (worktree off `publish`):
+  1. **Party-level weapon scaling (augment).** Every weapon's base damage now scales
+     with the shared party level, *on top of* its own Lv1→3 growth and Power picks.
+     Implemented with zero weapon edits: `player.gd` keeps the pick-driven factor in a
+     new `power_stat`, and `_physics_process` derives `damage_mult = power_stat *
+     (1 + GameConfig.WEAPON_LEVEL_POWER*(Main.instance.level-1))` at the top (before any
+     early-return, so bots/puppets stay current; parent-before-children tree order means
+     weapon kids read the fresh value the same frame). `st_power` pick now mutates
+     `power_stat`; debug reset resets it. New const `WEAPON_LEVEL_POWER := 0.04`.
+  2. **Fusion depth cap (T1→T2 final, no T3).** New `WeaponBase.tier` (base=0); merging
+     tiers a,b yields `max(a,b)+1`, allowed only while ≤ `GameConfig.MAX_FUSION_TIER` (=2).
+     Single source of truth `Fusions.can_merge`/`merged_tier`, enforced in BOTH the pick
+     pool (`main._build_choice_pool` skips over-cap pairs) and the model
+     (`player.merge_weapons` refuses + stamps the result's tier). So base+base→T1,
+     T1+T1→T2 (final), and a T2 fusion is never offered/allowed to merge again.
+- **Tests:** +2 config asserts (`MAX_FUSION_TIER`, `WEAPON_LEVEL_POWER`) and +9
+  `Fusions.can_merge`/`merged_tier` asserts → `[tests] 1025 passed, 0 failed`.
+- **Verified headless** (Scoop godot 4.6.3): import clean; unit suite 1025/0; solo / merge
+  (→ Plasma Burst T1, pool builds) / all_weapons / all_fusions all clean (only the
+  pre-existing benign "ObjectDB leaked at exit" --quit-after artifact). **Balance:** FF
+  (immortal) wins at 10:00 with difficulty climbing smoothly 0.1→~14.8 (no heat/difficulty
+  runaway); a same-machine baseline worktree off `publish` showed the identical difficulty
+  trajectory (peak 14.4) and SIM bots DEAD at L1 on BOTH branches — confirming the change is
+  a no-op at L1 and balance-neutral in these harnesses (the SIM L1 deaths are a pre-existing
+  harness artifact, not a regression).
+- **Next:** real playtest to tune `WEAPON_LEVEL_POWER` (0.04 is FF-calibrated, not
+  hand-played) and confirm the T2 cap feels right; then merge → `publish`.

@@ -11,7 +11,7 @@ Player carries four weapon-facing multipliers (`scripts/player.gd`):
 
 | Stat | Field | Every weapon must… |
 |------|-------|--------------------|
-| **Power** | `damage_mult` | scale damage-per-hit by `damage_mult` |
+| **Power** | `damage_mult` | scale damage-per-hit by `damage_mult` — the player derives it each frame as `power_stat × (1 + WEAPON_LEVEL_POWER·(party_level−1))`, so simply reading `damage_mult` folds in both Power picks **and** party-level scaling; no extra weapon code needed |
 | **Haste** | `rate_mult` (lower = faster) | scale how often it acts — cooldown, tick interval, spin speed, or per-target re-hit cadence — by `rate_mult` |
 | **Area** | `area_mult` | scale **every** spatial dimension by `area_mult` — projectile/hit radius, blast/AoE radius, beam length, cone reach, orbit radius, targeting range, chain-jump distance |
 | **Duration** | `duration_mult` | scale how long its effect persists by `duration_mult` — projectile/summon/field lifetime; for instant weapons, the length of a lingering **burn** (`ignite()`) or **slow** |
@@ -62,6 +62,13 @@ together. Recipes live in `scripts/weapon_fusions.gd`:
 
 A fusion weapon follows the **same 4-stat contract**. Build it from existing spawned nodes
 where possible (they already carry Area/Duration fields).
+
+**Fusion depth is capped** at `GameConfig.MAX_FUSION_TIER` (= 2). Every weapon carries a
+`tier`: base weapons are 0, a base+base fusion is 1, and two tier-1 fusions merge once more
+into a **final tier-2** fusion that can never be merged again (no T3). Merging tiers `a` and
+`b` yields tier `max(a,b)+1`; `Fusions.can_merge(a,b)` / `Fusions.merged_tier(a,b)` are the
+single source of truth, enforced in both the pick pool (`main._build_choice_pool`) and the
+model (`player.merge_weapons`).
 
 ### Fusion recipe list
 

@@ -1736,6 +1736,9 @@ func _build_choice_pool(p: Player) -> Array:
 	var merges := []
 	for i in maxed.size():
 		for j in range(i + 1, maxed.size()):
+			# Fusion depth cap: a final-tier fusion (T2) can't be merged further.
+			if not Fusions.can_merge(maxed[i].tier, maxed[j].tier):
+				continue
 			var sig: Dictionary = Fusions.info(maxed[i].weapon_id, maxed[j].weapon_id)
 			var entry := {"id": "merge_%s|%s" % [maxed[i].weapon_id, maxed[j].weapon_id]}
 			if not sig.is_empty():
@@ -1846,7 +1849,7 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 	else:
 		match id:
 			"st_power":
-				p.damage_mult *= 1.25
+				p.power_stat *= 1.25  # damage_mult is derived from power_stat * party-level scaling
 			"st_rate":
 				p.rate_mult *= 0.88
 			"st_area":
