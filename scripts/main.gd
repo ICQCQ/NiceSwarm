@@ -1916,6 +1916,7 @@ func _on_player_downed(p: Player) -> void:
 func add_damage(pid: int, amount: float) -> void:
 	if _score.has(pid):
 		_score[pid].damage += amount
+	spawner.add_damage_sample(amount)  # feed the rolling party-DPS window (boss hp sizing)
 
 
 func _check_all_downed() -> void:

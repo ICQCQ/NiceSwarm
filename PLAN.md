@@ -814,3 +814,25 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   <10% is a **playtest call**. The probe over-counts dodgeable AoE, so trust relative change.
   Knobs to tune live are listed in the balance doc. Late-game perf at 300 enemies wants a
   real check. Open as PR off `revamp-weapon-progression`.
+
+### 2026-06-16 — Session 6: DPS-responsive boss HP + level-scaled enemy HP + CC-immune tough enemies (branch `feat/boss-dps-hp`)
+- User (live-steered, off `publish`): boss HP should scale by party level, player count, and
+  the **last-15s average DPS**; base enemy HP should also scale by player level; bosses + tier-3
+  enemies should be immune to pushback (knockback) and suck-in (gravity).
+- **DPS-responsive boss HP:** new pure `GameConfig.boss_hp(tier_floor, recent_dps, level, players)
+  = max(hp0, recent_dps·BOSS_FIGHT_SECONDS) · (1+BOSS_HP_PER_LEVEL·(lvl-1)) · (1+BOSS_HP_PER_PLAYER·
+  (N-1))`. Host tracks party DPS in `spawner` as a 15×1s ring (`add_damage_sample` from
+  `main.add_damage`, advanced in `update_difficulty`); `make_enemy` sizes bosses from it. Floor is
+  the **static** `hp0` (not the difficulty curve) so the three named factors actually drive it.
+  Verified (god-bot sim): boss hp tracks rdps — rises 1397→5633 as rdps 146→413 and *drops* when
+  DPS dips, with `hp0` floor protecting low-DPS spawns. `[boss]` log prints under sim/FF.
+- **Base enemy HP per level:** `ENEMY_HP_PER_LEVEL=0.02` → base enemies ×(1+0.02·(lvl-1)) on top of
+  party-size + difficulty scaling (≈×1.9 by L48).
+- **CC-immune tough enemies:** new `Enemy.knockback_immune` (pushback only — still slowable, unlike
+  `cc_immune`); `make_enemy` sets `knockback_immune`+`pull_immune` for bosses and tier ≥
+  `CC_IMMUNE_TIER` (=2, the 3rd tier). `apply_push` now also checks it.
+- **Verified:** `[tests] 1034 passed, 0 failed` (+8 boss_hp/const asserts); zoo (34 types incl
+  tier-3 + bosses) + god-bot sim clean, no errors. Host-authoritative (enemy hp isn't synced, so
+  client boss bars stay cosmetic — same as all enemies). All knobs tunable in `GameConfig`.
+- **Caveat:** `ENEMY_HP_PER_LEVEL` stacks on the already-hard pass — may need easing after playtest.
+- **Next:** committed on `feat/boss-dps-hp`; PR when the user is ready.

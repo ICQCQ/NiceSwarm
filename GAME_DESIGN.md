@@ -253,8 +253,12 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | `ENEMY_CAP` | 300 | hard live-enemy limit |
 | `DIFF_BASE` | 1/45 | base difficulty climb rate |
 | `ENEMY_SPEED_DIFF_SCALE` / `ENEMY_HP_DIFF_SCALE` | 0.025 / 0.04 | enemy speed/hp ×(1 + diff·this) — break the late-game kite |
+| `ENEMY_HP_PER_LEVEL` | 0.02 | base enemy hp ×(1 + this·(party_level−1)) — tankier as the party levels |
+| `CC_IMMUNE_TIER` | 2 | tier-index ≥ this (the 3rd tier) + bosses resist knockback & gravity suck-in |
+| `BOSS_FIGHT_SECONDS` / `BOSS_DPS_WINDOW` | 8 / 15 s | boss hp ≈ recent_dps·FIGHT (DPS over the last WINDOW s) |
+| `BOSS_HP_PER_LEVEL` / `BOSS_HP_PER_PLAYER` | 0.015 / 0.5 | boss hp ×(1+·(level−1))·(1+·(N−1)) on top of the DPS term |
 | `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); 300-enemy flood late |
-| `SPAWN_RING_MIN` / `_MAX` | 300 / 1200 | spawn-distance band (`SPAWN_SAFE_RADIUS` 500 still clamps the effective min) |
+| `SPAWN_RING_MIN` / `_MAX` / `SPAWN_SAFE_RADIUS` | 300 / 1200 / 250 | spawn-distance band + closest allowed spawn |
 | `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 2.4 / 1.0 / 0.02 | climb accelerators |
 | `DIFF_LEVEL_STEP` | 0.05 | flat difficulty added per level-up |
 | `MID_GAME_TIME` | 300 s | earliest heat-spike arm time |

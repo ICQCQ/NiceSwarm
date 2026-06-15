@@ -27,6 +27,8 @@ const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, to
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
 const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
 const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
+const ENEMY_HP_PER_LEVEL := 0.02       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
 const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
@@ -111,6 +113,21 @@ const DIFF_SPIKE := 1.0          # weight of heat_spike in the difficulty climb
 # --- boss spawns: a tough "boss" class enemy after enough kills ---
 const BOSS_KILL_BASE := 60       # total kills before the first boss
 const BOSS_KILL_INTERVAL := 90   # extra kills required for each subsequent boss
+# Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
+# build. It scales with: the party's recent damage output, party level, and player count.
+const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
+const BOSS_FIGHT_SECONDS := 8.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
+const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
+
+
+## Boss HP from the three factors the design calls for: the party's recent DPS (so the
+## fight scales to the party's actual output), party level, and player count. `tier_floor`
+## is the boss tier's static/difficulty base — a floor so a boss is never trivial when
+## recent DPS is momentarily low. Pure + static, so it's unit-testable without a Main.
+static func boss_hp(tier_floor: float, recent_dps: float, level: int, players: int) -> float:
+	var base := maxf(tier_floor, recent_dps * BOSS_FIGHT_SECONDS)
+	return base * (1.0 + BOSS_HP_PER_LEVEL * (level - 1)) * (1.0 + BOSS_HP_PER_PLAYER * (players - 1))
 
 # --- bouncer: special population, separate from the normal pool/desired_pop ---
 const BOUNCER_UNLOCK := 165.0       # bouncers start appearing at this elapsed time

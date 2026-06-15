@@ -42,3 +42,18 @@ func run(t) -> void:
 	t.gt(GameConfig.BOSS_KILL_BASE, 0, "BOSS_KILL_BASE positive")
 	t.gt(GameConfig.BOSS_KILL_INTERVAL, 0, "BOSS_KILL_INTERVAL positive")
 	t.gt(GameConfig.BOUNCER_UNLOCK, 0.0, "BOUNCER_UNLOCK positive")
+
+	# enemy hp / cc scaling knobs
+	t.gt(GameConfig.ENEMY_HP_PER_LEVEL, 0.0, "ENEMY_HP_PER_LEVEL positive")
+	t.ge(GameConfig.CC_IMMUNE_TIER, 1, "CC_IMMUNE_TIER >= 1")
+
+	# DPS-responsive boss hp (GameConfig.boss_hp)
+	t.gt(GameConfig.BOSS_DPS_WINDOW, 0.0, "BOSS_DPS_WINDOW positive")
+	t.gt(GameConfig.BOSS_FIGHT_SECONDS, 0.0, "BOSS_FIGHT_SECONDS positive")
+	# low DPS -> the tier floor dominates; solo level 1 -> no level/count multipliers
+	t.eq(GameConfig.boss_hp(1000.0, 0.0, 1, 1), 1000.0, "boss_hp floors at tier base when dps is 0")
+	# high DPS -> hp tracks recent_dps * BOSS_FIGHT_SECONDS
+	t.eq(GameConfig.boss_hp(100.0, 500.0, 1, 1), 500.0 * GameConfig.BOSS_FIGHT_SECONDS, "boss_hp scales with recent dps")
+	# party level and player count both raise it
+	t.gt(GameConfig.boss_hp(1000.0, 0.0, 20, 1), 1000.0, "boss_hp rises with party level")
+	t.gt(GameConfig.boss_hp(1000.0, 0.0, 1, 4), GameConfig.boss_hp(1000.0, 0.0, 1, 1), "boss_hp rises with player count")

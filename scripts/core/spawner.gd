@@ -42,6 +42,12 @@ var total_kills := 0
 var boss_count := 0
 var boss_next_kill := 0
 
+# --- party DPS tracker (host-only): a ring of per-second damage buckets over the
+# last BOSS_DPS_WINDOW seconds, so a spawning boss can size its HP to the party's
+# recent damage output. add_damage_sample() feeds it; update_difficulty advances it. ---
+var dps_buckets := PackedFloat32Array()
+var dps_idx := 0
+
 # --- bouncer: a special population, separate from the normal pool/desired_pop,
 # with its own (growing) cap ---
 var bouncer_live := 0
@@ -81,6 +87,9 @@ func reset() -> void:
 	boss_next_kill = GameConfig.BOSS_KILL_BASE
 	bouncer_live = 0
 	bouncer_accum = 0.0
+	dps_buckets = PackedFloat32Array()
+	dps_buckets.resize(maxi(1, int(ceil(GameConfig.BOSS_DPS_WINDOW))))
+	dps_idx = 0
 
 
 ## Dynamic difficulty from clear rate: 0 when you're barely keeping pace with
@@ -120,6 +129,23 @@ func spawn_boss() -> void:
 	spawn_enemy("boss", tier)
 
 
+## Host: feed a damage event into the rolling per-second DPS ring (current bucket).
+func add_damage_sample(amount: float) -> void:
+	if dps_buckets.size() > 0:
+		dps_buckets[dps_idx] += amount
+
+
+## Party damage-per-second averaged over the last BOSS_DPS_WINDOW seconds.
+func recent_dps() -> float:
+	var n := dps_buckets.size()
+	if n == 0:
+		return 0.0
+	var total := 0.0
+	for v in dps_buckets:
+		total += v
+	return total / float(n)
+
+
 ## Leveling up directly raises difficulty.
 func add_level_difficulty() -> void:
 	difficulty += GameConfig.DIFF_LEVEL_STEP * warmup()
@@ -133,6 +159,10 @@ func update_difficulty(delta: float) -> void:
 		clear_ema = lerpf(clear_ema, clear_kills / clear_t, 0.5)
 		clear_kills = 0
 		clear_t = 0.0
+		# advance the per-second party-DPS ring (clear the new current bucket)
+		if dps_buckets.size() > 0:
+			dps_idx = (dps_idx + 1) % dps_buckets.size()
+			dps_buckets[dps_idx] = 0.0
 	var target := clampf((clear_ema - spawn_rate) / (spawn_rate * 2.0 + 1.0), 0.0, 1.0)
 	# Overwhelmed (field packed + barely clearing)? Bleed heat off fast to ease the
 	# difficulty climb and give the struggling player some breathing room.
@@ -269,7 +299,18 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.tier = tier
 	var dl := diff()  # clear-difficulty drives hp/speed/dmg scaling (heat-accelerated)
 	var party: float = 1.0 + GameConfig.PARTY_HP_PER * (main.peer_ids.size() - 1)
-	e.hp = (d.hp0 + dl * d.hpk) * party * (1.0 + dl * GameConfig.ENEMY_HP_DIFF_SCALE)
+	if d.get("boss", false):
+		# Boss hp tracks the party's recent DPS (+ level + count) so it's always a real fight,
+		# never melted by a snowball build. Floor = the static tier base (hp0) so the DPS/level/
+		# count terms — the three factors asked for — drive it, not the time/difficulty curve.
+		e.hp = GameConfig.boss_hp(d.hp0, recent_dps(), main.level, main.peer_ids.size())
+		if Engine.time_scale > 1.0:  # sim/FF: log the boss sizing for balance verification
+			print("[boss] %s tier=%d hp=%d (rdps=%.0f lvl=%d N=%d)" % [d.name, tier, int(e.hp), recent_dps(), main.level, main.peer_ids.size()])
+	else:
+		# Base enemies also get tankier as the party levels (ENEMY_HP_PER_LEVEL), on top of
+		# party-size scaling and the difficulty hp curve.
+		var lvl_hp: float = 1.0 + GameConfig.ENEMY_HP_PER_LEVEL * (main.level - 1)
+		e.hp = (d.hp0 + dl * d.hpk) * party * (1.0 + dl * GameConfig.ENEMY_HP_DIFF_SCALE) * lvl_hp
 	e.speed = (d.spd + dl * d.get("spdk", 0.0)) * (1.0 + dl * GameConfig.ENEMY_SPEED_DIFF_SCALE)
 	e.radius = d.r
 	e.dmg = d.dmg + int(dl / 7.0)  # enemies hit harder as difficulty climbs (was dl/12 — steeper)
@@ -278,8 +319,12 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.elite = d.get("elite", false)
 	e.resist = d.get("resist", 0.0)
 	e.immune_type = d.get("immune", -1)
-	e.pull_immune = d.get("pull_imm", false)
+	# Bosses and tier-3+ enemies resist crowd control: immune to knockback (pushback) and
+	# to gravity-well suck-in, but still slowable (unlike cc_immune which also blocks slow).
+	var cc_tough: bool = d.get("boss", false) or tier >= GameConfig.CC_IMMUNE_TIER
+	e.pull_immune = d.get("pull_imm", false) or cc_tough
 	e.cc_immune = d.get("cc_imm", false)
+	e.knockback_immune = cc_tough
 	e.bullet = d.get("bullet", false)
 	e.burst_count = d.get("burst", 0)
 	e.move_mode = d.get("move", 0)

@@ -33,6 +33,7 @@ var resist := 0.0       # Warden: fraction of every hit shrugged off (0..1)
 var immune_type := -1   # Elemental: takes zero damage of this DMG_* type
 var pull_immune := false # ignores gravity-well yank (tanks/wardens/elites)
 var cc_immune := false  # Bouncer/shards: immune to slow + knockback (can't be interrupted)
+var knockback_immune := false  # bosses/tier-3: immune to knockback push (but still slowable, unlike cc_immune)
 var bullet := false     # shard bullet: indestructible (no group, no collision, take_hit no-op)
 var burst_count := 0    # Burster: enemy bullets sprayed on death (host)
 var shield_cycle := 0.0 # Sentinel: seconds between shield phases (0 = none)
@@ -380,7 +381,7 @@ func apply_slow(mult: float, duration: float) -> void:
 ## Knockback impulse away from from_pos. Used both by take_hit's per-hit
 ## knockback and by nova-family blasts that add an extra "shockwave" push.
 func apply_push(from_pos: Vector2, strength: float) -> void:
-	if cc_immune:  # interrupt-immune enemies can't be knocked back
+	if cc_immune or knockback_immune:  # interrupt-immune or knockback-immune enemies can't be pushed
 		return
 	var kbr := 0.3 if radius >= 20.0 else 1.0
 	knockback += (global_position - from_pos).normalized() * strength * kbr
