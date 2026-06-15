@@ -58,6 +58,19 @@ func send_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 		rpc_run_config.rpc(choices, xp_rate, enemy_scale)
 
 
+# Lobby: a client tells the host its chosen name/color/shape (host relays the
+# merged roster back out via send_lobby_state). No-op offline (nothing to sync).
+func send_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx: int) -> void:
+	if active:
+		rpc_lobby_update.rpc(pid, player_name, color_idx, shape_idx)
+
+
+# Host -> everyone: the full lobby roster (peer_id -> {name, color, shape}).
+func send_lobby_state(roster: Dictionary) -> void:
+	if active:
+		rpc_lobby_state.rpc(roster)
+
+
 func send_start(ids: PackedInt32Array) -> void:
 	if active:
 		rpc_start.rpc(ids)
@@ -147,6 +160,16 @@ func rpc_run_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_start(ids: PackedInt32Array) -> void:
 	main.start_game(Array(ids))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx: int) -> void:
+	main.apply_lobby_update(pid, player_name, color_idx, shape_idx)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_lobby_state(roster: Dictionary) -> void:
+	main.apply_lobby_state(roster)
 
 
 @rpc("any_peer", "call_remote", "unreliable")

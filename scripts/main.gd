@@ -76,6 +76,12 @@ var net_scores: Array = []      # end-game scoreboard rows received by clients
 var local_id := 1
 var auto_start_on_join := false # test hook
 
+# --- lobby (pre-game roster + appearance) ---
+var lobby_players := {}         # peer_id -> {name, color, shape}; synced host<->clients
+var lobby_color_idx := 0        # local player's pending appearance (mirrors lobby_players[local_id])
+var lobby_shape_idx := 0
+var lobby_port := 0             # port we're hosting/connected on, shown in the config column
+
 # --- run config (host sets in the menu, broadcast to all peers at start) ---
 const MAX_CHOICES := GameConfig.MAX_CHOICES
 var cfg_choices := 3            # upgrade options offered per level-up (2..4)
@@ -177,13 +183,19 @@ var ingame_menu_hint: Label      # transient line for stubbed hub tabs
 var countdown_panel: Control     # resume countdown overlay
 var countdown_label: Label
 var menu_panel: Control
+var lobby_panel: Control
+var lobby_status_label: Label
+var lobby_name_edit: LineEdit
+var lobby_preview_label: Label
+var lobby_roster_box: VBoxContainer
+var lobby_config_box: VBoxContainer
+var lobby_start_btn: Button
 var update_check: UpdateCheck
 var update_banner: Control      # menu "a newer build is available" notice (hidden until found)
 var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
 var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
-var start_btn: Button
 var debug_panel: Control
 var debug_god_btn: Button
 var debug_fuse_a: OptionButton
@@ -246,8 +258,9 @@ func nearest_alive_player(pos: Vector2) -> Node2D:
 func _show_menu(message: String) -> void:
 	playing = false
 	menu_panel.visible = true
+	lobby_panel.visible = false
+	lobby_players = {}
 	hud_root.visible = false
-	start_btn.visible = false
 	status_label.text = message
 
 
@@ -294,20 +307,18 @@ func _on_host_pressed() -> void:
 	if err != "":
 		status_label.text = err
 		return
-	var ips := []
-	for a in IP.get_local_addresses():
-		if a.contains(".") and not a.begins_with("127."):
-			ips.append(a)
-	status_label.text = "Hosting on port %d\nYour LAN IP(s): %s\nPlayers: 1 (you)" \
-		% [port, ", ".join(ips) if not ips.is_empty() else "?"]
-	start_btn.visible = true
+	lobby_port = port
+	_show_lobby("Hosting\nPlayers: 1 (you)")
 
 
 func _on_join_pressed() -> void:
 	var port := _menu_port()
 	var err := net.join_game(ip_edit.text.strip_edges(), port)
-	status_label.text = err if err != "" \
-		else "Connecting to %s:%d ..." % [ip_edit.text, port]
+	if err != "":
+		status_label.text = err
+		return
+	lobby_port = port
+	status_label.text = "Connecting to %s:%d ..." % [ip_edit.text, port]
 
 
 func _on_start_pressed() -> void:
@@ -325,23 +336,34 @@ func apply_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
+	if lobby_panel != null and lobby_panel.visible:
+		_refresh_lobby_config_display()
 
 
-func on_peer_connected(_id: int) -> void:
+func on_peer_connected(id: int) -> void:
 	if playing:
 		return
 	if is_host():
-		status_label.text = status_label.text.rsplit("\n", true, 1)[0] \
+		lobby_status_label.text = lobby_status_label.text.rsplit("\n", true, 1)[0] \
 			+ "\nPlayers: %d (you + %d)" % [1 + multiplayer.get_peers().size(),
 				multiplayer.get_peers().size()]
+		if not lobby_players.has(id):
+			var idx := lobby_players.size()
+			lobby_players[id] = {"name": "Player", "color": idx % Player.COLORS.size(),
+				"shape": idx % Player.SHAPES.size()}
+		net.send_lobby_state(lobby_players)
+		_refresh_lobby_roster()
 		if auto_start_on_join:
 			get_tree().create_timer(0.5).timeout.connect(_on_start_pressed)
 
 
 func on_peer_disconnected(id: int) -> void:
 	if not playing:
+		lobby_players.erase(id)
+		_refresh_lobby_roster()
 		if is_host():
-			status_label.text += "\n(a player left)"
+			lobby_status_label.text += "\n(a player left)"
+			net.send_lobby_state(lobby_players)
 		return
 	var p: Player = players.get(id)
 	if p != null:
@@ -356,7 +378,7 @@ func on_peer_disconnected(id: int) -> void:
 
 
 func on_join_ok() -> void:
-	status_label.text = "Connected! Waiting for the host to start..."
+	_show_lobby("Connected! Waiting for the host to start...")
 
 
 func on_join_failed() -> void:
@@ -370,6 +392,192 @@ func on_server_disconnected() -> void:
 	_show_menu("Host disconnected.")
 
 
+# --- lobby (pre-game roster + appearance) ------------------------------------
+
+## Shows the lobby panel (roster + appearance picker + game config) after a
+## successful host/join. `status` is the connection-state line shown at top.
+func _show_lobby(status: String) -> void:
+	menu_panel.visible = false
+	lobby_panel.visible = true
+	hud_root.visible = false
+	local_id = multiplayer.get_unique_id()
+	if not lobby_players.has(local_id):
+		var idx := lobby_players.size()
+		lobby_players[local_id] = {"name": "Player", "color": idx % Player.COLORS.size(),
+			"shape": idx % Player.SHAPES.size()}
+	var info: Dictionary = lobby_players[local_id]
+	lobby_color_idx = int(info.get("color", 0))
+	lobby_shape_idx = int(info.get("shape", 0))
+	lobby_name_edit.text = String(info.get("name", "Player"))
+	lobby_status_label.text = status
+	lobby_start_btn.visible = is_host()
+	_refresh_lobby_appearance_preview()
+	_refresh_lobby_roster()
+	_refresh_lobby_config_display()
+	if net.active and not is_host():
+		net.send_lobby_update(local_id, lobby_name_edit.text, lobby_color_idx, lobby_shape_idx)
+
+
+## Local player edited their name/color/shape: store it, refresh our own UI, and
+## sync — clients ask the host to relay; the host rebroadcasts the full roster.
+func _on_lobby_appearance_changed() -> void:
+	var player_name := lobby_name_edit.text.strip_edges().left(16)
+	if player_name == "":
+		player_name = "Player"
+	lobby_name_edit.text = player_name
+	lobby_players[local_id] = {"name": player_name, "color": lobby_color_idx, "shape": lobby_shape_idx}
+	_refresh_lobby_appearance_preview()
+	_refresh_lobby_roster()
+	if not net.active:
+		return
+	if is_host():
+		net.send_lobby_state(lobby_players)
+	else:
+		net.send_lobby_update(local_id, player_name, lobby_color_idx, lobby_shape_idx)
+
+
+func _on_lobby_color_pressed() -> void:
+	lobby_color_idx = (lobby_color_idx + 1) % Player.COLORS.size()
+	_on_lobby_appearance_changed()
+
+
+func _on_lobby_shape_pressed() -> void:
+	lobby_shape_idx = (lobby_shape_idx + 1) % Player.SHAPES.size()
+	_on_lobby_appearance_changed()
+
+
+func _on_lobby_leave_pressed() -> void:
+	net.leave()
+	_show_menu("")
+
+
+## Client/host -> host: a peer's appearance changed. Host merges it into the
+## roster and rebroadcasts the full roster to everyone (incl. the sender).
+func apply_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx: int) -> void:
+	lobby_players[pid] = {"name": player_name, "color": color_idx, "shape": shape_idx}
+	_refresh_lobby_roster()
+	if is_host():
+		net.send_lobby_state(lobby_players)
+
+
+## Host -> everyone: replace our view of the lobby roster.
+func apply_lobby_state(roster: Dictionary) -> void:
+	lobby_players = roster.duplicate(true)
+	if lobby_players.has(local_id):
+		var info: Dictionary = lobby_players[local_id]
+		lobby_color_idx = int(info.get("color", lobby_color_idx))
+		lobby_shape_idx = int(info.get("shape", lobby_shape_idx))
+		if lobby_name_edit != null and not lobby_name_edit.has_focus():
+			lobby_name_edit.text = String(info.get("name", lobby_name_edit.text))
+	_refresh_lobby_appearance_preview()
+	_refresh_lobby_roster()
+
+
+func _refresh_lobby_appearance_preview() -> void:
+	if lobby_preview_label == null:
+		return
+	var shape: String = Player.SHAPES[lobby_shape_idx % Player.SHAPES.size()]
+	lobby_preview_label.text = Player.SHAPE_GLYPHS.get(shape, "*")
+	lobby_preview_label.add_theme_color_override("font_color",
+		Player.COLORS[lobby_color_idx % Player.COLORS.size()])
+
+
+func _refresh_lobby_roster() -> void:
+	if lobby_roster_box == null:
+		return
+	for c in lobby_roster_box.get_children():
+		c.queue_free()
+	var pids := lobby_players.keys()
+	pids.sort()
+	for pid in pids:
+		var info: Dictionary = lobby_players[pid]
+		var shape: String = Player.SHAPES[int(info.get("shape", 0)) % Player.SHAPES.size()]
+		var tag := "  [HOST]" if pid == 1 else ""
+		var row := PanelContainer.new()
+		if pid == local_id:  # highlight your own row instead of an inline "(you)" tag
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(1.0, 1.0, 1.0, 0.12)
+			sb.set_corner_radius_all(6)
+			sb.content_margin_left = 8.0
+			sb.content_margin_right = 8.0
+			sb.content_margin_top = 2.0
+			sb.content_margin_bottom = 2.0
+			row.add_theme_stylebox_override("panel", sb)
+		var l := Label.new()
+		l.text = "%s  %s%s" % [Player.SHAPE_GLYPHS.get(shape, "*"), info.get("name", "Player"), tag]
+		l.add_theme_font_size_override("font_size", 20)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.add_theme_color_override("font_color",
+			Player.COLORS[int(info.get("color", 0)) % Player.COLORS.size()])
+		row.add_child(l)
+		lobby_roster_box.add_child(row)
+
+
+## Host: editable cyclers that broadcast on change. Clients: read-only labels,
+## refreshed whenever apply_config() receives the host's current values.
+func _refresh_lobby_config_display() -> void:
+	if lobby_config_box == null:
+		return
+	for c in lobby_config_box.get_children():
+		c.queue_free()
+	_make_config_label(lobby_config_box, "Port", str(lobby_port))
+	if is_host():
+		_make_lobby_cycler(lobby_config_box, "Options / level-up", str(CHOICES_OPTS[cfg_choices_i]), func():
+			cfg_choices_i = (cfg_choices_i + 1) % CHOICES_OPTS.size()
+			_apply_menu_config()
+			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "XP rate", str(XP_OPTS[cfg_xp_i]) + "x", func():
+			cfg_xp_i = (cfg_xp_i + 1) % XP_OPTS.size()
+			_apply_menu_config()
+			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Enemy scale", str(SCALE_OPTS[cfg_scale_i]) + "x", func():
+			cfg_scale_i = (cfg_scale_i + 1) % SCALE_OPTS.size()
+			_apply_menu_config()
+			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_refresh_lobby_config_display())
+	else:
+		_make_config_label(lobby_config_box, "Options / level-up", str(cfg_choices))
+		_make_config_label(lobby_config_box, "XP rate", str(cfg_xp_rate) + "x")
+		_make_config_label(lobby_config_box, "Enemy scale", str(cfg_enemy_scale) + "x")
+
+
+func _make_lobby_cycler(parent: Node, label: String, text: String, on_press: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", 18)
+	l.custom_minimum_size = Vector2(220, 38)
+	row.add_child(l)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(132, 38)
+	b.add_theme_font_size_override("font_size", 18)
+	b.text = text
+	b.pressed.connect(on_press)
+	row.add_child(b)
+
+
+func _make_config_label(parent: Node, label: String, value: String) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", 18)
+	l.custom_minimum_size = Vector2(220, 38)
+	row.add_child(l)
+	var v := Label.new()
+	v.text = value
+	v.add_theme_font_size_override("font_size", 18)
+	v.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	row.add_child(v)
+
+
 func start_game(ids: Array) -> void:
 	ids.sort()
 	peer_ids = ids
@@ -378,6 +586,7 @@ func start_game(ids: Array) -> void:
 	_build_world()
 	playing = true
 	menu_panel.visible = false
+	lobby_panel.visible = false
 	hud_root.visible = true
 	_apply_fast_forward()
 	if OS.get_environment("NICESWARM_NET") != "":
@@ -467,7 +676,10 @@ func _build_world() -> void:
 		var p := Player.new()
 		p.name = "Player_%d" % pid
 		p.peer_id = pid
-		p.color_idx = i
+		var info: Dictionary = lobby_players.get(pid, {})
+		p.color_idx = int(info.get("color", i)) % Player.COLORS.size()
+		p.shape_idx = int(info.get("shape", 0)) % Player.SHAPES.size()
+		p.player_name = String(info.get("name", "Player"))
 		p.is_local = pid == local_id
 		p.arena = ARENA
 		p.position = Vector2.from_angle(TAU * i / maxi(peer_ids.size(), 1)) * 60.0
@@ -1629,9 +1841,9 @@ func _update_hud() -> void:
 		if p == null:
 			continue
 		if p.downed:
-			lines.append("P%d  DOWN %d%%" % [p.color_idx + 1, int(p.revive_progress * 100.0)])
+			lines.append("%s  DOWN %d%%" % [p.player_name, int(p.revive_progress * 100.0)])
 		else:
-			lines.append("P%d  ♥%d/%d" % [p.color_idx + 1, p.hp, p.max_hp])
+			lines.append("%s  ♥%d/%d" % [p.player_name, p.hp, p.max_hp])
 	allies_label.text = "\n".join(lines)
 
 
@@ -1708,6 +1920,7 @@ func _build_ui() -> void:
 	_build_ingame_menu_panel()
 	_build_countdown_panel()
 	_build_menu()
+	_build_lobby_panel()
 	if OS.is_debug_build():
 		_build_debug_panel()
 
@@ -2192,16 +2405,126 @@ func _build_menu() -> void:
 	_make_cycler(vbox, "Enemy scale", func(): return str(SCALE_OPTS[cfg_scale_i]) + "x",
 		func(): cfg_scale_i = (cfg_scale_i + 1) % SCALE_OPTS.size())
 
-	start_btn = Button.new()
-	start_btn.text = "Start Game"
-	start_btn.custom_minimum_size = Vector2(360, 52)
-	start_btn.add_theme_font_size_override("font_size", 22)
-	start_btn.visible = false
-	start_btn.pressed.connect(_on_start_pressed)
-	vbox.add_child(start_btn)
-
 	status_label = Label.new()
 	status_label.add_theme_font_size_override("font_size", 18)
 	status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(status_label)
+
+
+## Shown after a successful host/join, before the run starts: connection status,
+## your name/color/shape, the roster of everyone in the session, the host's game
+## config (read-only for clients, live-editable for the host), and start/leave.
+func _build_lobby_panel() -> void:
+	var parts := _make_overlay()
+	lobby_panel = parts[0]
+	lobby_panel.visible = false
+	var vbox: VBoxContainer = parts[1]
+
+	var title := Label.new()
+	title.text = "LOBBY"
+	title.add_theme_font_size_override("font_size", 48)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	lobby_status_label = Label.new()
+	lobby_status_label.add_theme_font_size_override("font_size", 18)
+	lobby_status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
+	lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lobby_status_label)
+
+	# Two columns: left (appearance + roster) expands to fill, right (config)
+	# shrinks to fit its content. custom_minimum_size on `columns` gives the
+	# left column extra width to expand into beyond its own natural minimum.
+	var columns := HBoxContainer.new()
+	columns.custom_minimum_size = Vector2(900, 0)
+	columns.add_theme_constant_override("separation", 24)
+	vbox.add_child(columns)
+
+	var left := VBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 16)
+	columns.add_child(left)
+
+	var you_head := Label.new()
+	you_head.text = "YOUR APPEARANCE"
+	you_head.add_theme_font_size_override("font_size", 18)
+	you_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	you_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left.add_child(you_head)
+
+	var you_row := HBoxContainer.new()
+	you_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	you_row.add_theme_constant_override("separation", 8)
+	left.add_child(you_row)
+
+	lobby_preview_label = Label.new()
+	lobby_preview_label.custom_minimum_size = Vector2(48, 44)
+	lobby_preview_label.add_theme_font_size_override("font_size", 32)
+	lobby_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lobby_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	you_row.add_child(lobby_preview_label)
+
+	lobby_name_edit = LineEdit.new()
+	lobby_name_edit.custom_minimum_size = Vector2(220, 44)
+	lobby_name_edit.add_theme_font_size_override("font_size", 20)
+	lobby_name_edit.max_length = 16
+	lobby_name_edit.text_submitted.connect(func(_t): _on_lobby_appearance_changed())
+	lobby_name_edit.focus_exited.connect(_on_lobby_appearance_changed)
+	you_row.add_child(lobby_name_edit)
+
+	var color_btn := Button.new()
+	color_btn.text = "Color"
+	color_btn.custom_minimum_size = Vector2(90, 44)
+	color_btn.add_theme_font_size_override("font_size", 18)
+	color_btn.pressed.connect(_on_lobby_color_pressed)
+	you_row.add_child(color_btn)
+
+	var shape_btn := Button.new()
+	shape_btn.text = "Shape"
+	shape_btn.custom_minimum_size = Vector2(90, 44)
+	shape_btn.add_theme_font_size_override("font_size", 18)
+	shape_btn.pressed.connect(_on_lobby_shape_pressed)
+	you_row.add_child(shape_btn)
+
+	var players_head := Label.new()
+	players_head.text = "PLAYERS"
+	players_head.add_theme_font_size_override("font_size", 18)
+	players_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	players_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left.add_child(players_head)
+
+	lobby_roster_box = VBoxContainer.new()
+	lobby_roster_box.add_theme_constant_override("separation", 4)
+	left.add_child(lobby_roster_box)
+
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 4)
+	columns.add_child(right)
+
+	var config_head := Label.new()
+	config_head.text = "GAME CONFIG"
+	config_head.add_theme_font_size_override("font_size", 18)
+	config_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	config_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right.add_child(config_head)
+
+	lobby_config_box = VBoxContainer.new()
+	lobby_config_box.add_theme_constant_override("separation", 4)
+	right.add_child(lobby_config_box)
+
+	lobby_start_btn = Button.new()
+	lobby_start_btn.text = "Start Game"
+	lobby_start_btn.custom_minimum_size = Vector2(360, 52)
+	lobby_start_btn.add_theme_font_size_override("font_size", 22)
+	lobby_start_btn.visible = false
+	lobby_start_btn.pressed.connect(_on_start_pressed)
+	vbox.add_child(lobby_start_btn)
+
+	var leave_btn := Button.new()
+	leave_btn.text = "Leave Lobby"
+	leave_btn.custom_minimum_size = Vector2(360, 52)
+	leave_btn.add_theme_font_size_override("font_size", 22)
+	leave_btn.pressed.connect(_on_lobby_leave_pressed)
+	vbox.add_child(leave_btn)

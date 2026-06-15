@@ -13,10 +13,19 @@ const DASH_SPEED_MULT := 3.4
 const COLORS: Array[Color] = [
 	Color(0.45, 0.9, 1.0), Color(0.5, 1.0, 0.6),
 	Color(1.0, 0.85, 0.4), Color(1.0, 0.55, 0.8),
+	Color(0.7, 0.55, 1.0), Color(1.0, 0.6, 0.3),
 ]
+# Player avatar silhouettes (lobby-selectable). Names match the glyphs the lobby
+# UI shows in the roster/appearance preview.
+const SHAPES: Array[String] = ["circle", "square", "triangle", "diamond", "star"]
+const SHAPE_GLYPHS := {
+	"circle": "●", "square": "■", "triangle": "▲", "diamond": "◆", "star": "★",
+}
 
 var peer_id := 1
 var color_idx := 0
+var shape_idx := 0
+var player_name := "Player"
 var is_local := true
 var arena := Rect2(-1200, -1200, 2400, 2400)
 
@@ -276,6 +285,29 @@ func gain_vitality() -> void:
 	health_changed.emit(hp, max_hp)
 
 
+## Draws a player avatar silhouette (circle/square/triangle/diamond/star),
+## shared by the in-world Player and the lobby's appearance preview/roster.
+static func draw_shape(node: CanvasItem, shape_idx_: int, radius: float, col: Color,
+		center: Vector2 = Vector2.ZERO) -> void:
+	var shape: String = SHAPES[shape_idx_ % SHAPES.size()]
+	match shape:
+		"square", "diamond", "triangle":
+			var n := 3 if shape == "triangle" else 4
+			var a0 := -PI / 2.0 + (PI / 4.0 if shape == "square" else 0.0)
+			var pts := PackedVector2Array()
+			for i in n:
+				pts.append(center + Vector2.from_angle(a0 + TAU * i / n) * radius)
+			node.draw_colored_polygon(pts, col)
+		"star":
+			var pts := PackedVector2Array()
+			for i in 10:
+				var r := radius if i % 2 == 0 else radius * 0.45
+				pts.append(center + Vector2.from_angle(-PI / 2.0 + TAU * i / 10.0) * r)
+			node.draw_colored_polygon(pts, col)
+		_:
+			node.draw_circle(center, radius, col)
+
+
 func _draw() -> void:
 	var body := COLORS[color_idx % COLORS.size()]
 	if downed:
@@ -291,11 +323,11 @@ func _draw() -> void:
 			col = col.lightened(0.5)
 		elif invuln > 0.0 and fmod(invuln, 0.2) > 0.1:
 			col.a = 0.35
-		draw_circle(Vector2.ZERO, RADIUS, col)
+		Player.draw_shape(self, shape_idx, RADIUS, col)
 		draw_circle(Vector2.ZERO, RADIUS * 0.45, Color(0.1, 0.25, 0.4))
 		if disrupt_timer > 0.0:  # disrupted: a jittery purple ring
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
 	if not is_local:
-		draw_string(ThemeDB.fallback_font, Vector2(-12.0, -RADIUS - 10.0),
-			"P%d" % (color_idx + 1), HORIZONTAL_ALIGNMENT_CENTER, 24.0, 13, body)
+		draw_string(ThemeDB.fallback_font, Vector2(-60.0, -RADIUS - 10.0),
+			player_name, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 13, body)
