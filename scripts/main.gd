@@ -2404,17 +2404,12 @@ func begin_resume_countdown_remote() -> void:
 
 
 func _begin_resume_countdown(on_complete: Callable) -> void:
-	# Headless / fast-forward: no UI and no 2s stall (keeps smoke tests + FF fast).
-	# Solo: no "get ready" beat — the player paused themselves, so resume instantly.
-	if DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0 or is_solo():
-		if on_complete.is_valid():
-			on_complete.call()
-		return
-	_countdown_done = on_complete
-	countdown_time = RESUME_COUNTDOWN
-	countdown_label.text = str(int(ceil(RESUME_COUNTDOWN)))
-	countdown_panel.visible = true
-	Sfx.play("clock")
+	# No resume countdown — resume immediately and just play an alert cue so everyone
+	# knows the world is live again. (Headless/FF: silent + instant, keeps tests fast.)
+	if not (DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0):
+		Sfx.play("alert")
+	if on_complete.is_valid():
+		on_complete.call()
 
 
 func _tick_countdown(delta: float) -> void:
