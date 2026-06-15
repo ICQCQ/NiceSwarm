@@ -24,6 +24,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # CI builds bypass build.ps1, so stamp the short commit id into BuildVersion the same
+      # way build.ps1 does — otherwise the exe ships the committed "dev" placeholder. Bare SHA,
+      # no -dirty marker: a fresh checkout is clean, and core.autocrlf=true on windows-latest
+      # would otherwise flag every build dirty. Replace only the COMMIT line so commit_label()
+      # is preserved.
+      - name: Stamp build commit into BuildVersion
+        shell: pwsh
+        run: |
+          $commit = (git rev-parse --short HEAD)
+          $bvFile = "scripts/config/build_version.gd"
+          (Get-Content $bvFile -Raw) -replace 'const COMMIT := "[^"]*"', "const COMMIT := `"$commit`"" |
+            Set-Content -Path $bvFile -NoNewline -Encoding ascii
+          Write-Host "Build commit: $commit"
+          Get-Content $bvFile
+
       # Installs the Godot editor + matching export templates. GDScript-only project,
       # so the non-.NET build is used. Bump `version` in lockstep with project.godot.
       - name: Set up Godot 4.6
