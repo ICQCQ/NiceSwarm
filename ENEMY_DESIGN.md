@@ -115,8 +115,10 @@ and only ever rising:
   climbs at the *same base rate as pace*, but accelerated by heat, a heat *spike*, and
   party level: `DIFF_BASE · warmup · (1 + heat·2.4 + heat_spike·1.0 + (level−1)·0.05)`
   — so **clearing fast and leveling up both push difficulty ahead of pace** (tougher
-  monsters, same variety/pop). Shown on the HUD as `DIFFICULTY x.x` + a bar, synced to
-  clients.
+  monsters, same variety/pop). Surfaced on the HUD as the named `THREAT` readout — a
+  color-coded tier (CALM → RISING → DANGER → DEADLY → NIGHTMARE, from `THREAT_TIERS`)
+  with a bar and a `▲ rising`/`▲▲ SURGING` note when heat is accelerating the climb;
+  synced to clients. The tier names are display-only and don't affect balance.
 
 **Heat** (`EnemySpawner.heat()`, 0..1) is the clear-rate accelerator feeding difficulty:
 `clamp((kills/sec EMA − spawns/sec) / (spawns/sec·2 + 1), 0, 1)` — clear at the spawn
