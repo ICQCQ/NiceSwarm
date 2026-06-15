@@ -463,7 +463,9 @@ func _draw() -> void:
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)
 	if burn_timer > 0.0:
-		c = c.lerp(Color(1.0, 0.45, 0.1), 0.55)
+		# bright yellow-white, not orange: enemy bodies now sit in the warm band, so an
+		# orange burn tint would vanish on red/orange enemies — this still pops on them.
+		c = c.lerp(Color(1.0, 0.8, 0.3), 0.55)
 	_draw_body(Color.WHITE if flash > 0.0 else c)
 	if burn_timer > 0.0:  # flickering embers — driven by global time, no per-enemy state
 		var t := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.07

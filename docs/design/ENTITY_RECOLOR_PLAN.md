@@ -1,6 +1,7 @@
 # Entity Recolor Plan — Enemy-vs-Player Color Psychology
 
-**Status:** proposal (Phase 1 = this plan + preview image; Phase 2 = the edits, not yet applied).
+**Status:** implemented — Phase 2 edits applied (player `COLORS`, 15 enemy `col`, condensed
+XP gem, burn tint). Verified: headless import clean, `run_tests.gd` 1059 passed / 0 failed.
 **Preview:** [`entity_recolor_before_after.png`](entity_recolor_before_after.png) — rendered by
 [`render_entity_recolor.py`](render_entity_recolor.py), a faithful PIL replica of every
 Godot `_draw()` (silhouettes, `_muted()` HSV, overlay rings, the dark-blue arena backdrop).
@@ -133,12 +134,12 @@ Pushing bodies warm can collapse the **warm overlays** layered on top. Flagged f
 
 ---
 
-## Phase 2 — edits (on approval)
+## Phase 2 — edits (applied ✅)
 
-1. `scripts/core/player.gd:14-18` — replace `P3/P4/P5` in `COLORS`.
-2. `scripts/config/enemy_config.gd` — 15 `"col"` edits per the enemy table above.
-3. `scripts/world/xp_gem.gd:46-47` — condensed gem → gold body + white core.
-4. *(optional, fixes risk #1)* `scripts/enemies/enemy.gd:466` — warmer-but-brighter burn tint.
+1. ✅ `scripts/core/player.gd` — replaced `P3/P4/P5` in `COLORS` (pink/purple/orange → aqua/azure/chartreuse).
+2. ✅ `scripts/config/enemy_config.gd` — 15 `"col"` recolors per the enemy table above.
+3. ✅ `scripts/world/xp_gem.gd` — condensed gem → gold body + white core.
+4. ✅ `scripts/enemies/enemy.gd` — burn tint → bright yellow-white (risk #1 fix).
 
 ### Test plan
 - `godot --headless --path . --import` then `--script res://tests/run_tests.gd` (no color
