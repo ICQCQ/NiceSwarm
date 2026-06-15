@@ -100,6 +100,17 @@ static func info(a: String, b: String) -> Dictionary:
 	return INFO.get(key(a, b), {})
 
 
+## Fusion depth cap. Merging two weapons of tiers (ta, tb) yields a weapon of
+## tier max(ta, tb) + 1. can_merge is true only while that result stays within
+## GameConfig.MAX_FUSION_TIER, so a final-tier fusion can never be merged again.
+static func merged_tier(ta: int, tb: int) -> int:
+	return maxi(ta, tb) + 1
+
+
+static func can_merge(ta: int, tb: int) -> bool:
+	return merged_tier(ta, tb) <= GameConfig.MAX_FUSION_TIER
+
+
 static func make(a: String, b: String) -> WeaponBase:
 	match key(a, b):
 		"bolt|nova": return PlasmaBurst.new()

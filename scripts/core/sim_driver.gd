@@ -15,6 +15,8 @@ var age_sum := 0.0       # sum of enemy ages at death -> average time-to-kill
 
 # --- NICESWARM_FF state ---
 var ff_min := -1         # last game-minute printed during a fast-forward run
+var ff_lethal_prev := 0.0  # cumulative party lethal_taken at the last per-minute print
+var god_mode := false    # NICESWARM_SIM god=1: bots immortal so they reach the late game (lethality probe)
 
 # Headless playstyle sims (NICESWARM_SIM): each style = priority weapons to learn/level
 # toward, plus the fusion to aim for. pick_for follows this when auto-resolving level-ups.
@@ -56,8 +58,11 @@ func start() -> void:
 	for i in n:
 		ids.append(i + 1)
 	main.start_game(ids)
+	god_mode = cfg.get("god", "0") == "1"
 	for pid in main.players:
 		main.players[pid].bot = true  # host drives every player as a kiting bot
+		if god_mode:
+			main.players[pid].debug_god = true  # immortal kiter: reaches 10:00, lethal_taken tallies the would-be damage
 	Engine.time_scale = ff
 	# Effectively uncap physics steps/frame so heavy late-game frames never under-simulate
 	# (time-dilate) and skew the result; when the CPU can't keep up the run just stretches in
@@ -143,8 +148,8 @@ func score(c: Dictionary, prio: Array, fuse: Array) -> float:
 func report_end(won: bool, elapsed_: float, level_: int, kills_: int) -> bool:
 	if active:
 		var ttk := age_sum / float(maxi(kills_, 1))
-		print("[sim] style=%s party=%d seed=%d result=%s time=%.1f diff=%.1f level=%d kills=%d ttk=%.2f" \
-			% [style, main.peer_ids.size(), seed_val, ("WIN" if won else "DEAD"), elapsed_, main.spawner.diff(), level_, kills_, ttk])
+		print("[sim] style=%s party=%d seed=%d result=%s time=%.1f diff=%.1f level=%d kills=%d ttk=%.2f lethal=%.0f%s" \
+			% [style, main.peer_ids.size(), seed_val, ("WIN" if won else "DEAD"), elapsed_, main.spawner.diff(), level_, kills_, ttk, _party_lethal(), (" GOD" if god_mode else "")])
 		main.get_tree().quit(0)
 		return true
 	if Engine.time_scale > 1.0:  # NICESWARM_FF: final calibration line, then drop the clock back
@@ -152,6 +157,17 @@ func report_end(won: bool, elapsed_: float, level_: int, kills_: int) -> bool:
 			% [str(won), elapsed_ / 60.0, level_, kills_, main.gems_by_id.size()])
 		Engine.time_scale = 1.0
 	return false
+
+
+## Sum of would-be damage every player has eaten (lethal_taken). Only meaningful with
+## immortal players (god/FF) — the late-game incoming-DPS-to-a-5HP-player probe.
+func _party_lethal() -> float:
+	var total := 0.0
+	for pid in main.players:
+		var p = main.players[pid]
+		if is_instance_valid(p):
+			total += p.lethal_taken
+	return total
 
 
 # --- NICESWARM_FF: fast-forward instrumentation -----------------------------
@@ -183,8 +199,10 @@ func ff_minute_log() -> void:
 	if m == ff_min:
 		return
 	ff_min = m
-	print("[ff] min=%d level=%d xp_need=%d gems=%d enemies=%d diff=%.1f" \
-		% [m, main.level, main._xp_needed(), main.gems_by_id.size(), main.enemies_by_id.size(), main.spawner.difficulty])
+	var lethal_now := _party_lethal()
+	print("[ff] min=%d level=%d xp_need=%d gems=%d enemies=%d diff=%.1f lethal/min=%.0f (5hp player)" \
+		% [m, main.level, main._xp_needed(), main.gems_by_id.size(), main.enemies_by_id.size(), main.spawner.difficulty, lethal_now - ff_lethal_prev])
+	ff_lethal_prev = lethal_now
 	var p0 = main.players.get(1)
 	if p0 != null and is_instance_valid(p0):
 		var wl := PackedStringArray()

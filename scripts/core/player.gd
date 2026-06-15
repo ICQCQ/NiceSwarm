@@ -34,7 +34,8 @@ var arena := Rect2(-1200, -1200, 2400, 2400)
 var max_hp := 5
 var hp := 5
 var move_speed := 220.0
-var damage_mult := 1.0   # Power
+var power_stat := 1.0     # Power from upgrade picks (st_power); the base for damage_mult
+var damage_mult := 1.0   # Power — derived each frame: power_stat * party-level scaling (see _physics_process)
 var rate_mult := 1.0     # Haste — lower = faster firing
 var area_mult := 1.0     # Area — AoE radii, reach, projectile size
 var duration_mult := 1.0 # Duration — lifetimes of summons/trails/projectiles
@@ -45,6 +46,7 @@ var stat_levels := {}    # stat-upgrade id ("st_power"…) -> times picked, for 
 var facing := Vector2.RIGHT
 var invuln := 0.0
 var shake := 0.0
+var lethal_taken := 0.0  # FF lethality instrument: would-be damage eaten while debug_god (see take_damage)
 var dash_timer := 0.0   # cooldown remaining
 var dash_active := 0.0  # dash duration remaining
 var dash_dir := Vector2.ZERO
@@ -98,6 +100,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Weapon base power scales with party level on top of Power picks + per-weapon
+	# levels. Recomputed before any early-return so bots/puppets stay current; runs
+	# before child weapons' _physics_process (parent-first tree order) so they read
+	# the fresh value the same frame.
+	if Main.instance != null:
+		damage_mult = power_stat * (1.0 + GameConfig.WEAPON_LEVEL_POWER * (Main.instance.level - 1))
 	invuln = maxf(invuln - delta, 0.0)
 	queue_redraw()
 	if downed:
@@ -316,9 +324,11 @@ func nearest_enemy(max_range: float) -> Node2D:
 func take_damage(amount: int) -> void:
 	if hp <= 0 or downed:
 		return
-	if debug_god or safe or disconnected:
-		return
 	if invuln > 0.0 or dash_active > 0.0 or remote_dashing:
+		return  # i-frames / dash block the hit (real or god) — no behavioral change vs before
+	if debug_god or safe or disconnected:
+		if debug_god:
+			lethal_taken += amount  # FF lethality instrument: damage a mortal would have eaten here
 		return
 	hp -= amount
 	invuln = 0.9
@@ -350,8 +360,12 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 	var b := get_weapon(id_b)
 	if a == null or b == null or a == b:
 		return
+	if not Fusions.can_merge(a.tier, b.tier):
+		return  # a final-tier fusion can't be merged further (no T3+)
+	var new_tier := Fusions.merged_tier(a.tier, b.tier)
 	var sig := Fusions.make(id_a, id_b)
 	if sig != null:
+		sig.tier = new_tier
 		weapons.erase(a)
 		weapons.erase(b)
 		a.queue_free()
@@ -369,6 +383,7 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 		else:
 			parts.append(w)
 	var f := WeaponFused.new()
+	f.tier = new_tier
 	add_child(f)
 	f.setup(parts)  # re-parents components out of any old shells
 	weapons.append(f)

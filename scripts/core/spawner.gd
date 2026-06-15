@@ -187,6 +187,7 @@ func run_spawning(delta: float) -> void:
 	var t := clampf(main.elapsed / 540.0, 0.0, 1.0)
 	var interval: float = lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + GameConfig.PARTY_RATE_PER * (main.peer_ids.size() - 1))
 	interval /= maxf(wave_intensity(), 0.1)  # wave peak = faster spawns, valley = slower
+	interval /= warmup()  # early-game brake: ramp the (5x) spawn rate in over ~80s so the opening is survivable, not an instant 300-enemy flood on a level-1 player
 	# keep the arena populated: if the player clears faster than enemies arrive,
 	# ramp spawns to refill toward a target population. The target starts small
 	# (calm opening) and grows with pace (time only — doesn't spike for a fast party).
@@ -268,10 +269,10 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.tier = tier
 	var dl := diff()  # clear-difficulty drives hp/speed/dmg scaling (heat-accelerated)
 	var party: float = 1.0 + GameConfig.PARTY_HP_PER * (main.peer_ids.size() - 1)
-	e.hp = (d.hp0 + dl * d.hpk) * party
-	e.speed = d.spd + dl * d.get("spdk", 0.0)
+	e.hp = (d.hp0 + dl * d.hpk) * party * (1.0 + dl * GameConfig.ENEMY_HP_DIFF_SCALE)
+	e.speed = (d.spd + dl * d.get("spdk", 0.0)) * (1.0 + dl * GameConfig.ENEMY_SPEED_DIFF_SCALE)
 	e.radius = d.r
-	e.dmg = d.dmg + int(dl / 12.0)  # enemies hit harder as difficulty climbs
+	e.dmg = d.dmg + int(dl / 7.0)  # enemies hit harder as difficulty climbs (was dl/12 — steeper)
 	e.xp_value = d.xp
 	e.color = d.col
 	e.elite = d.get("elite", false)

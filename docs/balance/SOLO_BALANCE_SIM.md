@@ -72,3 +72,48 @@ For reference, the only enemy multipliers that scale with player count `N` (`spa
 - Enemy **HP** `x (1 + 0.5*(N-1))` -> 1.0/1.5/2.0/2.5 for N=1-4.
 - Spawn **density** `x (1 + 0.6*(N-1))` -> 1.0/1.6/2.2/2.8.
 - Enemy **damage** and **speed** do **not** scale with N (only with difficulty).
+
+---
+
+## Hard-difficulty pass (target: skilled-player win rate < 10%)
+
+The 50-60% target above was deliberately retired: the game was too easy for a skilled
+player. Two problems showed up under measurement and drove this pass.
+
+### The bot sweep can't see the late game
+The kiting bot is a *below-average* player and now dies in the **mid-game (~3-4 min,
+level ~9)** on every build — the sweep is **saturated near 0% win** and is **blind to the
+level-20-45 / minute-4-10 window** where a skilled human actually lives. So the mortal
+sweep is only a *relative mid-game* signal here, not the calibration target.
+
+### The lethality probe (the late-game instrument)
+`NICESWARM_SIM="...,god=1"` runs the kiting bot **immortal** (`debug_god`) so it reaches
+10:00, and `player.take_damage` tallies the damage that *would* have landed (i-frame- and
+dash-respected) into `lethal_taken`. The per-minute `[ff] lethal/min` line is then the
+**incoming-damage-to-a-5HP-player curve** for the late game. It exposed the real "too easy":
+once a build comes online (~min 7) the player out-runs and out-DPSes the capped swarm, so
+**late-game incoming damage was 0** — a free snowball. (Caveat: this counts AoE a skilled
+player dodges, so trust the *relative* change minute-to-minute, and weight contact/density
+over telegraph AoE.)
+
+### The changes (all in `GameConfig` unless noted)
+Breaking the snowball needed enemies that can **catch and survive** against a high-DPS kiter,
+plus a denser field and slower player power-curve:
+- **Density:** `ENEMY_CAP` 220->300, spawn interval 5x faster (`SPAWN_INTERVAL_START/_END`
+  1.4/0.2 -> 0.2/0.024) **ramped in over `DIFF_WARMUP_SECS` (80->130 s)** so the opening is
+  survivable, not an instant 300-enemy flood; `SPAWN_DESIRED_*` up; `SPAWN_RING_MIN/_MAX`
+  300/1200 with `SPAWN_SAFE_RADIUS` 250 (enemies spawn as close as ~300 px).
+- **Late-game lethality:** `DIFF_BASE` 1/62->1/45; `ENEMY_SPEED_DIFF_SCALE` 0.025 +
+  `ENEMY_HP_DIFF_SCALE` 0.04 in `spawner.make_enemy` (late enemies ~match player speed and
+  survive the alpha strike); contact damage `diff/12 -> diff/7`; `MAX_TELEGRAPHS` 6->9.
+- **Player power-curve:** XP gain halved (`XP_GAIN_MULT` 0.5); `WEAPON_LEVEL_POWER`
+  0.04->0.025 (shrink the DPS snowball at the source).
+
+### Result (lethality probe, immortal supernova bot)
+Incoming damage to a 5-HP player per game-minute went from `... 6:149 7:0 8:0 9:0` (free
+late snowball) to a **sustained, lethal curve**: `2:191 3:1038 4:1214 5:661 6:214 7:139
+8:145 9:103` — a brutal mid-game wall and **no free late game**. Mortal-bot win rate 3% -> 0%
+(it dies in the min3-4 wall). **The final <10% number is a skilled-player playtest call** —
+no automated proxy measures it; the probe shows the late game is now genuinely lethal.
+Knobs to ease/intensify: the `*_DIFF_SCALE` pair, `DIFF_BASE`, `SPAWN_INTERVAL_*`,
+`DIFF_WARMUP_SECS`, `XP_GAIN_MULT`, `WEAPON_LEVEL_POWER`.

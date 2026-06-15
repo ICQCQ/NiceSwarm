@@ -8,28 +8,40 @@ const ARENA := Rect2(-1200, -1200, 2400, 2400)
 const WIN_TIME := 600.0          # survive this long (s) to win
 const MAX_WEAPONS := 5           # weapon slots per player per run
 const MAX_WEAPON_LEVEL := 3      # per-weapon cap before it can be merged
+const MAX_FUSION_TIER := 2       # fusion depth cap: base+base->T1, T1+T1->T2 (final, no T3)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
-const ENEMY_CAP := 220           # hard limit on live enemies
+const ENEMY_CAP := 300           # hard limit on live enemies (was 220 — denser flood)
 const TELEGRAPH_WARN := 1.3      # seconds to dodge a telegraphed strike
-const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed
+const MAX_TELEGRAPHS := 9        # cap simultaneous danger zones (was 6 — more caster area-denial late)
 const NET_PORT := 24565          # default co-op port
 
+# --- weapon progression ---
+# Every weapon's base damage is multiplied by (1 + WEAPON_LEVEL_POWER * (party_level - 1)),
+# on top of its own Lv1->3 growth and the player's Power picks. Lets weapons you never
+# pour level-ups into still keep pace as the run (and enemy HP) scales. Tunable via FF.
+const WEAPON_LEVEL_POWER := 0.025   # was 0.04 — dialed back to shrink the late-game DPS snowball
+
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
-const DIFF_BASE := 1.0 / 62.0    # base climb rate (gentler = slower ramp)
+const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
+# Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
+# against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
+const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
+const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
 const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
 const DIFF_WARMUP_FLOOR := 0.25  # early-game climb fraction at t=0
-const DIFF_WARMUP_SECS := 80.0   # seconds to ramp warmup to full
+const DIFF_WARMUP_SECS := 130.0  # seconds to ramp warmup to full (was 80 — longer ramp softens the
+                                 # difficulty/spawn-rate cliff now that the late game floods to 300)
 
 # --- spawning ---
-const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor player...
-const SPAWN_RING_MAX := 900.0         # ...up to this far (random within the ring)
-const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player
-const SPAWN_DESIRED_BASE := 6.0       # target live-enemy count at difficulty 0
-const SPAWN_DESIRED_PER_DIFF := 2.5   # +this many target enemies per difficulty point
-const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
-const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
+const SPAWN_RING_MIN := 300.0         # enemies spawn this far from the anchor player... (was 700; note SPAWN_SAFE_RADIUS still clamps the effective min)
+const SPAWN_RING_MAX := 1200.0        # ...up to this far (random within the ring; was 900 — wider band)
+const SPAWN_SAFE_RADIUS := 250.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
+const SPAWN_DESIRED_BASE := 8.0       # target live-enemy count at difficulty 0 (was 6.0 — denser swarm)
+const SPAWN_DESIRED_PER_DIFF := 3.5   # +this many target enemies per difficulty point (was 2.5 — denser late game)
+const SPAWN_INTERVAL_START := 0.2     # seconds between spawns early (5x faster than the prior 1.0)
+const SPAWN_INTERVAL_END := 0.024     # seconds between spawns late (5x faster than the prior 0.12)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
 # --- co-op party scaling (host-authoritative; N = peer_ids.size()) ---
@@ -67,6 +79,9 @@ const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as 
 # --- xp level curve: three-band step curve (cost at level L to reach L+1), /cfg_xp_rate ---
 # Replaces the old flat-linear curve. Steepening shape (fast early → earned late);
 # absolute steps calibrated via a NICESWARM_FF run to land the 10-min win near level ~45.
+# Base XP-gain multiplier — effective xp rate = cfg_xp_rate (menu, 0.5-2x) * this. 0.5 halves
+# leveling speed (player is weaker for longer, killing the late-game snowball). Tunable balance knob.
+const XP_GAIN_MULT := 0.5
 const XP_BASE := 5            # cost to reach level 2
 const XP_BAND_EARLY := 13     # levels 1..13 use the early step
 const XP_BAND_MID := 33       # levels 14..33 use the mid step; 34+ use the late step
