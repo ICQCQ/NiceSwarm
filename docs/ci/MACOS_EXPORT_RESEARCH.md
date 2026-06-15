@@ -1,5 +1,25 @@
 # CI: per-arch macOS + Windows-arm64 export — research & ready-to-apply plan
 
+> **⚠️ CORRECTION (post-CI, supersedes the per-arch macOS plan below).** The per-arch macOS
+> split documented here is **not achievable with stock Godot templates** and failed the first
+> CI run (#28 → run 27581725857): `ERROR: Requested template binary "godot_macos_release.x86_64"
+> not found`. The official macOS export template ships a **single universal binary**
+> (`godot_macos_release.universal`); Godot's macOS exporter builds the template name as
+> `"godot_macos_" + flavour + "." + architecture` (`platform/macos/export/export_plugin.cpp`,
+> 4.6.3), so `architecture="x86_64"`/`"arm64"` looks for a per-arch template that doesn't exist.
+> The local validation note below ("reached the template stage, failing only on the Scoop
+> install's missing macOS templates") **misread** the cause — those per-arch template binaries
+> are absent from *every* archive, not just the Scoop one.
+>
+> **Resolution:** macOS now ships **one universal `.zip`** (`NiceSwarm-macos.zip`) from a single
+> `macOS` preset (`architecture="universal"`). A universal binary runs **native** on both Intel
+> and Apple Silicon, so the split bought nothing. The Windows-arm64 half of this plan was
+> correct and shipped as documented. The macOS sections below (TL;DR, Artifact 1/3, key fact #1)
+> are kept for historical context but are **superseded** — read them as "what we tried", not the
+> current pipeline.
+
+
+
 Research for extending the GitHub Actions release pipeline (today: Windows x86_64 only,
 `.github/workflows/build-windows.yml`) to ship **separate per-architecture builds**:
 

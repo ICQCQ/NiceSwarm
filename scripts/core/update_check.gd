@@ -8,10 +8,10 @@ extends Node
 
 signal update_available(remote_hash: String)
 
-# Rolling "latest" release: stable URLs because the tag name is fixed. The shipped assets are
-# per-platform AND per-arch — Windows x86_64 keeps its legacy bare names (NiceSwarm.exe /
-# NiceSwarm-debug.exe) so already-installed builds keep matching; everything else gets an
-# -arch suffix. The sidecar filename is computed at runtime from platform + arch + debug
+# Rolling "latest" release: stable URLs because the tag name is fixed. Windows ships per-arch
+# (x86_64 keeps its legacy bare names — NiceSwarm.exe / NiceSwarm-debug.exe — so already-installed
+# builds keep matching; arm64 gets an -arch suffix). macOS ships ONE universal zip
+# (NiceSwarm-macos.zip). The sidecar filename is computed at runtime from platform + arch + debug
 # (see _sidecar_url) so a build only ever compares against its OWN asset.
 const REL_BASE := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/"
 const RELEASES_URL := "https://github.com/ICQCQ/NiceSwarm/releases/tag/latest"
@@ -42,12 +42,15 @@ func check() -> void:
 
 
 ## URL of the .sha256 sidecar for the running platform + arch + build flavour. Mirrors the CI
-## asset naming: Windows x86_64 keeps legacy bare names; arm64 and macOS get an -arch suffix.
-## macOS ships release-only (no debug build), so it ignores is_debug_build().
+## asset naming: Windows x86_64 keeps legacy bare names, Windows arm64 gets an -arch suffix,
+## macOS is a single universal zip. macOS ships release-only (no debug build), so it ignores
+## is_debug_build().
 func _sidecar_url() -> String:
-	var arch := "arm64" if OS.has_feature("arm64") else "x86_64"
+	# macOS ships ONE universal zip (native on both Intel + Apple Silicon), so there's no
+	# arch split here — the inner Mach-O is identical regardless of the host arch.
 	if OS.get_name() == "macOS":
-		return REL_BASE + "NiceSwarm-%s.zip.sha256" % arch
+		return REL_BASE + "NiceSwarm-macos.zip.sha256"
+	var arch := "arm64" if OS.has_feature("arm64") else "x86_64"
 	var asset := "NiceSwarm"
 	if arch == "arm64":
 		asset += "-arm64"  # x86_64 stays bare (legacy, pre-arm64 builds)
