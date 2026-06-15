@@ -260,9 +260,15 @@ func send_announce(text: String, is_boss: bool) -> void:
 		rpc_announce.rpc(text, is_boss)
 
 
-func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
+func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array, names: PackedStringArray) -> void:
 	if active:
-		rpc_end.rpc(won, elapsed, level, kills, scores)
+		rpc_end.rpc(won, elapsed, level, kills, scores, names)
+
+
+# Host -> clients: per-peer round-trip ms (pid -> ms), for the in-game name tags / ally list.
+func send_pings(pings: Dictionary) -> void:
+	if active:
+		rpc_pings.rpc(pings)
 
 
 func send_reset() -> void:
@@ -425,8 +431,13 @@ func rpc_announce(text: String, is_boss: bool) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array) -> void:
-	main.apply_end(won, elapsed, level, kills, scores)
+func rpc_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array, names: PackedStringArray) -> void:
+	main.apply_end(won, elapsed, level, kills, scores, names)
+
+
+@rpc("authority", "call_remote", "unreliable")
+func rpc_pings(pings: Dictionary) -> void:
+	main.apply_pings(pings)
 
 
 @rpc("authority", "call_remote", "reliable")

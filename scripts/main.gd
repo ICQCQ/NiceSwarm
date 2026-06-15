@@ -93,6 +93,7 @@ var peer_ids: Array = []        # all peer ids in the run, sorted
 var players := {}               # peer_id -> Player
 var _score := {}                # peer_id -> {damage, xp, revives, deaths} (host)
 var net_scores: Array = []      # end-game scoreboard rows received by clients
+var net_pings := {}             # pid -> round-trip ms (host-measured via ENet, broadcast to all)
 var local_id := 1
 var auto_start_on_join := false # test hook
 var rejoin_pending := false     # we have a saved session: check on the next Join whether it's resumable
@@ -214,7 +215,7 @@ var level_label: Label
 var kills_label: Label
 var dash_label: Label
 var threat_label: Label
-var allies_label: Label
+var allies_label: RichTextLabel  # per-ally coloured names (BBCode): glyph + name + hp + ping
 var weapons_label: RichTextLabel
 var stats_label: RichTextLabel    # current stat upgrades, shown under the weapon slots
 var weapon_tip: RichTextLabel     # hover tooltip: the hovered weapon slot's current stats
@@ -1432,6 +1433,8 @@ func _physics_process(delta: float) -> void:
 	if t_hud >= 0.25:
 		t_hud = 0.0
 		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, spawner.heat_cur, spawner.difficulty)
+		_refresh_pings()
+		net.send_pings(net_pings)
 
 
 # --- shared enemy spatial index ----------------------------------------------
@@ -1963,23 +1966,27 @@ func _check_all_downed() -> void:
 func _end_game(won: bool) -> void:
 	if game_over:
 		return
-	# scoreboard rows: [color_idx, damage, xp, revives, deaths] per player, by damage
+	# scoreboard rows: [color_idx, damage, xp, revives, deaths, shape_idx] + name per player, by damage
 	var rows := []
 	for pid in peer_ids:
 		var sc: Dictionary = _score.get(pid, {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0})
 		var ci: int = players[pid].color_idx if players.has(pid) else 0
-		rows.append([ci, sc.damage, sc.xp, sc.revives, sc.deaths])
+		var sh: int = players[pid].shape_idx if players.has(pid) else 0
+		var nm: String = String(lobby_players.get(pid, {}).get("name", "Player"))
+		rows.append([ci, sc.damage, sc.xp, sc.revives, sc.deaths, sh, nm])
 	rows.sort_custom(func(a, b): return a[1] > b[1])
 	var packed := PackedFloat32Array()
+	var names := PackedStringArray()
 	for r in rows:
-		packed.append_array(PackedFloat32Array([r[0], r[1], r[2], r[3], r[4]]))
+		packed.append_array(PackedFloat32Array([r[0], r[1], r[2], r[3], r[4], r[5]]))
+		names.append(r[6])
 	if OS.get_environment("NICESWARM_TEST") == "score":
 		print("[test] scoreboard rows=%d damage(P1)=%d kills=%d" % [rows.size(), int(round(rows[0][1])) if not rows.is_empty() else 0, kills])
-	net.send_end(won, elapsed, level, kills, packed)
-	apply_end(won, elapsed, level, kills, packed)
+	net.send_end(won, elapsed, level, kills, packed, names)
+	apply_end(won, elapsed, level, kills, packed, names)
 
 
-func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array) -> void:
+func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array, names: PackedStringArray = PackedStringArray()) -> void:
 	if not playing or game_over:
 		return
 	game_over = true
@@ -1994,13 +2001,14 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 	var t := int(elapsed_)
 	end_stats.text = "Survived %02d:%02d   •   Level %d   •   %d kills" \
 		% [t / 60, t % 60, level_, kills_]
-	_fill_scoreboard(scores)
+	_fill_scoreboard(scores, names)
 	end_hint.text = "R play again   ·   M main menu" if is_host() else "Waiting for host…   ·   M main menu"
 	end_panel.visible = true
 
 
-## Build the end-screen scoreboard from packed [color_idx, dmg, xp, rev, deaths]×N rows.
-func _fill_scoreboard(scores: PackedFloat32Array) -> void:
+## Build the end-screen scoreboard from packed [color_idx, dmg, xp, rev, deaths, shape_idx]×N
+## rows + a parallel names array. The PLAYER cell shows the shape glyph + real name, in colour.
+func _fill_scoreboard(scores: PackedFloat32Array, names: PackedStringArray = PackedStringArray()) -> void:
 	for c in scoreboard_box.get_children():
 		c.queue_free()
 	for h in ["PLAYER", "DAMAGE", "XP", "REVIVES", "DEATHS"]:
@@ -2011,11 +2019,14 @@ func _fill_scoreboard(scores: PackedFloat32Array) -> void:
 		header.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
 		scoreboard_box.add_child(header)
 	var i := 0
-	while i + 4 < scores.size():
+	var ri := 0
+	while i + 5 < scores.size():
 		var ci := int(scores[i])
+		var sh := int(scores[i + 5])
 		var col := Player.COLORS[ci % Player.COLORS.size()]
-		var cells := ["P%d" % (ci + 1), str(int(round(scores[i + 1]))), str(int(scores[i + 2])),
-			str(int(scores[i + 3])), str(int(scores[i + 4]))]
+		var nm: String = names[ri] if ri < names.size() else "Player %d" % (ci + 1)
+		var cells := ["%s %s" % [Player.shape_glyph(sh), nm], str(int(round(scores[i + 1]))),
+			str(int(scores[i + 2])), str(int(scores[i + 3])), str(int(scores[i + 4]))]
 		for j in cells.size():
 			var cell := Label.new()
 			cell.text = cells[j]
@@ -2023,7 +2034,8 @@ func _fill_scoreboard(scores: PackedFloat32Array) -> void:
 			cell.add_theme_font_size_override("font_size", 20)
 			cell.add_theme_color_override("font_color", col)
 			scoreboard_box.add_child(cell)
-		i += 5
+		i += 6
+		ri += 1
 
 
 func _restart() -> void:
@@ -2066,6 +2078,32 @@ func apply_hud_state(elapsed_: float, xp_: int, needed: int, level_: int, kills_
 	kills = kills_
 	spawner.net_heat = heat
 	spawner.net_difficulty = difficulty_
+
+
+## Host: measure each peer's round-trip time (ms) via ENet into net_pings (the host itself = 0).
+func _refresh_pings() -> void:
+	net_pings.clear()
+	var peer := multiplayer.multiplayer_peer
+	if not net.active or not (peer is ENetMultiplayerPeer):
+		return
+	for pid in peer_ids:
+		if pid == 1:
+			net_pings[pid] = 0
+			continue
+		var ep: ENetPacketPeer = (peer as ENetMultiplayerPeer).get_peer(pid)
+		if ep != null:
+			net_pings[pid] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+
+
+## Clients: receive the host-measured pings; override the host's own entry with our local
+## round-trip to the host (peer 1), since the host's self-ping is 0.
+func apply_pings(pings: Dictionary) -> void:
+	net_pings = pings
+	var peer := multiplayer.multiplayer_peer
+	if not is_host() and net.active and peer is ENetMultiplayerPeer:
+		var ep: ENetPacketPeer = (peer as ENetMultiplayerPeer).get_peer(1)
+		if ep != null:
+			net_pings[1] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
 
 
 func apply_player_hp(pid: int, hp_: int, max_: int, downed_: bool) -> void:

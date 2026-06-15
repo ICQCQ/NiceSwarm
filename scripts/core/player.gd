@@ -23,6 +23,11 @@ const SHAPE_GLYPHS := {
 	"circle": "●", "square": "■", "triangle": "▲", "diamond": "◆", "star": "★",
 }
 
+
+## Unicode marker for a player's character shape — prepended to their name in the HUD/scoreboard.
+static func shape_glyph(shape_idx_: int) -> String:
+	return SHAPE_GLYPHS[SHAPES[shape_idx_ % SHAPES.size()]]
+
 var peer_id := 1
 var color_idx := 0
 var shape_idx := 0
@@ -466,6 +471,12 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
 	if not is_local:
-		var label := player_name + (" (away)" if disconnected else "")
-		draw_string(ThemeDB.fallback_font, Vector2(-60.0, -RADIUS - 10.0),
-			label, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 13, body)
+		var ping := 0
+		if Main.instance != null:
+			ping = int(Main.instance.net_pings.get(peer_id, 0))
+		var ping_s := ("  %dms" % ping) if ping > 0 else ""
+		# glyph (character) + name, drawn in the player's own colour (the colour cue), + ping
+		var label := "%s %s%s%s" % [Player.shape_glyph(shape_idx), player_name, ping_s,
+			(" (away)" if disconnected else "")]
+		draw_string(ThemeDB.fallback_font, Vector2(-75.0, -RADIUS - 10.0),
+			label, HORIZONTAL_ALIGNMENT_CENTER, 150.0, 13, body)
