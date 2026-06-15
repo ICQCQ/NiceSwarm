@@ -86,6 +86,22 @@ var _score := {}                # peer_id -> {damage, xp, revives, deaths} (host
 var net_scores: Array = []      # end-game scoreboard rows received by clients
 var local_id := 1
 var auto_start_on_join := false # test hook
+var rejoin_pending := false     # we have a saved session: check on the next Join whether it's resumable
+var rejoin_old_id := 0          # our peer id in the run we're trying to rejoin
+
+# Persists rejoin_old_id + host address across a full app restart (e.g. the player
+# closed the game after disconnecting), so the next "Join" can still resume the run.
+const REJOIN_SAVE_PATH := "user://rejoin.cfg"
+
+# Remembers the last server a client successfully joined, so the address/port
+# fields are prefilled next launch instead of defaulting to 127.0.0.1.
+const LAST_JOIN_SAVE_PATH := "user://last_join.cfg"
+
+# --- lobby (pre-game roster + appearance) ---
+var lobby_players := {}         # peer_id -> {name, color, shape}; synced host<->clients
+var lobby_color_idx := 0        # local player's pending appearance (mirrors lobby_players[local_id])
+var lobby_shape_idx := 0
+var lobby_port := 0             # port we're hosting/connected on, shown in the config column
 
 # --- run config (host sets in the menu, broadcast to all peers at start) ---
 const MAX_CHOICES := GameConfig.MAX_CHOICES
@@ -113,6 +129,8 @@ var free_choice := false
 var pending_chests := 0
 var picks_starter := false      # current pick is the start-of-run weapon choice
 var picked_ids := {}            # host: peers that picked this round
+var choice_history := {}        # peer_id -> Array[String] of upgrade ids applied, in order
+                                 # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
 var ingame_menu := false        # our own in-game menu/hub is open (host: global pause; client: local + safe)
@@ -193,13 +211,19 @@ var codex_view := ""             # "" = hub root, "skills", or "monsters"
 var countdown_panel: Control     # resume countdown overlay
 var countdown_label: Label
 var menu_panel: Control
+var lobby_panel: Control
+var lobby_status_label: Label
+var lobby_name_edit: LineEdit
+var lobby_preview_label: Label
+var lobby_roster_box: VBoxContainer
+var lobby_config_box: VBoxContainer
+var lobby_start_btn: Button
 var update_check: UpdateCheck
 var update_banner: Control      # menu "a newer build is available" notice (hidden until found)
 var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
 var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
-var start_btn: Button
 var debug_panel: Control
 var debug_god_btn: Button
 var debug_fuse_a: OptionButton
@@ -222,6 +246,8 @@ func _ready() -> void:
 	spawner.build_type_registry()
 	_build_ui()
 	_show_menu("")
+	_load_last_join_address()
+	_load_rejoin_state()
 
 	# Best-effort: compare our exe against the latest published build and offer an update.
 	update_check = UpdateCheck.new()
@@ -248,7 +274,7 @@ func nearest_alive_player(pos: Vector2) -> Node2D:
 	var best: Node2D = null
 	var best_d := INF
 	for p in players.values():
-		if p.downed:
+		if p.downed or p.disconnected:  # ghosts are invisible to enemy targeting
 			continue
 		var d: float = pos.distance_squared_to(p.global_position)
 		if d < best_d:
@@ -259,11 +285,22 @@ func nearest_alive_player(pos: Vector2) -> Node2D:
 
 # --- menu / session flow ----------------------------------------------------
 
+## Single entry point for "return to the main menu" -- always leaves a clean
+## slate, regardless of what was on screen (mid-run leave, host disconnect
+## while a level-up/pause/end panel was up, failed join, etc.).
 func _show_menu(message: String) -> void:
 	playing = false
+	get_tree().paused = false
+	level_panel.visible = false
+	end_panel.visible = false
+	pause_panel.visible = false
+	paused_menu = false
+	leveling = false
+	_force_close_ingame_menu()
 	menu_panel.visible = true
+	lobby_panel.visible = false
+	lobby_players = {}
 	hud_root.visible = false
-	start_btn.visible = false
 	status_label.text = message
 
 
@@ -305,32 +342,39 @@ func _menu_port() -> int:
 
 
 func _on_host_pressed() -> void:
+	if net.active:
+		net.leave()
 	var port := _menu_port()
 	var err := net.host_game(port)
 	if err != "":
 		status_label.text = err
 		return
-	var ips := []
-	for a in IP.get_local_addresses():
-		if a.contains(".") and not a.begins_with("127."):
-			ips.append(a)
-	status_label.text = "Hosting on port %d\nYour LAN IP(s): %s\nPlayers: 1 (you)" \
-		% [port, ", ".join(ips) if not ips.is_empty() else "?"]
-	start_btn.visible = true
+	lobby_port = port
+	_show_lobby("Hosting\nPlayers: 1 (you)")
 
 
+## Join always does the same thing, whether or not we have a saved session to
+## resume: connect, then (if rejoin_pending) ask the host -- non-mutating,
+## right now on click, never in the background -- whether our old slot is
+## still available. on_join_ok/on_rejoin_check_result take it from there.
 func _on_join_pressed() -> void:
+	if net.active:
+		net.leave()
 	var port := _menu_port()
 	var err := net.join_game(ip_edit.text.strip_edges(), port)
-	status_label.text = err if err != "" \
-		else "Connecting to %s:%d ..." % [ip_edit.text, port]
+	if err != "":
+		status_label.text = err
+		return
+	lobby_port = port
+	status_label.text = "Connecting to %s:%d ..." % [ip_edit.text, port]
 
 
 func _on_start_pressed() -> void:
 	var ids: Array = [1]
 	for p in multiplayer.get_peers():
 		ids.append(p)
-	net.lock_session()
+	# Connections stay open after start (unlike a session lock) so a disconnected
+	# player can reconnect and rejoin via handle_rejoin_request.
 	_apply_menu_config()
 	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
 	net.send_start(PackedInt32Array(ids))
@@ -341,38 +385,65 @@ func apply_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
+	if lobby_panel != null and lobby_panel.visible:
+		_refresh_lobby_config_display()
 
 
-func on_peer_connected(_id: int) -> void:
+## Replace the last line of the lobby status label with the current player count
+## (host-only). Used on both join and leave so the text reflects the current
+## roster instead of accumulating stale "(a player left)" notices.
+func _refresh_lobby_player_count() -> void:
+	lobby_status_label.text = lobby_status_label.text.rsplit("\n", true, 1)[0] \
+		+ "\nPlayers: %d (you + %d)" % [1 + multiplayer.get_peers().size(),
+			multiplayer.get_peers().size()]
+
+
+func on_peer_connected(id: int) -> void:
 	if playing:
 		return
 	if is_host():
-		status_label.text = status_label.text.rsplit("\n", true, 1)[0] \
-			+ "\nPlayers: %d (you + %d)" % [1 + multiplayer.get_peers().size(),
-				multiplayer.get_peers().size()]
+		_refresh_lobby_player_count()
+		if not lobby_players.has(id):
+			lobby_players[id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
+				"shape": randi() % Player.SHAPES.size()}
+		net.send_lobby_state(lobby_players)
+		_refresh_lobby_roster()
 		if auto_start_on_join:
 			get_tree().create_timer(0.5).timeout.connect(_on_start_pressed)
 
 
 func on_peer_disconnected(id: int) -> void:
 	if not playing:
+		lobby_players.erase(id)
+		_refresh_lobby_roster()
 		if is_host():
-			status_label.text += "\n(a player left)"
+			_refresh_lobby_player_count()
+			net.send_lobby_state(lobby_players)
 		return
+	# Mid-game: keep the player's character (with its weapons/levels intact) in
+	# place, ghosted and invulnerable, so they can rejoin and pick up where they
+	# left off instead of being removed from the run.
 	var p: Player = players.get(id)
 	if p != null:
-		p.queue_free()
-	players.erase(id)
-	peer_ids.erase(id)
+		p.disconnected = true
 	if is_host():
-		picked_ids.erase(id)
-		if leveling:
+		if p != null:
+			p.safe = true
+		if leveling and not picked_ids.has(id):
+			picked_ids[id] = true  # don't block "wait for all" on an absent player
 			_check_all_picked()
-		_check_all_downed()
+		net.send_player_connection(id, false)
 
 
 func on_join_ok() -> void:
-	status_label.text = "Connected! Waiting for the host to start..."
+	local_id = multiplayer.get_unique_id()
+	_save_last_join_address(ip_edit.text.strip_edges(), lobby_port)
+	if rejoin_pending:
+		# We have a saved session -- ask the host (non-mutating, right now on this
+		# connection) whether it's still available before committing to anything.
+		net.send_rejoin_check(rejoin_old_id)
+		return
+	_show_lobby("Connected! Waiting for the host to start...")
 
 
 func on_join_failed() -> void:
@@ -381,21 +452,465 @@ func on_join_failed() -> void:
 
 
 func on_server_disconnected() -> void:
+	var was_playing := playing
+	var old_id := local_id
 	net.leave()
 	_clear_world()
-	_show_menu("Host disconnected.")
+	if was_playing:
+		rejoin_old_id = old_id
+		rejoin_pending = true
+		_save_rejoin_state(old_id, ip_edit.text.strip_edges(), lobby_port)
+		_show_menu("")
+	else:
+		_show_menu("Host disconnected.")
+
+
+## Host's (non-mutating) answer to rpc_rejoin_check: is our old slot still ghosted
+## and waiting (in-game), or does the host have no run at all (lobby)?
+func on_rejoin_check_result(available: bool, in_lobby: bool) -> void:
+	if not available:
+		net.leave()
+		rejoin_pending = false
+		_clear_rejoin_state()
+		_show_menu("Could not rejoin -- that session has already started without you.")
+		return
+	if in_lobby:
+		rejoin_pending = false
+		_clear_rejoin_state()  # the old run is gone -- this is a fresh lobby join now
+		_show_lobby("Connected! Waiting for the host to start...")
+		return
+	net.send_rejoin_request(rejoin_old_id)
+	status_label.text = "Reconnected, restoring your character..."
+
+
+## Host: non-mutating answer to "can new_id rejoin as old_pid?" -- the rejoining
+## client checks this on its "Join" click before committing to a rejoin request.
+func handle_rejoin_check(new_id: int, old_pid: int) -> void:
+	if not is_host():
+		return
+	if not playing:
+		net.send_rejoin_check_result(new_id, true, true)  # no run -- but the lobby is open
+		return
+	var p: Player = players.get(old_pid)
+	net.send_rejoin_check_result(new_id, p != null and p.disconnected, false)
+
+
+## Host: a freshly (re)connected peer `new_id` claims to be the disconnected
+## player previously known as `old_pid`. If that slot is still here and marked
+## disconnected, hand it over -- the Player node (with its weapons/levels intact)
+## is reused as-is, so the rejoining client just needs to catch up on choices
+## made while it was away.
+func handle_rejoin_request(new_id: int, old_pid: int) -> void:
+	if not is_host():
+		return
+	if not playing:
+		net.send_rejoin_reject(new_id, "The host left the run.")
+		return
+	var p: Player = players.get(old_pid)
+	if p == null or not p.disconnected:
+		net.send_rejoin_reject(new_id, "Could not rejoin -- that player slot is no longer available.")
+		return
+	players.erase(old_pid)
+	players[new_id] = p
+	p.peer_id = new_id
+	p.disconnected = false
+	p.safe = false
+	var i := peer_ids.find(old_pid)
+	if i != -1:
+		peer_ids[i] = new_id
+	peer_ids.sort()
+	_rekey(lobby_players, old_pid, new_id)
+	_rekey(_score, old_pid, new_id)
+	_rekey(choice_history, old_pid, new_id)
+	_rekey(picked_ids, old_pid, new_id)
+	if leveling:
+		# A round in progress now has a real screen to show this client (below) --
+		# don't count their (possibly ghost-skipped) old entry as already picked.
+		picked_ids.erase(new_id)
+	var hp_snapshot := {}
+	for pid in players:
+		var pl: Player = players[pid]
+		hp_snapshot[pid] = [pl.hp, pl.max_hp, pl.downed, pl.global_position.x, pl.global_position.y]
+	net.send_player_rejoined(old_pid, new_id)
+	# Mark a reconnect with a shared "resuming" countdown -- but only when play was
+	# actually running (not mid-level-up, not already paused for some other reason).
+	var resuming := not leveling and not get_tree().paused
+	if resuming:
+		get_tree().paused = true
+		net.send_set_paused(true)
+	net.send_rejoin_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
+		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
+		get_tree().paused, leveling, free_choice, picks_starter, resuming)
+	if resuming:
+		net.send_resume_countdown()
+		_begin_resume_countdown(func() -> void:
+			get_tree().paused = false
+			net.send_set_paused(false))
+
+
+## Other clients: the host just handed the disconnected slot `old_pid` over to
+## `new_pid` -- re-key local bookkeeping so the (still-alive) Player node is found
+## under its new id. No-op for the rejoining client itself (it rebuilds its whole
+## view via rejoin_game instead).
+func apply_player_rejoined(old_pid: int, new_pid: int) -> void:
+	if not players.has(old_pid):
+		return
+	var p: Player = players[old_pid]
+	players.erase(old_pid)
+	players[new_pid] = p
+	p.peer_id = new_pid
+	p.disconnected = false
+	p.safe = false
+	p.is_local = new_pid == local_id
+	var i := peer_ids.find(old_pid)
+	if i != -1:
+		peer_ids[i] = new_pid
+	peer_ids.sort()
+	_rekey(lobby_players, old_pid, new_pid)
+	_rekey(_score, old_pid, new_pid)
+	_rekey(choice_history, old_pid, new_pid)
+	_rekey(picked_ids, old_pid, new_pid)
+
+
+func _rekey(d: Dictionary, old_key, new_key) -> void:
+	if old_key == new_key or not d.has(old_key):
+		return
+	d[new_key] = d[old_key]
+	d.erase(old_key)
+
+
+func on_rejoin_rejected(reason: String) -> void:
+	net.leave()
+	rejoin_pending = false
+	_clear_rejoin_state()
+	_show_menu(reason)
+
+
+## Remember rejoin_old_id + the host address on disk so "Rejoin" still works
+## after the player fully closes and relaunches the game.
+func _save_rejoin_state(old_id: int, ip: String, port: int) -> void:
+	var f := FileAccess.open(REJOIN_SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_var({"old_id": old_id, "ip": ip, "port": port})
+
+
+## Called once at startup: if we have a saved rejoin from a previous session,
+## restore rejoin_pending/rejoin_old_id and pre-fill the host address so the
+## next "Join" checks whether it's resumable.
+func _load_rejoin_state() -> void:
+	if OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_TEST") != "":
+		return  # headless test runs: ignore any stale save from interactive play
+	if not FileAccess.file_exists(REJOIN_SAVE_PATH):
+		return
+	var f := FileAccess.open(REJOIN_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var data = f.get_var()
+	if typeof(data) != TYPE_DICTIONARY or not data.has("old_id"):
+		return
+	rejoin_old_id = int(data["old_id"])
+	rejoin_pending = true
+	if data.has("ip"):
+		ip_edit.text = str(data["ip"])
+	if data.has("port"):
+		port_edit.text = str(int(data["port"]))
+
+
+func _clear_rejoin_state() -> void:
+	var da := DirAccess.open("user://")
+	if da != null and da.file_exists("rejoin.cfg"):
+		da.remove("rejoin.cfg")
+
+
+## Remember the address/port a client just successfully connected to, so the
+## join fields are prefilled with it next launch.
+func _save_last_join_address(ip: String, port: int) -> void:
+	var f := FileAccess.open(LAST_JOIN_SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_var({"ip": ip, "port": port})
+
+
+## Called once at startup: prefill the join address/port fields from the last
+## server a client successfully connected to (defaults stay as-is if none saved).
+func _load_last_join_address() -> void:
+	if OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_TEST") != "":
+		return  # headless test runs: ignore any stale save from interactive play
+	if not FileAccess.file_exists(LAST_JOIN_SAVE_PATH):
+		return
+	var f := FileAccess.open(LAST_JOIN_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var data = f.get_var()
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	if data.has("ip"):
+		ip_edit.text = str(data["ip"])
+	if data.has("port"):
+		port_edit.text = str(int(data["port"]))
+
+
+## Rejoining client: the host accepted our rejoin request. Rebuild the world for
+## the current roster, then replay every choice made since the run started (ours
+## included) so weapons/levels/stat upgrades come back exactly as they were, and
+## restore each player's current HP from the host's snapshot.
+func rejoin_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
+		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
+		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool,
+		resuming: bool) -> void:
+	peer_ids = Array(ids)
+	peer_ids.sort()
+	lobby_players = roster
+	cfg_choices = choices
+	cfg_xp_rate = xp_rate
+	cfg_enemy_scale = enemy_scale
+	local_id = multiplayer.get_unique_id()
+	_reset_run_state()
+	_build_world(false)
+	for pid in history:
+		for id in history[pid]:
+			apply_choice(int(pid), id, true)
+	choice_history = history.duplicate(true)
+	for pid in hp_snapshot:
+		var pl: Player = players.get(int(pid))
+		if pl == null:
+			continue
+		var info: Array = hp_snapshot[pid]
+		pl.hp = int(info[0])
+		pl.max_hp = int(info[1])
+		pl.downed = bool(info[2])
+		# _build_world placed everyone on a fresh spawn-circle near the origin --
+		# snap back to where they actually are in the run (the ghost's last known
+		# position for us, current positions for everyone else).
+		pl.global_position = Vector2(float(info[3]), float(info[4]))
+		pl.net_target = pl.global_position
+		pl.health_changed.emit(pl.hp, pl.max_hp)
+	playing = true
+	rejoin_pending = false
+	# Re-save under our new peer id, so a later disconnect+close can rejoin again.
+	_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
+	menu_panel.visible = false
+	lobby_panel.visible = false
+	hud_root.visible = true
+	# Match the run's current pause/level-up state -- otherwise we'd run unpaused
+	# while everyone else is frozen on a level-up screen (our world keeps moving,
+	# theirs doesn't, so they appear frozen to us).
+	if host_leveling:
+		open_picks(host_free_choice, host_picks_starter)
+	elif host_paused:
+		get_tree().paused = true
+		if resuming:
+			# The host paused everyone for a shared "resuming..." countdown to mark our
+			# reconnect -- show it here too (the host's set_paused(false) afterward
+			# unpauses us via apply_pause, same as everyone else).
+			paused_menu = true
+			_begin_resume_countdown(Callable())
+
+
+# --- lobby (pre-game roster + appearance) ------------------------------------
+
+## Shows the lobby panel (roster + appearance picker + game config) after a
+## successful host/join. `status` is the connection-state line shown at top.
+func _show_lobby(status: String) -> void:
+	rejoin_pending = false
+	menu_panel.visible = false
+	lobby_panel.visible = true
+	hud_root.visible = false
+	local_id = multiplayer.get_unique_id()
+	if not lobby_players.has(local_id):
+		lobby_players[local_id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
+			"shape": randi() % Player.SHAPES.size()}
+	var info: Dictionary = lobby_players[local_id]
+	lobby_color_idx = int(info.get("color", 0))
+	lobby_shape_idx = int(info.get("shape", 0))
+	lobby_name_edit.text = String(info.get("name", "Player"))
+	lobby_status_label.text = status
+	lobby_start_btn.visible = is_host()
+	_refresh_lobby_appearance_preview()
+	_refresh_lobby_roster()
+	_refresh_lobby_config_display()
+	if net.active and not is_host():
+		net.send_lobby_update(local_id, lobby_name_edit.text, lobby_color_idx, lobby_shape_idx)
+
+
+## Local player edited their name/color/shape: store it, refresh our own UI, and
+## sync — clients ask the host to relay; the host rebroadcasts the full roster.
+func _on_lobby_appearance_changed() -> void:
+	var player_name := lobby_name_edit.text.strip_edges().left(16)
+	if player_name == "":
+		player_name = "Player"
+	lobby_name_edit.text = player_name
+	lobby_players[local_id] = {"name": player_name, "color": lobby_color_idx, "shape": lobby_shape_idx}
+	_refresh_lobby_appearance_preview()
+	_refresh_lobby_roster()
+	if not net.active:
+		return
+	if is_host():
+		net.send_lobby_state(lobby_players)
+	else:
+		net.send_lobby_update(local_id, player_name, lobby_color_idx, lobby_shape_idx)
+
+
+func _on_lobby_color_pressed() -> void:
+	lobby_color_idx = (lobby_color_idx + 1) % Player.COLORS.size()
+	_on_lobby_appearance_changed()
+
+
+func _on_lobby_shape_pressed() -> void:
+	lobby_shape_idx = (lobby_shape_idx + 1) % Player.SHAPES.size()
+	_on_lobby_appearance_changed()
+
+
+func _on_lobby_leave_pressed() -> void:
+	net.leave()
+	_show_menu("")
+
+
+## Client/host -> host: a peer's appearance changed. Host merges it into the
+## roster and rebroadcasts the full roster to everyone (incl. the sender).
+func apply_lobby_update(pid: int, player_name: String, color_idx: int, shape_idx: int) -> void:
+	lobby_players[pid] = {"name": player_name, "color": color_idx, "shape": shape_idx}
+	_refresh_lobby_roster()
+	if is_host():
+		net.send_lobby_state(lobby_players)
+
+
+## Host -> everyone: replace our view of the lobby roster.
+func apply_lobby_state(roster: Dictionary) -> void:
+	lobby_players = roster.duplicate(true)
+	if lobby_players.has(local_id):
+		var info: Dictionary = lobby_players[local_id]
+		lobby_color_idx = int(info.get("color", lobby_color_idx))
+		lobby_shape_idx = int(info.get("shape", lobby_shape_idx))
+		if lobby_name_edit != null and not lobby_name_edit.has_focus():
+			lobby_name_edit.text = String(info.get("name", lobby_name_edit.text))
+	_refresh_lobby_appearance_preview()
+	_refresh_lobby_roster()
+
+
+func _refresh_lobby_appearance_preview() -> void:
+	if lobby_preview_label == null:
+		return
+	var shape: String = Player.SHAPES[lobby_shape_idx % Player.SHAPES.size()]
+	lobby_preview_label.text = Player.SHAPE_GLYPHS.get(shape, "*")
+	lobby_preview_label.add_theme_color_override("font_color",
+		Player.COLORS[lobby_color_idx % Player.COLORS.size()])
+
+
+func _refresh_lobby_roster() -> void:
+	if lobby_roster_box == null:
+		return
+	for c in lobby_roster_box.get_children():
+		c.queue_free()
+	var pids := lobby_players.keys()
+	pids.sort()
+	for pid in pids:
+		var info: Dictionary = lobby_players[pid]
+		var shape: String = Player.SHAPES[int(info.get("shape", 0)) % Player.SHAPES.size()]
+		var tag := "  [HOST]" if pid == 1 else ""
+		var row := PanelContainer.new()
+		if pid == local_id:  # highlight your own row instead of an inline "(you)" tag
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(1.0, 1.0, 1.0, 0.12)
+			sb.set_corner_radius_all(6)
+			sb.content_margin_left = 8.0
+			sb.content_margin_right = 8.0
+			sb.content_margin_top = 2.0
+			sb.content_margin_bottom = 2.0
+			row.add_theme_stylebox_override("panel", sb)
+		var l := Label.new()
+		l.text = "%s  %s%s" % [Player.SHAPE_GLYPHS.get(shape, "*"), info.get("name", "Player"), tag]
+		l.add_theme_font_size_override("font_size", 20)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.add_theme_color_override("font_color",
+			Player.COLORS[int(info.get("color", 0)) % Player.COLORS.size()])
+		row.add_child(l)
+		lobby_roster_box.add_child(row)
+
+
+## Host: editable cyclers that broadcast on change. Clients: read-only labels,
+## refreshed whenever apply_config() receives the host's current values.
+func _refresh_lobby_config_display() -> void:
+	if lobby_config_box == null:
+		return
+	for c in lobby_config_box.get_children():
+		c.queue_free()
+	_make_config_label(lobby_config_box, "Port", str(lobby_port))
+	if is_host():
+		_make_lobby_cycler(lobby_config_box, "Options / level-up", str(CHOICES_OPTS[cfg_choices_i]), func():
+			cfg_choices_i = (cfg_choices_i + 1) % CHOICES_OPTS.size()
+			_apply_menu_config()
+			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "XP rate", str(XP_OPTS[cfg_xp_i]) + "x", func():
+			cfg_xp_i = (cfg_xp_i + 1) % XP_OPTS.size()
+			_apply_menu_config()
+			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Enemy scale", str(SCALE_OPTS[cfg_scale_i]) + "x", func():
+			cfg_scale_i = (cfg_scale_i + 1) % SCALE_OPTS.size()
+			_apply_menu_config()
+			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_refresh_lobby_config_display())
+	else:
+		_make_config_label(lobby_config_box, "Options / level-up", str(cfg_choices))
+		_make_config_label(lobby_config_box, "XP rate", str(cfg_xp_rate) + "x")
+		_make_config_label(lobby_config_box, "Enemy scale", str(cfg_enemy_scale) + "x")
+
+
+func _make_lobby_cycler(parent: Node, label: String, text: String, on_press: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", 18)
+	l.custom_minimum_size = Vector2(220, 38)
+	row.add_child(l)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(132, 38)
+	b.add_theme_font_size_override("font_size", 18)
+	b.text = text
+	b.pressed.connect(on_press)
+	row.add_child(b)
+
+
+func _make_config_label(parent: Node, label: String, value: String) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", 18)
+	l.custom_minimum_size = Vector2(220, 38)
+	row.add_child(l)
+	var v := Label.new()
+	v.text = value
+	v.add_theme_font_size_override("font_size", 18)
+	v.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	row.add_child(v)
 
 
 func start_game(ids: Array) -> void:
 	ids.sort()
 	peer_ids = ids
 	local_id = multiplayer.get_unique_id()
+	# Set before _build_world(): the host's starter-weapon pick (_grant_starters ->
+	# _trigger_picks -> open_picks) fires synchronously from within it, and open_picks
+	# is a no-op while not playing.
+	playing = true
 	_reset_run_state()
 	_build_world()
-	playing = true
 	menu_panel.visible = false
+	lobby_panel.visible = false
 	hud_root.visible = true
 	_apply_fast_forward()
+	if net.active and not is_host():
+		# Save now (not just on disconnect) so a client whose game crashes/closes
+		# outright -- with no chance to run a disconnect handler -- can still
+		# rejoin after relaunching.
+		_save_rejoin_state(local_id, ip_edit.text.strip_edges(), lobby_port)
 	if OS.get_environment("NICESWARM_NET") != "":
 		print("[test] start_game peers=%s local=%d host=%s" % [str(peer_ids), local_id, str(is_host())])
 
@@ -450,6 +965,8 @@ func _ff_census() -> String:
 
 
 func reset_game() -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	get_tree().paused = false
 	_clear_world()
 	_reset_run_state()
@@ -471,6 +988,7 @@ func _reset_run_state() -> void:
 	pending_chests = 0
 	picks_starter = false
 	picked_ids = {}
+	choice_history = {}
 	i_chose = false
 	paused_menu = false
 	_force_close_ingame_menu()
@@ -496,7 +1014,7 @@ func _clear_world() -> void:
 	world = null
 
 
-func _build_world() -> void:
+func _build_world(grant_starters: bool = true) -> void:
 	world = Node2D.new()
 	world.name = "World"
 	world.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -511,7 +1029,10 @@ func _build_world() -> void:
 		var p := Player.new()
 		p.name = "Player_%d" % pid
 		p.peer_id = pid
-		p.color_idx = i
+		var info: Dictionary = lobby_players.get(pid, {})
+		p.color_idx = int(info.get("color", i)) % Player.COLORS.size()
+		p.shape_idx = int(info.get("shape", 0)) % Player.SHAPES.size()
+		p.player_name = String(info.get("name", "Player"))
 		p.is_local = pid == local_id
 		p.arena = ARENA
 		p.position = Vector2.from_angle(TAU * i / maxi(peer_ids.size(), 1)) * 60.0
@@ -520,7 +1041,8 @@ func _build_world() -> void:
 		world.add_child(p)
 		players[pid] = p
 		_score[pid] = {"damage": 0.0, "xp": 0, "revives": 0, "deaths": 0}
-	_grant_starters()
+	if grant_starters:
+		_grant_starters()
 
 
 ## Decides how each player gets their first weapon. Headless/test runs get a
@@ -932,6 +1454,8 @@ func _trigger_picks(free: bool, starter: bool = false) -> void:
 
 
 func open_picks(free: bool, starter: bool = false) -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	if ingame_menu:
 		_force_close_ingame_menu()  # a level-up pre-empts an open menu (clears safe/freeze)
 	_cancel_countdown()  # a (chained) pick supersedes any in-flight resume countdown
@@ -1071,17 +1595,24 @@ func _choose_upgrade(index: int) -> void:
 	net.submit_choice(local_id, current_choices[index].id)
 
 
-func apply_choice(pid: int, id: String) -> void:
+## `replay`: true when reconstructing a rejoining client's history -- applies the
+## same state changes silently (no SFX, no "wait for all" bookkeeping).
+func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 	var p: Player = players.get(pid)
 	if p == null:
 		return
+	if not replay:
+		if not choice_history.has(pid):
+			choice_history[pid] = []
+		choice_history[pid].append(id)
 	if id.begins_with("learn_"):
 		p.add_weapon(id.trim_prefix("learn_"))
 	elif id.begins_with("merge_"):
 		var pair := id.trim_prefix("merge_").split("|")
 		if pair.size() == 2:
 			p.merge_weapons(pair[0], pair[1])
-			Sfx.play("merge")
+			if not replay:
+				Sfx.play("merge")
 	elif id.begins_with("lv_"):
 		var w := p.get_weapon(id.trim_prefix("lv_"))
 		if w is WeaponFused:
@@ -1106,7 +1637,7 @@ func apply_choice(pid: int, id: String) -> void:
 				p.pickup_range *= 1.5
 			"st_dash":
 				p.dash_cooldown = maxf(p.dash_cooldown * 0.8, 1.2)
-	if is_host():
+	if is_host() and not replay:
 		picked_ids[pid] = true
 		_check_all_picked()
 
@@ -1116,6 +1647,9 @@ func _check_all_picked() -> void:
 		return
 	for pid in peer_ids:
 		if not picked_ids.has(pid):
+			var p: Player = players.get(pid)
+			if p != null and p.disconnected:
+				continue  # ghosted: don't block the round waiting for an absent player
 			return
 	net.send_resume()
 	resume_after_picks()
@@ -1183,7 +1717,7 @@ func _end_game(won: bool) -> void:
 
 
 func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: PackedFloat32Array) -> void:
-	if game_over:
+	if not playing or game_over:
 		return
 	game_over = true
 	_force_close_ingame_menu()  # never end a run with a player stuck frozen/invulnerable
@@ -1250,6 +1784,16 @@ func apply_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) 
 	p.remote_dashing = dashing
 
 
+## Host -> everyone: a player's connection dropped (ghost them, invulnerable on
+## host) or was restored (rejoin re-key already applied via apply_player_rejoined).
+func apply_player_connection(pid: int, connected: bool) -> void:
+	var p: Player = players.get(pid)
+	if p == null:
+		return
+	p.disconnected = not connected
+	p.safe = not connected
+
+
 func apply_hud_state(elapsed_: float, xp_: int, needed: int, level_: int, kills_: int, heat: float, difficulty_: float) -> void:
 	if is_host() or not playing:
 		return
@@ -1290,6 +1834,8 @@ func apply_revive(pid: int, ratio: float) -> void:
 
 
 func apply_pause(pause: bool) -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	if pause and not is_host() and ingame_menu:
 		_force_close_ingame_menu()  # an incoming host pause supersedes our own local menu
 	paused_menu = pause
@@ -1302,6 +1848,8 @@ func apply_pause(pause: bool) -> void:
 
 
 func apply_event(type: int, pos: Vector2) -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	match type:
 		EVENT_BOMB:
 			_bomb_fx(pos)
@@ -1526,14 +2074,17 @@ func _input(event: InputEvent) -> void:
 ## Leave the current run and return to the main menu. Disconnects from co-op
 ## (host leaving drops everyone; a client leaving just drops itself).
 func _to_menu() -> void:
+	# A client leaving mid-run (ESC menu "leave", or "M" while paused by the host) still
+	# gets ghosted on the host -- the next "Join" can resume that character. A
+	# finished run (game_over), solo play, or the host leaving has nothing to rejoin.
+	var can_rejoin := net.active and not is_host() and not game_over
 	net.leave()
-	get_tree().paused = false
-	level_panel.visible = false
-	end_panel.visible = false
-	pause_panel.visible = false
-	paused_menu = false
-	_force_close_ingame_menu()
 	_clear_world()
+	if can_rejoin:
+		rejoin_old_id = local_id
+		rejoin_pending = true
+	else:
+		_clear_rejoin_state()
 	_show_menu("")
 
 
@@ -1614,6 +2165,8 @@ func apply_set_safe(pid: int, safe: bool) -> void:
 
 ## Cosmetic-only countdown shown on a remote peer; the host drives the real unpause.
 func begin_resume_countdown_remote() -> void:
+	if not playing:
+		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
 	if DisplayServer.get_name() == "headless":
 		return
 	pause_panel.visible = false
@@ -1711,10 +2264,11 @@ func _update_hud() -> void:
 		var p: Player = players.get(pid)
 		if p == null:
 			continue
+		var tag := " (away)" if p.disconnected else ""
 		if p.downed:
-			lines.append("P%d  DOWN %d%%" % [p.color_idx + 1, int(p.revive_progress * 100.0)])
+			lines.append("%s  DOWN %d%%%s" % [p.player_name, int(p.revive_progress * 100.0), tag])
 		else:
-			lines.append("P%d  ♥%d/%d" % [p.color_idx + 1, p.hp, p.max_hp])
+			lines.append("%s  ♥%d/%d%s" % [p.player_name, p.hp, p.max_hp, tag])
 	allies_label.text = "\n".join(lines)
 
 
@@ -1802,6 +2356,7 @@ func _build_ui() -> void:
 	_build_ingame_menu_panel()
 	_build_countdown_panel()
 	_build_menu()
+	_build_lobby_panel()
 	if OS.is_debug_build():
 		_build_debug_panel()
 
@@ -2403,16 +2958,126 @@ func _build_menu() -> void:
 	_make_cycler(vbox, "Enemy scale", func(): return str(SCALE_OPTS[cfg_scale_i]) + "x",
 		func(): cfg_scale_i = (cfg_scale_i + 1) % SCALE_OPTS.size())
 
-	start_btn = Button.new()
-	start_btn.text = "Start Game"
-	start_btn.custom_minimum_size = Vector2(360, 52)
-	start_btn.add_theme_font_size_override("font_size", 22)
-	start_btn.visible = false
-	start_btn.pressed.connect(_on_start_pressed)
-	vbox.add_child(start_btn)
-
 	status_label = Label.new()
 	status_label.add_theme_font_size_override("font_size", 18)
 	status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(status_label)
+
+
+## Shown after a successful host/join, before the run starts: connection status,
+## your name/color/shape, the roster of everyone in the session, the host's game
+## config (read-only for clients, live-editable for the host), and start/leave.
+func _build_lobby_panel() -> void:
+	var parts := _make_overlay()
+	lobby_panel = parts[0]
+	lobby_panel.visible = false
+	var vbox: VBoxContainer = parts[1]
+
+	var title := Label.new()
+	title.text = "LOBBY"
+	title.add_theme_font_size_override("font_size", 48)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	lobby_status_label = Label.new()
+	lobby_status_label.add_theme_font_size_override("font_size", 18)
+	lobby_status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
+	lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lobby_status_label)
+
+	# Two columns: left (appearance + roster) expands to fill, right (config)
+	# shrinks to fit its content. custom_minimum_size on `columns` gives the
+	# left column extra width to expand into beyond its own natural minimum.
+	var columns := HBoxContainer.new()
+	columns.custom_minimum_size = Vector2(900, 0)
+	columns.add_theme_constant_override("separation", 24)
+	vbox.add_child(columns)
+
+	var left := VBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 16)
+	columns.add_child(left)
+
+	var you_head := Label.new()
+	you_head.text = "YOUR APPEARANCE"
+	you_head.add_theme_font_size_override("font_size", 18)
+	you_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	you_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left.add_child(you_head)
+
+	var you_row := HBoxContainer.new()
+	you_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	you_row.add_theme_constant_override("separation", 8)
+	left.add_child(you_row)
+
+	lobby_preview_label = Label.new()
+	lobby_preview_label.custom_minimum_size = Vector2(48, 44)
+	lobby_preview_label.add_theme_font_size_override("font_size", 32)
+	lobby_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lobby_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	you_row.add_child(lobby_preview_label)
+
+	lobby_name_edit = LineEdit.new()
+	lobby_name_edit.custom_minimum_size = Vector2(220, 44)
+	lobby_name_edit.add_theme_font_size_override("font_size", 20)
+	lobby_name_edit.max_length = 16
+	lobby_name_edit.text_submitted.connect(func(_t): _on_lobby_appearance_changed())
+	lobby_name_edit.focus_exited.connect(_on_lobby_appearance_changed)
+	you_row.add_child(lobby_name_edit)
+
+	var color_btn := Button.new()
+	color_btn.text = "Color"
+	color_btn.custom_minimum_size = Vector2(90, 44)
+	color_btn.add_theme_font_size_override("font_size", 18)
+	color_btn.pressed.connect(_on_lobby_color_pressed)
+	you_row.add_child(color_btn)
+
+	var shape_btn := Button.new()
+	shape_btn.text = "Shape"
+	shape_btn.custom_minimum_size = Vector2(90, 44)
+	shape_btn.add_theme_font_size_override("font_size", 18)
+	shape_btn.pressed.connect(_on_lobby_shape_pressed)
+	you_row.add_child(shape_btn)
+
+	var players_head := Label.new()
+	players_head.text = "PLAYERS"
+	players_head.add_theme_font_size_override("font_size", 18)
+	players_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	players_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left.add_child(players_head)
+
+	lobby_roster_box = VBoxContainer.new()
+	lobby_roster_box.add_theme_constant_override("separation", 4)
+	left.add_child(lobby_roster_box)
+
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 4)
+	columns.add_child(right)
+
+	var config_head := Label.new()
+	config_head.text = "GAME CONFIG"
+	config_head.add_theme_font_size_override("font_size", 18)
+	config_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	config_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right.add_child(config_head)
+
+	lobby_config_box = VBoxContainer.new()
+	lobby_config_box.add_theme_constant_override("separation", 4)
+	right.add_child(lobby_config_box)
+
+	lobby_start_btn = Button.new()
+	lobby_start_btn.text = "Start Game"
+	lobby_start_btn.custom_minimum_size = Vector2(360, 52)
+	lobby_start_btn.add_theme_font_size_override("font_size", 22)
+	lobby_start_btn.visible = false
+	lobby_start_btn.pressed.connect(_on_start_pressed)
+	vbox.add_child(lobby_start_btn)
+
+	var leave_btn := Button.new()
+	leave_btn.text = "Leave Lobby"
+	leave_btn.custom_minimum_size = Vector2(360, 52)
+	leave_btn.add_theme_font_size_override("font_size", 22)
+	leave_btn.pressed.connect(_on_lobby_leave_pressed)
+	vbox.add_child(leave_btn)
