@@ -16,8 +16,8 @@ func run(t) -> void:
 
 	# player stat-upgrade caps
 	t.eq(GameConfig.STAT_CAP_POWER, 6.0, "STAT_CAP_POWER")
-	t.eq(GameConfig.STAT_CAP_AREA, 1.75, "STAT_CAP_AREA")
-	t.eq(GameConfig.STAT_CAP_DURATION, 1.75, "STAT_CAP_DURATION")
+	t.eq(GameConfig.STAT_CAP_AREA, 2.0, "STAT_CAP_AREA")
+	t.eq(GameConfig.STAT_CAP_DURATION, 2.5, "STAT_CAP_DURATION")
 	t.eq(GameConfig.STAT_CAP_MAX_HP, 15, "STAT_CAP_MAX_HP")
 	t.ok(GameConfig.STAT_CAP_RATE > 0.0 and GameConfig.STAT_CAP_RATE < 1.0, "STAT_CAP_RATE is a sub-1 rate floor (faster)")
 	t.gt(GameConfig.STAT_CAP_SPEED, 220.0, "STAT_CAP_SPEED above base move speed")

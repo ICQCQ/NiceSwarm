@@ -105,9 +105,9 @@ see `GameConfig.STAT_CAP_*`):
 | Pick | Effect | Cap |
 |------|--------|-----|
 | Power (`st_power`) | `power_stat ×1.25` | **×6** |
-| Haste (`st_rate`) | `rate_mult ×0.88` (faster cadence) | **1.8× faster** (`rate_mult ≥ 1/1.8`) |
-| Area (`st_area`) | `area_mult ×1.2` (all spatial dims) | **×1.75** |
-| Duration (`st_duration`) | `duration_mult ×1.25` (lifetimes) | **×1.75** |
+| Haste (`st_rate`) | `rate_mult ×0.88` (faster cadence) | **2× faster** (`rate_mult ≥ 0.5`) |
+| Area (`st_area`) | `area_mult ×1.2` (all spatial dims) | **×2** |
+| Duration (`st_duration`) | `duration_mult ×1.25` (lifetimes) | **×2.5** |
 | Swift Boots (`st_speed`) | `move_speed ×1.12` | **1.8× (396)** |
 | Vitality (`st_hp`) | +1 max HP, heal 2 | **15 max HP** |
 | Magnet (`st_magnet`) | `pickup_range ×1.5` | **3× (270)** |

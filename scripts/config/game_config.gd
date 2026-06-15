@@ -13,9 +13,9 @@ const MAX_CHOICES := 6           # max upgrade options offered per level-up
 
 # --- player stat-upgrade caps: a pick stops being offered, and its value is clamped, here ---
 const STAT_CAP_POWER := 6.0        # power_stat (pick-driven damage multiplier)
-const STAT_CAP_AREA := 1.75        # area_mult
-const STAT_CAP_DURATION := 1.75    # duration_mult
-const STAT_CAP_RATE := 1.0 / 1.8   # rate_mult floor → caps Haste at 1.8x faster
+const STAT_CAP_AREA := 2.0         # area_mult
+const STAT_CAP_DURATION := 2.5     # duration_mult
+const STAT_CAP_RATE := 1.0 / 2.0   # rate_mult floor → caps Haste at 2x faster
 const STAT_CAP_SPEED := 396.0      # move_speed cap (1.8x base 220)
 const STAT_CAP_MAGNET := 270.0     # pickup_range cap (3x base 90)
 const STAT_CAP_MAX_HP := 15        # max_hp cap from Vitality
