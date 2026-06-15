@@ -40,12 +40,20 @@ its consts, net.gd reads `NET_PORT`), `EnemyConfig.CLASSES` (the enemy table →
 **Multiplayer model (host-authoritative):** the host simulates everything (enemy AI,
 damage, XP, pickups, revives). Clients send their player pos/facing/dash (20 Hz) and
 upgrade picks; the host broadcasts chunked full-snapshot world state (enemies 12 Hz,
-gems/pickups/telegraphs 8 Hz, HUD 4 Hz; ≤80 entities/packet, removal by diff). Entities
+gems/pickups/telegraphs 8 Hz, HUD + pings 4 Hz; ≤80 entities/packet, removal by diff).
+Each entity is a compact **10-byte `PackedByteArray` record** — `u32 id | s16 x·POS_SCALE |
+s16 y·POS_SCALE | u16 f` (positions ×16 fixed-point; `f` is the per-channel extra: enemy
+type+slow / gem value / pickup kind / telegraph radius+effect). `_put_entity` encodes,
+`_apply_state` decodes via `StreamPeerBuffer`. Entities
 have a `puppet` flag on clients: no AI, position lerp, `take_hit` is cosmetic (flash +
 number only). Clients still run all weapons locally for visuals — real damage is host-only.
 Solo play is the same code path with no ENet peer (`Net.active == false`). World-state
 channels: `STATE_ENEMIES`/`GEMS`/`PICKUPS`/`TELEGRAPHS` (0–3); to add one, extend `last_tick`,
-the dict array in `_apply_state`, and add a `_send_state`/`_apply_state` case.
+the dict array in `_apply_state`, and add a `_send_state`/`_apply_state` case (encode via
+`_put_entity`). **Co-op pause** is host-authoritative: any player's in-game menu pauses the
+whole run (`set_menu_open`/`menu_open_pids`); **rejoin** is by saved peer-id or player NAME
+(`_disconnected_pid_by_name` → `_take_over_slot`). Host measures per-peer ENet RTT into
+`net_pings` for the HUD.
 
 - `scripts/net.gd` — ENet host/join + every RPC (transport only, calls back into main). Node lives at `Main/Net` so RPC paths match on all peers. Port 24565. **Gotcha:** RPC method names can't collide with native `Node` methods — `rpc_config` is reserved, so the run-config RPC is `rpc_run_config`.
 

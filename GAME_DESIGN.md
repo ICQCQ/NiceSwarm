@@ -48,7 +48,7 @@ fixed schedule, while enemy **toughness** accelerates when the party is doing we
 | WASD / arrows | Move |
 | SPACE / SHIFT | Dash (brief i-frames; shrugs off disrupt zones) |
 | 1–6 | Pick an upgrade (number of options is configurable) |
-| ESC | Pause (host) / leave to menu (client) |
+| ESC | Open the in-game menu — pauses the whole run for **every** player (resume = ESC again) |
 | M | Main menu (from pause / game-over) |
 | R | Restart (host, at game-over) |
 
@@ -226,20 +226,36 @@ add-a-class checklist: **ENEMY_DESIGN.md**.
 
 Host-authoritative: the **host simulates everything** (AI, damage, XP, pickups, revives,
 spawns). Clients send their position/facing/dash (20 Hz) and upgrade picks; the host
-broadcasts chunked full-snapshot world state (enemies 12 Hz, items 8 Hz, HUD 4 Hz).
-Clients run weapons **cosmetically** (real damage is host-only) and show enemies as
-position-lerped puppets. **Solo is the identical code path** with no peer. Shared XP/level
-(level-up waits for *all* to pick), separate HP/builds, party-scaled enemy hp/spawn-rate,
-ally HUD + off-screen arrows, team chests. Port 24565 (configurable).
+broadcasts chunked full-snapshot world state (enemies 12 Hz, items/telegraphs 8 Hz, HUD +
+pings 4 Hz). Each entity is a compact **10-byte record** — `u32 id | s16 x×16 | s16 y×16 |
+u16 f` — positions ×16 fixed-point (1/16 px, lossless to the eye since clients lerp puppets
+to the target); ~235 kbps/client for a full 220-enemy field. Sent **unreliable**; removal-
+by-diff drives death pops. Clients run weapons **cosmetically** (real damage is host-only)
+and show enemies as position-lerped puppets. **Solo is the identical code path** with no
+peer. Shared XP/level (level-up waits for *all* to pick), separate HP/builds, party-scaled
+enemy hp/spawn-rate, ally HUD + off-screen arrows, team chests. Port 24565 (configurable).
+
+**Pause:** any player opening their in-game menu (ESC) pauses the whole run for everyone
+(host-authoritative); it stays paused while *any* player's menu is open, resuming with an
+alert cue once the last closes (no countdown). **Rejoin:** a disconnected player is ghosted
+for a few seconds; a returning client reclaims its slot by saved peer-id, or — for a
+brand-new game instance — by matching its player **name**, recovering the character's
+weapons/levels. **Ping:** the host measures each peer's ENet round-trip and broadcasts it
+for the HUD.
 
 ---
 
 ## 10. Presentation
 
-No art assets — every entity draws itself with vector `_draw()`. **Juice:** damage
+No art assets — every entity draws itself with vector `_draw()`. **Player visibility:**
+each player draws a pulsing "grow" ring in their colour and renders above the whole world
+(`z_index = 100`) so the glyph, ring, and name tag are never buried in the swarm; ally name
+tags show the character glyph + name (in the player's colour) + ping. **HUD:** the ally
+list (a RichTextLabel) and the end-game scoreboard show each player's real name prefixed by
+their character glyph, in their colour (scoreboard ranks by damage). **Juice:** damage
 numbers, knockback, kill pops, screen shake, telegraph flashes. **Audio:** `sfx.gd`
-synthesises ~25 sounds at startup (no files); each weapon/pickup/dash/hit/level-up/merge
-has a distinct positional voice, throttled per-name so tick weapons don't stack.
+synthesises ~25 sounds at startup (no files); each weapon/pickup/dash/hit/level-up/merge/
+resume cue has a distinct positional voice, throttled per-name so tick weapons don't stack.
 
 ---
 
@@ -259,8 +275,9 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | `CC_IMMUNE_TIER` | 2 | tier-index ≥ this (the 3rd tier) + bosses resist knockback & gravity suck-in |
 | `BOSS_FIGHT_SECONDS` / `BOSS_DPS_WINDOW` | 8 / 15 s | boss hp ≈ recent_dps·FIGHT (DPS over the last WINDOW s) |
 | `BOSS_HP_PER_LEVEL` / `BOSS_HP_PER_PLAYER` | 0.015 / 0.5 | boss hp ×(1+·(level−1))·(1+·(N−1)) on top of the DPS term |
-| `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); 300-enemy flood late |
+| `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); dense flood late |
 | `SPAWN_RING_MIN` / `_MAX` / `SPAWN_SAFE_RADIUS` | 300 / 1200 / 250 | spawn-distance band + closest allowed spawn |
+| `POS_SCALE` | 16 | world-state x,y fixed-point scale (1/16 px); 10-byte/entity wire record |
 | `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 3.12 / 1.0 / 0.02 | climb accelerators |
 | `DIFF_LEVEL_STEP` | 0.05 | flat difficulty added per level-up |
 | `MID_GAME_TIME` | 300 s | earliest heat-spike arm time |

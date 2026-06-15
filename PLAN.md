@@ -835,4 +835,32 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   tier-3 + bosses) + god-bot sim clean, no errors. Host-authoritative (enemy hp isn't synced, so
   client boss bars stay cosmetic — same as all enemies). All knobs tunable in `GameConfig`.
 - **Caveat:** `ENEMY_HP_PER_LEVEL` stacks on the already-hard pass — may need easing after playtest.
-- **Next:** committed on `feat/boss-dps-hp`; PR when the user is ready.
+
+### 2026-06-16 — Session 6 (continued): big live-tuned balance + co-op + HUD + netcode pass (PR #26)
+On `feat/boss-dps-hp` the boss-HP work grew into a 16-commit pass (all on PR #26):
+- **Balance (live-tuned):** exponential XP curve (`XP_BASE·XP_GROWTH^(L-1)`, `XP_GROWTH=1.12`,
+  replaced the 3-band model); `DIFF_HEAT` 2.4→3.12; `ENEMY_HP_PER_LEVEL` settled at 0.05;
+  `ENEMY_CAP` 220; `MAX_TELEGRAPHS` 6, `TELEGRAPH_WARN` 1.5.
+- **Progression:** weapon level cap 3→7 before fusion; fusion depth cap 2→3 (T2+T2→T3 final,
+  cap-relative test).
+- **Enemies/UI:** bombardier telegraph circle no longer lingers on clients after detonation;
+  boss/elite banner moved below the difficulty readout.
+- **Co-op:** ESC now pauses the whole run for **every** player (host-authoritative
+  `set_menu_open`/`menu_open_pids`; resumes with an `alert` cue, no countdown); **same-name
+  rejoin** so a brand-new game instance reclaims a ghosted slot by player name
+  (`_disconnected_pid_by_name`→`_take_over_slot`, with old-peer-id→name fallback).
+- **HUD:** end-game scoreboard + ally list + floating name tags now show real names, the
+  character glyph, and the player's colour (ally list is a RichTextLabel); **in-game ping (ms)**
+  (host measures ENet RTT → `net_pings`, broadcast 4Hz); a pulsing "grow" ring around each
+  player glyph + `z_index=100` so glyph/effect/name always render on top.
+- **Netcode:** world-state quantized to a **10-byte record** (`u32 id | s16 x×16 | s16 y×16 |
+  u16 f`, was 16-byte 4×f32). Positions ×16 fixed-point (1/16 px, lossless to the eye; clients
+  lerp puppets). Client enemy bandwidth for a full 220-field ~361→~235 kbps; max enemies under
+  300 kbps ~180→~287. `_put_entity`/`StreamPeerBuffer` encode/decode; verified co-op round-trips
+  to exact ×16 positions.
+- **Verified:** `[tests] 1052 passed, 0 failed`; solo/zoo/bomber/merge/all_weapons/score +
+  co-op host/join smoke all clean. **Docs updated** (GAME_DESIGN §9/§10/§11/controls, CLAUDE.md
+  multiplayer model). Design docs reflect the wire format, pause/rejoin model, and HUD.
+- **Next:** **2-PC playtest** the co-op menu/pause UX, same-name rejoin reclaim, and HUD
+  names/colours/ping/glyph (headless can't render the HUD or orchestrate disconnects). Then
+  merge PR #26 → `publish`.
