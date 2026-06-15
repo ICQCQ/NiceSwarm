@@ -104,7 +104,12 @@ func _ready() -> void:
 	var circle := CircleShape2D.new()
 	circle.radius = radius
 	cs.shape = circle
-	add_child(cs)
+	# Deferred: death-spawned enemies (burster shards, splitter, boss summon) are
+	# added from inside a physics callback (a projectile-hit kill), where
+	# configuring a collision shape mid-flush throws "can't change state while
+	# flushing queries". Enemies have collision_mask=0 so the shape is only for
+	# projectile hit-detection — being live ~1 frame later is harmless.
+	add_child.call_deferred(cs)
 	net_target = global_position
 
 

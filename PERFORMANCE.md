@@ -204,19 +204,22 @@ pass, then lags again past ~8 min (still better than before)."
    8-min lag (220 enemies re-recording `_draw` every frame, no cull).
 
 ### Fixes shipped (each its own commit, verified headless)
-- **Grid migration** — nova/laser/flame off `all_enemies()` (O(n)) →
-  `EnemyGrid.near()`; 15 fusion `get_nodes_in_group("enemies")` allocs →
-  frame-cached `EnemyGrid.all()`.
 - **Enemy redraw-gate** — `queue_redraw()` only fires when appearance changes
   (flash/slow/burn/shield + a heading bucket for directional shapes); idle circle
   enemies (most of the swarm) now redraw ~once instead of 60×/s.
 - **Node-count soft-cap** — `WeaponBase.count_level() = mini(level,
   MAX_WEAPON_LEVEL)` in every count formula (9 base weapons + 52 fusion sites + 2
   turret deploy caps); damage/area keep scaling. Deep census: frost shards ~24→~10.
-- **Chain-projectile flush fix** — a chaining `on_hit` (`_fire`/`_chain`) re-spawned
-  a `Projectile` (Area2D) synchronously mid-flush ("Can't change monitoring state
-  while flushing queries", 4–12/run, pre-existing); the spawn now uses
-  `add_child.call_deferred`. FF after: 0 errors, kills unchanged (644/816).
+- **"Flushing queries" fix** (pre-existing, on `publish` too, surfaced by the FF
+  census) — spawning a physics body from inside a hit callback errors mid-flush.
+  Two sources: the dominant one is a **death-spawned enemy** (burster shard /
+  splitter / boss summon) configuring its collision shape in `_ready` (`enemy.gd`),
+  and a **chaining projectile** re-spawning an Area2D (`_fire`/`_chain`). Both now
+  defer the add (`add_child.call_deferred`). FF after: **0** flush/script errors
+  (was up to ~146/run), kills unchanged (736).
+
+> The grid migration originally in this branch was dropped on rebase — `publish`
+> shipped the equivalent independently (see the Benchmarks section above).
 
 Also (visual; parse-verified — feel needs in-window review): player z-above-swarm +
 halo + facing notch, enemy palette mute, 0.8× player hurtbox, boss/mini-boss spawn
