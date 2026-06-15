@@ -77,8 +77,15 @@ xp_needed(L) = max(1, round( XP_BASE * XP_GROWTH^(L-1) / (cfg_xp_rate * XP_GAIN_
 ```
 `XP_BASE = 5`, `XP_GROWTH = 1.12` (each level costs 1.12× the last → gentle early, steep late),
 and the effective rate is `cfg_xp_rate` (menu) × `XP_GAIN_MULT` (0.5 base). At the default rate
-the shown costs are L1≈10, L20≈86, L30≈267, L45≈1462 — leveling compounds, so high levels are
-genuinely earned. On level-up the game pauses
+the shown costs are L2≈6, L20≈86, L30≈267, L45≈1462 — leveling compounds, so high levels are
+genuinely earned.
+
+**Snappy opening (early-game catch-up).** Two knobs make the first minute responsive so a build
+comes online fast: the very first level-up (1 → 2) costs a flat `XP_FIRST_LEVEL = 2` regardless of
+`cfg_xp_rate`, and **collected XP is multiplied by `EARLY_XP_BONUS_MULT = 2` while at levels
+1..`EARLY_XP_BONUS_LEVELS` (= 5), inclusive** — the 2× stops the moment the party reaches level 6.
+Both are host-side (gem collection is host-authoritative) and apply to the shared party XP, so the
+end-game scoreboard's per-player XP reflects the boosted amount actually earned. On level-up the game pauses
 and **every player picks their own** upgrade; the run resumes once all have picked
 (banked XP / queued chests chain straight into another pick).
 

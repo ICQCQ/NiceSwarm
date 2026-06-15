@@ -96,14 +96,29 @@ const XP_GAIN_MULT := 0.5
 const XP_BASE := 5            # cost to reach level 2
 const XP_GROWTH := 1.12       # exponential per-level growth: each level costs XP_GROWTH× the last
 
+# Early-game XP boost — collected XP is multiplied while at/below EARLY_XP_BONUS_LEVELS so a
+# build comes online fast (the opening minute is otherwise quiet). Applies to levels 1..N only.
+const EARLY_XP_BONUS_LEVELS := 5   # levels 1..5 earn the bonus
+const EARLY_XP_BONUS_MULT := 2     # XP multiplier during those levels
+const XP_FIRST_LEVEL := 2          # flat, cheap cost for the very first level-up (1 -> 2)
+
 
 ## Cost AT `lvl` to reach the next level — an EXPONENTIAL (geometric) curve, divided by `rate`:
 ## need(lvl) = XP_BASE * XP_GROWTH^(lvl-1). The requirement compounds — gentle early (build comes
 ## online fast), then steepens sharply late so high levels are genuinely earned. Pure + static so
 ## it's unit-testable without a Main instance.
 static func xp_for_level(lvl: int, rate: float) -> int:
+	if lvl <= 1:
+		return XP_FIRST_LEVEL  # flat snappy opening: 1 -> 2 always costs XP_FIRST_LEVEL
 	var need := XP_BASE * pow(XP_GROWTH, lvl - 1)
 	return maxi(1, int(round(need / maxf(rate, 0.0001))))
+
+
+## XP actually credited for a gem of base `value` collected at `lvl` — multiplied during the
+## early-game bonus window (levels 1..EARLY_XP_BONUS_LEVELS), unchanged afterwards. Pure +
+## static so it's unit-testable without a Main instance.
+static func xp_gain(value: int, lvl: int) -> int:
+	return value * EARLY_XP_BONUS_MULT if lvl <= EARLY_XP_BONUS_LEVELS else value
 
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
 const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds

@@ -1682,10 +1682,11 @@ func _run_revives(delta: float) -> void:
 
 func _on_gem_collected(value: int, gem: XpGem) -> void:
 	gems_by_id.erase(gem.net_id)
-	xp += value
+	var gained := GameConfig.xp_gain(value, level)  # 2x during the early-game bonus levels
+	xp += gained
 	var who: Node2D = nearest_alive_player(gem.global_position)  # the gem flew to them
 	if who != null and _score.has(who.peer_id):
-		_score[who.peer_id].xp += value
+		_score[who.peer_id].xp += gained
 	Sfx.play("gem", null, -8.0)
 	_maybe_open_picks()
 

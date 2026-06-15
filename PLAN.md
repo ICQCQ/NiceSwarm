@@ -140,6 +140,27 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-16 — Session 5: early-game XP catch-up (branch `feat/early-xp-bonus`, worktree)
+- **Goal:** snappier opening — a 2× XP bonus for the first 5 levels, and make the very first
+  level-up (1 → 2) cost only 2 XP.
+- **Implemented (all in the pure, unit-tested config layer):**
+  - `GameConfig.EARLY_XP_BONUS_LEVELS = 5` / `EARLY_XP_BONUS_MULT = 2` + new pure helper
+    `GameConfig.xp_gain(value, lvl)` (2× while `lvl <= 5`, raw after). `main._on_gem_collected`
+    now credits `xp_gain(value, level)` to both the shared XP pool and the scoreboard XP
+    (host-authoritative — puppet gems never emit `collected`).
+  - `GameConfig.XP_FIRST_LEVEL = 2`: `xp_for_level` returns a flat 2 at `lvl <= 1` (ignores
+    `cfg_xp_rate`), so the 1 → 2 level-up is near-instant; level 2+ keeps the geometric curve.
+- **Fixed a pre-existing test-harness bug found en route:** `test_xp.gd:35` called `t.lt`, which
+  the Tester doesn't define (`ok/eq/ne/gt/ge/approx` only) — it threw a SCRIPT ERROR that silently
+  aborted the xp suite before its last assertions (a script-abort counts as neither pass nor fail).
+  Rewrote it as `t.gt(...)` with reversed args; the suite now runs to completion.
+- **Verified:** unit suite **1068 passed, 0 failed**; headless 300-frame smoke clean. Same-seed
+  god-sim (`god=1,ff=4`) comparison — **publish: L2 @ min 1; this branch: L5 @ min 1**, with
+  `xp_need=2` at level 1 (was 10); the real `_on_gem_collected` path ran with zero errors.
+- **Tuning knobs:** `EARLY_XP_BONUS_LEVELS` / `EARLY_XP_BONUS_MULT` / `XP_FIRST_LEVEL` in
+  `game_config.gd`. Docs: GAME_DESIGN.md §5 "Snappy opening".
+- **Next:** real playtest of the opening feel; if too fast, dial the bonus window/mult down.
+
 ### 2026-06-16 — Session 4: enemy soft-separation (no stacking) (branch `publish`)
 - **Goal:** enemies should not pile up on a single point / overlap each other.
 - **Approach:** kept `collision_mask = 0` (physics collision between 220 bodies is the
