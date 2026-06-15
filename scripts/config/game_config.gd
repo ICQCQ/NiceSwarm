@@ -32,6 +32,16 @@ const SPAWN_INTERVAL_START := 1.4     # seconds between spawns early
 const SPAWN_INTERVAL_END := 0.2       # seconds between spawns late (at ~9 min)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
+# --- co-op party scaling (host-authoritative; N = peer_ids.size()) ---
+# Two independent levers make a bigger party harder: tougher enemies (more hp to
+# chew through with more guns on the field) and a denser swarm (more bodies). They
+# scale per EXTRA player: at N=1 both terms are 1.0, so solo is untouched. Eased
+# from the original 0.5/0.6 — at those rates a 4-player field was ~2.5× hp and
+# ~2.8× spawn density, which over-punished co-op (sim 2-4p sat at ~27-33% win vs
+# the 50-60% target). See docs/balance/MULTIPLAYER_BALANCE_SIM.md.
+const PARTY_HP_PER := 0.3             # enemy hp ×(1 + this·(N-1))
+const PARTY_RATE_PER := 0.4           # spawn density ×(1 + this·(N-1))
+
 # --- time-based wave rhythm (layered on top of pace/heat in EnemySpawner.run_spawning) ---
 # Per-game-minute [intensity, pop_mult], lerped between minutes for a smooth peaks/valleys
 # curve. intensity divides the spawn interval (peak = faster); pop_mult scales desired_pop
