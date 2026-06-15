@@ -3471,6 +3471,10 @@ func _build_menu() -> void:
 
 	var sub := Label.new()
 	sub.text = "co-op arena survival   ·   v%s (%s)" % [VERSION, BuildVersion.COMMIT]
+	# Mark the debug exe (an exported debug-template build) so bug reports name the right build.
+	# Gated on has_feature("template") so the editor — also is_debug_build() — isn't tagged.
+	if OS.has_feature("template") and OS.is_debug_build():
+		sub.text += "   ·   debug"
 	sub.add_theme_font_size_override("font_size", 20)
 	sub.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

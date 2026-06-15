@@ -96,6 +96,36 @@ jobs:
           "$hash  NiceSwarm.exe" | Out-File -Encoding ascii -NoNewline "build/NiceSwarm.exe.sha256"
           Write-Host "sha256: $hash"
 
+      # Debug build: same project, exported with the DEBUG template. Ships verbose error
+      # reporting / stack traces and enables the in-game F1 debug panel (gated on
+      # OS.is_debug_build()), so playtesters can file actionable bug reports. Same Start-Process
+      # pattern as the release export above — a bare `godot ...` detaches and races silently.
+      - name: Export Windows debug
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath godot -ArgumentList '--headless --path . --export-debug "Windows Desktop" "build/NiceSwarm-debug.exe"' -NoNewWindow -Wait -PassThru -RedirectStandardOutput godot-export-debug-out.txt -RedirectStandardError godot-export-debug-err.txt
+          Get-Content godot-export-debug-out.txt, godot-export-debug-err.txt -ErrorAction SilentlyContinue
+          Write-Host "godot --export-debug exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "godot debug export failed with exit code $($p.ExitCode)" }
+
+      - name: Verify debug exe was produced
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "build/NiceSwarm-debug.exe")) {
+            throw "Debug export failed - no exe produced (check debug export template)"
+          }
+          $mb = [math]::Round((Get-Item "build/NiceSwarm-debug.exe").Length / 1MB, 1)
+          Write-Host "Built build/NiceSwarm-debug.exe ($mb MB)"
+
+      # Debug exe gets its own sidecar so a running debug build checks for updates against the
+      # right asset (see update_check.gd) instead of forever mismatching the release hash.
+      - name: Compute debug exe SHA256 sidecar
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "build/NiceSwarm-debug.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  NiceSwarm-debug.exe" | Out-File -Encoding ascii -NoNewline "build/NiceSwarm-debug.exe.sha256"
+          Write-Host "debug sha256: $hash"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -103,6 +133,8 @@ jobs:
           path: |
             build/NiceSwarm.exe
             build/NiceSwarm.exe.sha256
+            build/NiceSwarm-debug.exe
+            build/NiceSwarm-debug.exe.sha256
           if-no-files-found: error
 
       - name: Publish versioned Release (on v* tags)
@@ -112,6 +144,8 @@ jobs:
           files: |
             build/NiceSwarm.exe
             build/NiceSwarm.exe.sha256
+            build/NiceSwarm-debug.exe
+            build/NiceSwarm-debug.exe.sha256
           generate_release_notes: true
 
       - name: Publish rolling 'latest' prerelease (on publish branch)
@@ -125,3 +159,5 @@ jobs:
           files: |
             build/NiceSwarm.exe
             build/NiceSwarm.exe.sha256
+            build/NiceSwarm-debug.exe
+            build/NiceSwarm-debug.exe.sha256

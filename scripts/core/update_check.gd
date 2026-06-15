@@ -8,8 +8,11 @@ extends Node
 
 signal update_available(remote_hash: String)
 
-# Rolling "latest" release: stable URLs because the tag name is fixed.
-const SHA_URL := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/NiceSwarm.exe.sha256"
+# Rolling "latest" release: stable URLs because the tag name is fixed. The debug exe is a
+# distinct asset with its own hash, so a debug build must compare against its own sidecar —
+# otherwise it would forever mismatch NiceSwarm.exe.sha256 and nag about a non-existent update.
+const SHA_URL_RELEASE := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/NiceSwarm.exe.sha256"
+const SHA_URL_DEBUG := "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/NiceSwarm-debug.exe.sha256"
 const RELEASES_URL := "https://github.com/ICQCQ/NiceSwarm/releases/tag/latest"
 const SKIP_CFG := "user://update_skip.cfg"
 const TIMEOUT := 6.0
@@ -30,7 +33,10 @@ func check() -> void:
 	_http.timeout = TIMEOUT
 	add_child(_http)
 	_http.request_completed.connect(_on_completed)
-	if _http.request(SHA_URL) != OK:
+	# Reached only inside an exported build (the has_feature("template") guard above), so
+	# is_debug_build() here reliably distinguishes the debug export template from the release one.
+	var sha_url := SHA_URL_DEBUG if OS.is_debug_build() else SHA_URL_RELEASE
+	if _http.request(sha_url) != OK:
 		_http.queue_free()
 		_http = null
 

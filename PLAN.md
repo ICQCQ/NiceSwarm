@@ -727,3 +727,29 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   leaked at exit" warning on `all_weapons`/`bomber` — harmless `--quit-after`
   timing artifact, not a regression.
 - Merge committed as `b29836a` on `sync-from-master`.
+
+### 2026-06-15 — Session 4: CI now builds & publishes a debug exe
+- User: add a debug executable to CI and release it. Worked in worktree
+  `ci-debug-exe` (branch `worktree-ci-debug-exe`).
+- `.github/workflows/build-windows.yml`: added an `--export-debug` pass that
+  produces `NiceSwarm-debug.exe` + a `NiceSwarm-debug.exe.sha256` sidecar,
+  using the same `Start-Process -Wait -RedirectStandard*` pattern as the
+  release export (a bare `godot ...` detaches/races silently — see the
+  workflow comments). The debug exe + sidecar are attached to the upload
+  artifact, the rolling `latest` prerelease, and `v*` releases.
+- Why a debug exe: it ships verbose error reporting + stack traces and
+  `OS.is_debug_build()` is already the gate for the in-game F1 debug panel,
+  so playtesters running it get actionable diagnostics.
+- Bug avoided: `update_check.gd` hashed the running exe against the hardcoded
+  release `NiceSwarm.exe.sha256`, so a debug exe would forever mismatch and
+  nag about a non-existent update. Split into `SHA_URL_RELEASE`/`SHA_URL_DEBUG`
+  and pick by `OS.is_debug_build()` inside `check()` (reached only after the
+  `has_feature("template")` guard, so the flag reliably means debug template).
+- `main.gd` menu subtitle appends ` · debug` when
+  `OS.has_feature("template") and OS.is_debug_build()` (template-gated so the
+  editor isn't tagged) — so bug reports name the right build.
+- Verified locally: `--export-debug` produces a 102 MB `NiceSwarm-debug.exe`
+  (debug template present); `[tests] 966 passed, 0 failed`; headless smoke =
+  banner only. Updated CLAUDE.md "Running" with the CI dual-exe note.
+- **Next:** merge `worktree-ci-debug-exe` → `publish` to trigger the release
+  (push to `publish` is what publishes the rolling `latest` build).
