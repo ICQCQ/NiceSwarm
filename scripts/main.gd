@@ -59,10 +59,18 @@ const WEAPON_INFO := {
 		"level": "bigger, deadlier puddles"},
 }
 
-# Stat-upgrade ids (apply_choice) -> short label, for the debug panel's stat grid.
+# Stat-upgrade ids (apply_choice) -> label + HUD icon glyph + color.
+# Drives the debug panel's stat grid AND the on-screen stat-level icons.
+# Order here is the order icons appear on the HUD.
 const STAT_INFO := {
-	"st_power": "Power", "st_rate": "Haste", "st_area": "Area", "st_duration": "Duration",
-	"st_speed": "Speed", "st_hp": "Vitality", "st_magnet": "Magnet", "st_dash": "Dash",
+	"st_power":    {"label": "Power",    "icon": "P", "color": Color(1.0, 0.45, 0.4)},
+	"st_rate":     {"label": "Haste",    "icon": "H", "color": Color(1.0, 0.85, 0.4)},
+	"st_area":     {"label": "Area",     "icon": "A", "color": Color(0.55, 0.7, 1.0)},
+	"st_duration": {"label": "Duration", "icon": "D", "color": Color(0.6, 1.0, 0.6)},
+	"st_speed":    {"label": "Speed",    "icon": "S", "color": Color(0.5, 1.0, 0.9)},
+	"st_hp":       {"label": "Vitality", "icon": "♥", "color": Color(1.0, 0.5, 0.6)},
+	"st_magnet":   {"label": "Magnet",   "icon": "M", "color": Color(0.8, 0.6, 1.0)},
+	"st_dash":     {"label": "Dash",     "icon": "»", "color": Color(1.0, 0.7, 0.45)},
 }
 
 # Compact on-screen badge per owned weapon: id -> [3-char code, color hex]. Fusions fall back
@@ -139,6 +147,20 @@ var i_chose := false
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
 var ingame_menu := false        # our own in-game menu/hub is open (host: global pause; client: local + safe)
 const RESUME_COUNTDOWN := 2.0   # seconds of "get ready" before a resume actually un-freezes the run
+const HINT_COOP := "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
+const HINT_SOLO := "WASD move  ·  SPACE/SHIFT dash  ·  ESC pause/menu"
+
+# Threat readout tiers: a named, color-coded band the player can actually parse,
+# instead of a bare difficulty float. `at` = difficulty at which the tier begins
+# (grounded in real runs: ~6 mid-game, ~16 at 10:00 average, ~22+ when steamrolling).
+# Display-only — does NOT affect balance. The last tier's `at` is the "full bar" cap.
+const THREAT_TIERS := [
+	{"name": "CALM",      "at": 0.0,  "color": Color(0.55, 0.85, 0.65)},
+	{"name": "RISING",    "at": 4.0,  "color": Color(0.75, 0.85, 0.5)},
+	{"name": "DANGER",    "at": 8.0,  "color": Color(1.0, 0.82, 0.4)},
+	{"name": "DEADLY",    "at": 14.0, "color": Color(1.0, 0.55, 0.35)},
+	{"name": "NIGHTMARE", "at": 22.0, "color": Color(1.0, 0.35, 0.4)},
+]
 var countdown_time := 0.0       # >0 while the resume countdown is ticking
 var _countdown_done := Callable()  # runs when the countdown reaches zero (the real resume)
 var _ff_min := -1               # NICESWARM_FF: last game-minute printed during a fast-forward run
@@ -193,6 +215,8 @@ var dash_label: Label
 var threat_label: Label
 var allies_label: Label
 var weapons_label: RichTextLabel
+var hint_label: Label
+var stat_icons: Control          # bottom-left strip of stat-level icon badges
 var xp_bar: ProgressBar
 var arrows: Control
 var hud_root: Control
@@ -273,6 +297,12 @@ func _ready() -> void:
 
 func is_host() -> bool:
 	return multiplayer.is_server()
+
+
+## Solo run: only the local player is in the run, so co-op-only UI wording
+## (party/allies/revive) must not appear. Co-op (host or client) has >1 peer.
+func is_solo() -> bool:
+	return peer_ids.size() <= 1
 
 
 func nearest_alive_player(pos: Vector2) -> Node2D:
@@ -1095,6 +1125,8 @@ func start_game(ids: Array) -> void:
 	menu_panel.visible = false
 	lobby_panel.visible = false
 	hud_root.visible = true
+	if hint_label != null:
+		hint_label.text = HINT_SOLO if is_solo() else HINT_COOP
 	_apply_fast_forward()
 	if net.active and not is_host():
 		# Save now (not just on disconnect) so a client whose game crashes/closes
@@ -1841,6 +1873,8 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 				p.pickup_range *= 1.5
 			"st_dash":
 				p.dash_cooldown = maxf(p.dash_cooldown * 0.8, 1.2)
+		# Track stat picks for the on-screen icons (runs on every peer via call_local).
+		p.stat_levels[id] = int(p.stat_levels.get(id, 0)) + 1
 	if is_host() and not replay:
 		picked_ids[pid] = true
 		_check_all_picked()
@@ -1930,7 +1964,8 @@ func apply_end(won: bool, elapsed_: float, level_: int, kills_: int, scores: Pac
 			% [str(won), elapsed_ / 60.0, level_, kills_, gems_by_id.size()])
 		Engine.time_scale = 1.0
 	get_tree().paused = true
-	end_title.text = "YOU SURVIVED THE NIGHT" if won else "THE PARTY HAS FALLEN"
+	end_title.text = "YOU SURVIVED THE NIGHT" if won \
+		else ("YOU HAVE FALLEN" if is_solo() else "THE PARTY HAS FALLEN")
 	end_title.add_theme_color_override("font_color",
 		Color(0.5, 1.0, 0.6) if won else Color(1.0, 0.35, 0.35))
 	var t := int(elapsed_)
@@ -2379,7 +2414,8 @@ func begin_resume_countdown_remote() -> void:
 
 func _begin_resume_countdown(on_complete: Callable) -> void:
 	# Headless / fast-forward: no UI and no 2s stall (keeps smoke tests + FF fast).
-	if DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0:
+	# Solo: no "get ready" beat — the player paused themselves, so resume instantly.
+	if DisplayServer.get_name() == "headless" or Engine.time_scale > 1.0 or is_solo():
 		if on_complete.is_valid():
 			on_complete.call()
 		return
@@ -2423,6 +2459,7 @@ func _update_hud() -> void:
 	kills_label.text = "Kills %d" % kills
 	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
 	arrows.queue_redraw()
+	stat_icons.queue_redraw()
 	if _banner_t > 0.0 and banner_label != null:
 		_banner_t -= get_process_delta_time()
 		var since := BANNER_LIFE - _banner_t
@@ -2432,23 +2469,30 @@ func _update_hud() -> void:
 		elif _banner_t < 0.6:
 			a = _banner_t / 0.6
 		banner_label.modulate.a = clampf(a, 0.0, 1.0)
-	# difficulty number + bar, with the live heat accelerator (▲ how fast it's climbing)
+	# Threat readout: a named, color-coded tier (CALM…NIGHTMARE) the player can parse
+	# at a glance, a bar that only ever grows toward NIGHTMARE, and a plain-word note
+	# when the climb is accelerating (heat). Display-only — no balance effect.
 	var heat := spawner.heat()
 	var diff := spawner.diff()
-	var filled := clampi(int(diff / 4.0), 0, 8)  # one bar pip per ~4 difficulty, capped at 8
+	var ti := 0
+	for j in THREAT_TIERS.size():
+		if diff >= float(THREAT_TIERS[j].at):
+			ti = j
+	var tier: Dictionary = THREAT_TIERS[ti]
+	var cap: float = maxf(float(THREAT_TIERS[THREAT_TIERS.size() - 1].at), 1.0)
+	var filled := clampi(int(round(diff / cap * 8.0)), 0, 8)  # monotonic: fills toward NIGHTMARE
 	var bar := "▮".repeat(filled) + "▯".repeat(8 - filled)
-	var accel := ""
+	var rising := ""
 	if heat >= 0.5:
-		accel = "  ▲▲"
+		rising = "   ▲▲ SURGING"
 	elif heat >= 0.15:
-		accel = "  ▲"
-	threat_label.text = "DIFFICULTY %.1f  %s%s" % [diff, bar, accel]
-	threat_label.add_theme_color_override("font_color",
-		Color(1.0, 0.4, 0.35) if heat >= 0.5 else (Color(1.0, 0.8, 0.4) if heat >= 0.15 else Color(0.7, 0.75, 0.85)))
+		rising = "   ▲ rising"
+	threat_label.text = "THREAT  %s  %s%s" % [tier.name, bar, rising]
+	threat_label.add_theme_color_override("font_color", tier.color)
 	if me == null:
 		return
 	if me.downed:
-		hp_label.text = "DOWNED — ally can revive you"
+		hp_label.text = "DOWNED" if is_solo() else "DOWNED — ally can revive you"
 	else:
 		hp_label.text = "♥".repeat(maxi(me.hp, 0)) + "♡".repeat(me.max_hp - maxi(me.hp, 0))
 	if me.dash_timer <= 0.0:
@@ -2504,6 +2548,37 @@ func _draw_ally_arrows() -> void:
 			PackedColorArray([col]))
 
 
+## Bottom-left strip: one badge per stat the local player has leveled, showing the
+## stat's icon glyph + how many times it was picked. Asset-free (drawn shapes; the
+## only glyphs are ♥/» which the default font renders).
+func _draw_stat_icons() -> void:
+	if not playing:
+		return
+	var me: Player = players.get(local_id)
+	if me == null:
+		return
+	var font := ThemeDB.fallback_font
+	const BW := 38.0   # badge width
+	const BH := 30.0   # badge height
+	const GAP := 6.0
+	var x := 16.0
+	var y := stat_icons.get_viewport_rect().size.y - 72.0  # sit just above the hint line
+	for sid in STAT_INFO:
+		var lvl := int(me.stat_levels.get(sid, 0))
+		if lvl <= 0:
+			continue
+		var info: Dictionary = STAT_INFO[sid]
+		var col: Color = info.color
+		var rect := Rect2(x, y, BW, BH)
+		stat_icons.draw_rect(rect, Color(col.r, col.g, col.b, 0.20))   # translucent fill
+		stat_icons.draw_rect(rect, col, false, 2.0)                    # colored border
+		stat_icons.draw_string(font, Vector2(x + 7.0, y + 21.0), info.icon,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 19, col)                   # stat glyph
+		stat_icons.draw_string(font, Vector2(x + BW - 13.0, y + 12.0), "%d" % lvl,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.97, 1.0))  # level count
+		x += BW + GAP
+
+
 # --- UI construction --------------------------------------------------------------
 
 func _build_ui() -> void:
@@ -2540,13 +2615,19 @@ func _build_ui() -> void:
 	weapons_label.offset_bottom = 78.0
 	weapons_label.add_theme_font_size_override("normal_font_size", 20)
 	hud_root.add_child(weapons_label)
-	var hint := _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
-	hint.text = "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
+	hint_label = _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
+	hint_label.text = HINT_COOP
 	banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
 	banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	banner_label.offset_top = 150.0
 	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner_label.modulate.a = 0.0
+
+	stat_icons = Control.new()
+	stat_icons.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stat_icons.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stat_icons.draw.connect(_draw_stat_icons)
+	hud_root.add_child(stat_icons)
 
 	arrows = Control.new()
 	arrows.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2922,7 +3003,7 @@ func _build_debug_panel() -> void:
 	vbox.add_child(stat_grid)
 	for sid in STAT_INFO:
 		var sb := Button.new()
-		sb.text = STAT_INFO[sid]
+		sb.text = STAT_INFO[sid].label
 		sb.add_theme_font_size_override("font_size", 12)
 		sb.custom_minimum_size = Vector2(56, 26)
 		sb.pressed.connect(_debug_stat_up.bind(sid))
@@ -2973,6 +3054,7 @@ func _debug_reset_loadout() -> void:
 	p.move_speed = 220.0
 	p.pickup_range = 90.0
 	p.dash_cooldown = 2.5
+	p.stat_levels.clear()
 	p.max_hp = 5
 	p.hp = mini(p.hp, p.max_hp)
 	p.health_changed.emit(p.hp, p.max_hp)
