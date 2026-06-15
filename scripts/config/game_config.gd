@@ -29,7 +29,7 @@ const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late
 const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
 const ENEMY_HP_PER_LEVEL := 0.05       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
-const DIFF_HEAT := 2.4           # how much clear-rate heat accelerates the climb
+const DIFF_HEAT := 3.12          # how much clear-rate heat accelerates the climb (was 2.4, +30%)
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
 const DIFF_WARMUP_FLOOR := 0.25  # early-game climb fraction at t=0
@@ -85,22 +85,16 @@ const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as 
 # leveling speed (player is weaker for longer, killing the late-game snowball). Tunable balance knob.
 const XP_GAIN_MULT := 0.5
 const XP_BASE := 5            # cost to reach level 2
-const XP_BAND_EARLY := 13     # levels 1..13 use the early step
-const XP_BAND_MID := 33       # levels 14..33 use the mid step; 34+ use the late step
-const XP_STEP_EARLY := 2      # +per level in the early band (fast dopamine)
-const XP_STEP_MID := 4        # +per level in the mid band
-const XP_STEP_LATE := 7       # +per level in the late band (aggressive; calibrated with waves on)
+const XP_GROWTH := 1.12       # exponential per-level growth: each level costs XP_GROWTH× the last
 
 
-## Cost AT `lvl` to reach the next level — three-band step curve, divided by `rate`.
-## Closed form (no loop). Pure + static so it's unit-testable without a Main instance.
+## Cost AT `lvl` to reach the next level — an EXPONENTIAL (geometric) curve, divided by `rate`:
+## need(lvl) = XP_BASE * XP_GROWTH^(lvl-1). The requirement compounds — gentle early (build comes
+## online fast), then steepens sharply late so high levels are genuinely earned. Pure + static so
+## it's unit-testable without a Main instance.
 static func xp_for_level(lvl: int, rate: float) -> int:
-	var n := lvl - 1  # levels gained so far
-	var e := mini(n, XP_BAND_EARLY - 1)
-	var m := clampi(n - (XP_BAND_EARLY - 1), 0, XP_BAND_MID - XP_BAND_EARLY)
-	var l := maxi(n - (XP_BAND_MID - 1), 0)
-	var need := XP_BASE + XP_STEP_EARLY * e + XP_STEP_MID * m + XP_STEP_LATE * l
-	return maxi(1, int(round(float(need) / maxf(rate, 0.0001))))
+	var need := XP_BASE * pow(XP_GROWTH, lvl - 1)
+	return maxi(1, int(round(need / maxf(rate, 0.0001))))
 
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
 const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds

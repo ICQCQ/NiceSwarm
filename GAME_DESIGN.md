@@ -70,13 +70,15 @@ fixed schedule, while enemy **toughness** accelerates when the party is doing we
 
 ### Party XP and levels
 XP and level are **shared by the whole party** — anyone's gem pickup advances everyone.
-The threshold curve is currently **linear**:
+The cost AT level `L` to reach `L+1` is **exponential** (`GameConfig.xp_for_level`):
 
 ```
-xp_needed(level) = max(1, round( (6 + (level-1) * 4) / cfg_xp_rate ))
+xp_needed(L) = max(1, round( XP_BASE * XP_GROWTH^(L-1) / (cfg_xp_rate * XP_GAIN_MULT) ))
 ```
-(L1 = 6, L2 = 10, L3 = 14, …). *This curve is the subject of the balance overhaul in
-[docs/balance/BALANCE_PLAN.md](docs/balance/BALANCE_PLAN.md).* On level-up the game pauses
+`XP_BASE = 5`, `XP_GROWTH = 1.12` (each level costs 1.12× the last → gentle early, steep late),
+and the effective rate is `cfg_xp_rate` (menu) × `XP_GAIN_MULT` (0.5 base). At the default rate
+the shown costs are L1≈10, L20≈86, L30≈267, L45≈1462 — leveling compounds, so high levels are
+genuinely earned. On level-up the game pauses
 and **every player picks their own** upgrade; the run resumes once all have picked
 (banked XP / queued chests chain straight into another pick).
 
@@ -259,7 +261,7 @@ has a distinct positional voice, throttled per-name so tick weapons don't stack.
 | `BOSS_HP_PER_LEVEL` / `BOSS_HP_PER_PLAYER` | 0.015 / 0.5 | boss hp ×(1+·(level−1))·(1+·(N−1)) on top of the DPS term |
 | `SPAWN_INTERVAL_START` / `_END` | 0.2 / 0.024 | spawn cadence (ramped in over `DIFF_WARMUP_SECS`); 300-enemy flood late |
 | `SPAWN_RING_MIN` / `_MAX` / `SPAWN_SAFE_RADIUS` | 300 / 1200 / 250 | spawn-distance band + closest allowed spawn |
-| `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 2.4 / 1.0 / 0.02 | climb accelerators |
+| `DIFF_HEAT` / `DIFF_SPIKE` / `DIFF_LEVEL` | 3.12 / 1.0 / 0.02 | climb accelerators |
 | `DIFF_LEVEL_STEP` | 0.05 | flat difficulty added per level-up |
 | `MID_GAME_TIME` | 300 s | earliest heat-spike arm time |
 | `HEAT_SPIKE_GROWTH` / `_MAX` | 1.8 / 5.0 | exponential spike rate / cap |
