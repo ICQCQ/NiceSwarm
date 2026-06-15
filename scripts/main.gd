@@ -1459,15 +1459,17 @@ func nearest_enemy_to(pos: Vector2, max_range: float) -> Node2D:
 
 # --- host: spawning ----------------------------------------------------------
 
-## Host only: a bombardier marks a danger zone; it detonates after TELEGRAPH_WARN
-## and hits any player still inside. Synced to clients via STATE_TELEGRAPHS so the
-## reacting player sees the warning and can dash out.
-func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0) -> void:
-	if telegraphs_by_id.size() >= GameConfig.MAX_TELEGRAPHS:
+## Host only: a bombardier marks a danger zone; it detonates after `warn`
+## (default TELEGRAPH_WARN) and hits any player still inside. Synced to clients
+## via STATE_TELEGRAPHS so the reacting player sees the warning and can dash out.
+## `ignore_cap`: bypass MAX_TELEGRAPHS — for boss slams, which must always render
+## in full (a multi-strike pattern split by the cap would leave silent gaps).
+func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0, warn: float = -1.0, ignore_cap: bool = false) -> void:
+	if not ignore_cap and telegraphs_by_id.size() >= GameConfig.MAX_TELEGRAPHS:
 		return  # arena already saturated with danger zones — don't blanket it (undodgeable)
 	var tz := TelegraphZone.new()
 	tz.radius = radius
-	tz.warn = TELEGRAPH_WARN
+	tz.warn = TELEGRAPH_WARN if warn < 0.0 else warn
 	tz.damage = damage
 	tz.effect = effect
 	tz.main_ref = self

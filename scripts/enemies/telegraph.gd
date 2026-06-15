@@ -44,6 +44,7 @@ func _physics_process(delta: float) -> void:
 		return  # host owns the effect; puppet is freed by the removal diff
 	if effect == EFFECT_FIELD:
 		if t >= warn + FIELD_LINGER:
+			main_ref.telegraphs_by_id.erase(net_id)
 			queue_free()
 			return
 		if t >= warn:  # active hazard — disrupt anyone standing in it
@@ -54,6 +55,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if effect == EFFECT_INTERCEPT:
 		if t >= warn + life:
+			main_ref.telegraphs_by_id.erase(net_id)
 			queue_free()
 		return
 	if t >= warn:
@@ -77,6 +79,7 @@ func _detonate() -> void:
 			p.apply_disrupt(2.5)
 		else:
 			p.take_damage(damage)
+	main_ref.telegraphs_by_id.erase(net_id)
 	queue_free()
 
 

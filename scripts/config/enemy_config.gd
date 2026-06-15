@@ -26,9 +26,9 @@ const CLASSES := {
 		# uniform_tier (on tier 0, applies to the whole class): every unlocked
 		# tier is equally likely — Bomber/Diviner/Oracle stay evenly mixed
 		# instead of skewing toward Oracle late-game (see EnemySpawner.class_tier).
-		{"name": "Bomber", "hp0": 10.0, "hpk": 4.0, "spd": 110.0, "spdk": 1.0, "r": 15.0, "dmg": 1, "xp": 4, "col": Color(0.55, 0.12, 0.12), "shape": "circle", "caster": true, "pattern": 0, "cr": 97.75, "cd": 2, "cdt": 2.15, "keep": 280.0, "uniform_tier": true},
-		{"name": "Diviner", "hp0": 14.0, "hpk": 5.0, "spd": 90.0, "spdk": 0.0, "r": 16.0, "dmg": 1, "xp": 6, "col": Color(0.4, 0.2, 0.6), "shape": "circle", "caster": true, "pattern": 1, "cr": 72.25, "cd": 2, "cdt": 2.6, "keep": 330.0},
-		{"name": "Oracle", "hp0": 24.0, "hpk": 6.0, "spd": 80.0, "spdk": 0.0, "r": 18.0, "dmg": 2, "xp": 9, "col": Color(0.55, 0.25, 0.72), "shape": "circle", "caster": true, "pattern": 2, "cr": 63.75, "cd": 2, "cdt": 3.0, "keep": 360.0},
+		{"name": "Bomber", "hp0": 10.0, "hpk": 4.0, "spd": 110.0, "spdk": 1.0, "r": 15.0, "dmg": 1, "xp": 4, "col": Color(0.55, 0.12, 0.12), "shape": "circle", "caster": true, "pattern": 0, "cr": 97.75, "cd": 2, "cdt": 1.15, "keep": 280.0, "uniform_tier": true},
+		{"name": "Diviner", "hp0": 14.0, "hpk": 5.0, "spd": 90.0, "spdk": 0.0, "r": 16.0, "dmg": 1, "xp": 6, "col": Color(0.4, 0.2, 0.6), "shape": "circle", "caster": true, "pattern": 1, "cr": 72.25, "cd": 2, "cdt": 1.6, "keep": 330.0},
+		{"name": "Oracle", "hp0": 24.0, "hpk": 6.0, "spd": 80.0, "spdk": 0.0, "r": 18.0, "dmg": 2, "xp": 9, "col": Color(0.55, 0.25, 0.72), "shape": "circle", "caster": true, "pattern": 2, "cr": 63.75, "cd": 2, "cdt": 2.0, "keep": 360.0},
 	],
 	"warden": [  # armored — shrugs off a fraction of every hit (resist); focus-fire to drop
 		{"name": "Shieldling", "hp0": 10.0, "hpk": 3.0, "spd": 70.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 3, "col": Color(0.55, 0.6, 0.72), "shape": "square", "resist": 0.4, "pull_imm": true},
@@ -70,9 +70,9 @@ const CLASSES := {
 		# Scrambler: casts a field at a random spot nearby (not on itself); sized by current THREAT.
 		{"name": "Scrambler", "hp0": 18.0, "hpk": 5.0, "spd": 75.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 8, "col": Color(0.3, 0.8, 0.9), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 1, "icast_radius": 90.0, "icast_life": 3.0, "icast_cooldown": 5.0},
 		# Disperser: drops lingering fields on several nearby enemies at once.
-		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.35, 0.85, 0.95), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 85.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
+		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.35, 0.85, 0.95), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 100.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
 		# Overseer: rare — casts a single very long line of fields across the arena at a random angle.
-		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.4, 0.9, 1.0), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 2.5, "icast_cooldown": 50.0},
+		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.4, 0.9, 1.0), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 20.0},
 	],
 	"elite": [  # tanky specials that always drop a chest
 		{"name": "Elite", "hp0": 40.0, "hpk": 18.0, "spd": 100.0, "spdk": 0.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.95, 0.35, 0.5), "shape": "circle", "elite": true, "pull_imm": true},
@@ -87,11 +87,14 @@ const CLASSES := {
 		# slams a checkerboard of strikes centered on itself — find the gaps.
 		{"name": "Juggernaut", "hp0": 450.0, "hpk": 50.0, "spd": 50.0, "spdk": 0.0, "r": 34.0, "dmg": 3, "xp": 50, "col": Color(0.55, 0.05, 0.05), "shape": "hex", "elite": true, "pull_imm": true, "cc_imm": true, "shield_cycle": 4.0, "shield_time": 2.5, "boss": true, "slam_pattern": 3, "slam_radius": 110.0, "slam_damage": 4, "slam_cooldown": 6.0},
 		# Harbinger: cycles its elemental immunity every few seconds — match your
-		# damage type — and sweeps a rotating line of strikes around the target.
-		{"name": "Harbinger", "hp0": 750.0, "hpk": 70.0, "spd": 55.0, "spdk": 0.0, "r": 30.0, "dmg": 4, "xp": 70, "col": Color(0.35, 0.05, 0.5), "shape": "star", "elite": true, "pull_imm": true, "boss": true, "immune_cycle": 4.0, "immune_pool": [Enemy.DMG_PHYS, Enemy.DMG_FIRE, Enemy.DMG_ICE, Enemy.DMG_ENERGY], "slam_pattern": 4, "slam_radius": 90.0, "slam_damage": 3, "slam_cooldown": 4.5},
-		# Eclipse: enrages as it's worn down (armor climbs toward 50% near death)
-		# and calls in reinforcements while slamming a checkerboard grid.
-		{"name": "Eclipse", "hp0": 1100.0, "hpk": 90.0, "spd": 50.0, "spdk": 0.0, "r": 38.0, "dmg": 5, "xp": 100, "col": Color(0.25, 0.05, 0.1), "shape": "square", "elite": true, "pull_imm": true, "boss": true, "enrage_resist": 0.5, "summon_cls": "brawler", "summon_count": 2, "summon_cooldown": 9.0, "slam_pattern": 3, "slam_radius": 120.0, "slam_damage": 4, "slam_cooldown": 5.5},
+		# damage type — and winds up one massive, slow-telegraphed strike on the target.
+		{"name": "Harbinger", "hp0": 750.0, "hpk": 70.0, "spd": 55.0, "spdk": 0.0, "r": 30.0, "dmg": 4, "xp": 70, "col": Color(0.35, 0.05, 0.5), "shape": "star", "elite": true, "pull_imm": true, "boss": true, "immune_cycle": 4.0, "immune_pool": [Enemy.DMG_PHYS, Enemy.DMG_FIRE, Enemy.DMG_ICE, Enemy.DMG_ENERGY], "slam_pattern": 4, "slam_radius": 280.0, "slam_damage": 6, "slam_warn": 3.0, "slam_cooldown": 5.0},
+		# Eclipse: enrages as it's worn down (armor climbs toward 50% near death),
+		# calls in Interceptor reinforcements, and slams a ring of small explosions
+		# centered on itself at the target's current distance — find the gaps
+		# by stepping toward or away from it.
+		# A dark void orb (circle) keeps it reading distinct from Juggernaut's red hex.
+		{"name": "Eclipse", "hp0": 1100.0, "hpk": 90.0, "spd": 50.0, "spdk": 0.0, "r": 38.0, "dmg": 5, "xp": 100, "col": Color(0.1, 0.04, 0.16), "shape": "circle", "elite": true, "pull_imm": true, "boss": true, "enrage_resist": 0.5, "summon_cls": "interceptor", "summon_tier": 1, "summon_count": 2, "summon_cooldown": 12.0, "slam_pattern": 5, "slam_radius": 55.0, "slam_damage": 4, "slam_cooldown": 5.5},
 	],
 }
 
@@ -107,8 +110,8 @@ const SPAWN_POOL := [
 	{"cls": "sentinel",  "weight": 1, "unlock": 150.0},
 	{"cls": "burster",   "weight": 1, "unlock": 180.0},
 	{"cls": "disruptor", "weight": 1, "unlock": 210.0},
-	{"cls": "defiler",   "weight": 1, "unlock": 300.0},
-	{"cls": "interceptor", "weight": 1, "unlock": 240.0},
+	{"cls": "defiler",   "weight": 1, "unlock": 280.0},
+	{"cls": "interceptor", "weight": 1, "unlock": 300.0},
 ]
 
 # Periodic "special" spawns (tanks/elites/casters), one per key. Each fires on
