@@ -348,9 +348,8 @@ func on_peer_connected(id: int) -> void:
 			+ "\nPlayers: %d (you + %d)" % [1 + multiplayer.get_peers().size(),
 				multiplayer.get_peers().size()]
 		if not lobby_players.has(id):
-			var idx := lobby_players.size()
-			lobby_players[id] = {"name": "Player", "color": idx % Player.COLORS.size(),
-				"shape": idx % Player.SHAPES.size()}
+			lobby_players[id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
+				"shape": randi() % Player.SHAPES.size()}
 		net.send_lobby_state(lobby_players)
 		_refresh_lobby_roster()
 		if auto_start_on_join:
@@ -402,9 +401,8 @@ func _show_lobby(status: String) -> void:
 	hud_root.visible = false
 	local_id = multiplayer.get_unique_id()
 	if not lobby_players.has(local_id):
-		var idx := lobby_players.size()
-		lobby_players[local_id] = {"name": "Player", "color": idx % Player.COLORS.size(),
-			"shape": idx % Player.SHAPES.size()}
+		lobby_players[local_id] = {"name": "Player", "color": randi() % Player.COLORS.size(),
+			"shape": randi() % Player.SHAPES.size()}
 	var info: Dictionary = lobby_players[local_id]
 	lobby_color_idx = int(info.get("color", 0))
 	lobby_shape_idx = int(info.get("shape", 0))
