@@ -17,6 +17,9 @@ const DMG_ENERGY := 3
 const SPAWN_RAMP_TIME := 2.0
 const SPAWN_RAMP_FLOOR := 0.15   # speed multiplier at the instant of spawn
 
+# move_mode 4 (flee, Interceptor): wanders until a player comes within this range
+const FLEE_RANGE := 220.0
+
 var age := 0.0   # seconds alive (host sim only); drives the spawn speed ramp
 var hp := 2.0
 var speed := 90.0
@@ -76,6 +79,16 @@ var summon_cls := ""      # periodically calls in reinforcements of this class
 var summon_count := 0
 var summon_cooldown := 0.0
 var summon_timer := 0.0
+# Interceptor: periodically casts a jamming field via main.cast_intercept_zone.
+# icast_pattern: 4 = on itself (Jammer, has down time between casts), 1 = random
+# spot nearby (sized by THREAT), 2 = lingering fields on N random enemies,
+# 3 = a single long line of fields across the arena (random angle)
+var icast_pattern := 0
+var icast_radius := 0.0
+var icast_life := 1.0
+var icast_count := 0
+var icast_cooldown := 1.0
+var icast_timer := 0.0
 var flash := 0.0
 var knockback := Vector2.ZERO
 var slow_timer := 0.0
@@ -200,6 +213,25 @@ func _physics_process(delta: float) -> void:
 			wander_timer = randf_range(0.6, 1.4)
 			heading = Vector2.from_angle(randf() * TAU)
 		velocity = heading * spd + knockback
+	elif move_mode == 4:  # flee: Interceptor wanders until a player gets close, then runs — stays in the arena
+		if target != null and global_position.distance_to(target.global_position) < FLEE_RANGE:
+			velocity = (global_position - target.global_position).normalized() * spd + knockback
+		else:
+			wander_timer -= delta
+			if wander_timer <= 0.0:
+				wander_timer = randf_range(0.6, 1.4)
+				heading = Vector2.from_angle(randf() * TAU)
+			velocity = heading * spd + knockback
+		# don't flee through the arena walls — kill the outward component near an edge
+		# (the other axis still lets it slide along the wall)
+		if global_position.x <= arena.position.x + radius and velocity.x < 0.0:
+			velocity.x = 0.0
+		elif global_position.x >= arena.end.x - radius and velocity.x > 0.0:
+			velocity.x = 0.0
+		if global_position.y <= arena.position.y + radius and velocity.y < 0.0:
+			velocity.y = 0.0
+		elif global_position.y >= arena.end.y - radius and velocity.y > 0.0:
+			velocity.y = 0.0
 	elif target != null:
 		velocity = (target.global_position - global_position).normalized() * spd + knockback
 	else:
@@ -209,6 +241,8 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		if velocity.length() > 1.0:
 			heading = velocity.normalized()
+		if move_mode == 4:  # flee: knockback can still shove it past the edge — clamp back in
+			global_position = global_position.clamp(arena.position + Vector2(radius, radius), arena.end - Vector2(radius, radius))
 	if target != null \
 			and global_position.distance_to(target.global_position) <= radius + Player.HURT_RADIUS:
 		target.take_damage(dmg)
@@ -231,6 +265,44 @@ func _physics_process(delta: float) -> void:
 			summon_timer = summon_cooldown
 			for i in summon_count:
 				main_ref.spawner.spawn_enemy(summon_cls)
+	# Interceptor T1-3: periodically cast a jamming field (destroys player
+	# projectiles) via main.cast_intercept_zone — see EnemyGrid.in_interceptor_zone.
+	if icast_pattern > 0:
+		icast_timer -= delta
+		if icast_timer <= 0.0:
+			icast_timer = icast_cooldown
+			match icast_pattern:
+				4:  # T0 Jammer: re-cast the field on itself — has down time between casts
+					main_ref.cast_intercept_zone(global_position, icast_radius, icast_life)
+				1:  # a field dropped at a random spot nearby, sized by current THREAT
+					var r: float = icast_radius * (1.0 + main_ref.spawner.diff() / 40.0)
+					var p := global_position + Vector2.from_angle(randf() * TAU) * randf_range(80.0, 260.0)
+					main_ref.cast_intercept_zone(p, r, icast_life)
+				2:  # lingering fields on a handful of other live enemies — prefer
+					# Bouncers (their ricochet path drags the field around
+					# unpredictably); fall back to Bosses if none are alive.
+					var bouncers: Array[Enemy] = []
+					var bosses: Array[Enemy] = []
+					for e in EnemyGrid.all():
+						if e == self:
+							continue
+						match main_ref.spawner.types[e.type_id].cls:
+							"bouncer":
+								bouncers.append(e)
+							"boss":
+								bosses.append(e)
+					var targets := bouncers if not bouncers.is_empty() else bosses
+					targets.shuffle()
+					for i in mini(icast_count, targets.size()):
+						main_ref.cast_intercept_zone(targets[i].global_position, icast_radius, icast_life)
+				3:  # a single long line of fields across the arena, random angle
+					var dir := Vector2.from_angle(randf() * TAU)
+					var span := arena.size.length()
+					var step := icast_radius * 1.6
+					var count := int(span / step) + 1
+					var start := global_position - dir * span * 0.5
+					for i in count:
+						main_ref.cast_intercept_zone(start + dir * step * i, icast_radius, icast_life)
 	# burn DoT (host-authoritative) — Duration extends it, Power feeds its dps.
 	# Re-igniting an active burn stacks onto it: hotter (dps) AND longer (time).
 	if burn_timer > 0.0:

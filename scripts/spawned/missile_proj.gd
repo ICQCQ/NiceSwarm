@@ -38,6 +38,9 @@ func _physics_process(delta: float) -> void:
 	position += velocity * delta
 	rotation = velocity.angle()
 	queue_redraw()
+	if EnemyGrid.in_interceptor_zone(global_position):
+		queue_free()
+		return
 	if target != null and is_instance_valid(target) \
 			and global_position.distance_to(target.global_position) <= 10.0 + target.radius:
 		_explode()

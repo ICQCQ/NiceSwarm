@@ -21,6 +21,9 @@ func _physics_process(delta: float) -> void:
 	if life <= 0.0:
 		queue_free()
 		return
+	if EnemyGrid.in_interceptor_zone(global_position):
+		queue_free()
+		return
 	for e in EnemyGrid.near(global_position, hit_radius):
 		if hit_ids.has(e.get_instance_id()):
 			continue

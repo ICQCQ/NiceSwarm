@@ -317,6 +317,12 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.summon_count = d.get("summon_count", 0)
 	e.summon_cooldown = d.get("summon_cooldown", 0.0)
 	e.summon_timer = e.summon_cooldown
+	e.icast_pattern = d.get("icast_pattern", 0)
+	e.icast_radius = d.get("icast_radius", 0.0)
+	e.icast_life = d.get("icast_life", 1.0)
+	e.icast_count = d.get("icast_count", 0)
+	e.icast_cooldown = d.get("icast_cooldown", 1.0)
+	e.icast_timer = e.icast_cooldown
 	# configured enemy-scale multiplier (difficulty is already baked into hp/speed above)
 	e.hp *= main.cfg_enemy_scale
 	e.speed *= lerpf(1.0, main.cfg_enemy_scale, 0.4)

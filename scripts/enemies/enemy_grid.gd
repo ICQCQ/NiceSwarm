@@ -12,6 +12,7 @@ const MARGIN := 40.0  # >= largest enemy radius, so "near" stays a superset of
                        # `distance <= radius + e.radius` checks
 
 static var _cells: Dictionary = {}
+static var _zones: Array[TelegraphZone] = []  # cast jamming fields (Interceptor)
 static var _frame: int = -1
 
 
@@ -57,3 +58,27 @@ static func all() -> Array[Enemy]:
 	for bucket in _cells.values():
 		result.append_array(bucket)
 	return result
+
+
+## Registers a cast jamming field (Interceptor, TelegraphZone with effect ==
+## EFFECT_INTERCEPT) so in_interceptor_zone() also checks it. Called once from
+## the zone's _ready() on both host and puppet instances; the entry self-prunes
+## (is_instance_valid) once the zone is freed.
+static func register_zone(z: TelegraphZone) -> void:
+	_zones.append(z)
+
+
+## True if `pos` falls inside an Interceptor's jamming field (player projectiles
+## are destroyed there). The zone list is short (zones are rare), so this is a
+## cheap linear scan rather than a grid lookup, and free (empty list) when none
+## are active.
+static func in_interceptor_zone(pos: Vector2) -> bool:
+	var i := _zones.size() - 1
+	while i >= 0:
+		var z := _zones[i]
+		if not is_instance_valid(z):
+			_zones.remove_at(i)
+		elif z.is_intercept_active() and pos.distance_to(z.global_position) <= z.radius:
+			return true
+		i -= 1
+	return false
