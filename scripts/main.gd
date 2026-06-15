@@ -215,8 +215,10 @@ var dash_label: Label
 var threat_label: Label
 var allies_label: Label
 var weapons_label: RichTextLabel
+var stats_label: RichTextLabel    # current stat upgrades, shown under the weapon slots
+var weapon_tip: RichTextLabel     # hover tooltip: the hovered weapon slot's current stats
+var _tip_weapon_id := ""          # weapon_id currently shown in weapon_tip (refreshed while hovered)
 var hint_label: Label
-var stat_icons: Control          # bottom-left strip of stat-level icon badges
 var xp_bar: ProgressBar
 var arrows: Control
 var hud_root: Control
@@ -2459,7 +2461,6 @@ func _update_hud() -> void:
 	kills_label.text = "Kills %d" % kills
 	xp_bar.value = float(xp) / float(maxi(_current_needed(), 1)) * 100.0
 	arrows.queue_redraw()
-	stat_icons.queue_redraw()
 	if _banner_t > 0.0 and banner_label != null:
 		_banner_t -= get_process_delta_time()
 		var since := BANNER_LIFE - _banner_t
@@ -2501,10 +2502,27 @@ func _update_hud() -> void:
 	else:
 		dash_label.text = "Dash %.1fs" % me.dash_timer
 		dash_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
+	# Skill slots: each owned weapon is a highlighted, hover-able badge; remaining slots
+	# are dim ◇ up to MAX_WEAPONS, with an n/5 count (amber FULL at the cap) — so the
+	# 5-slot limit reads at a glance. Hover a slot for that weapon's current stats.
 	var wparts := []
 	for w in me.weapons:
-		wparts.append(_weapon_badge(w))
-	weapons_label.text = "[right]" + "  ".join(wparts) + "[/right]"
+		wparts.append("[url=%s][bgcolor=#27344c] %s [/bgcolor][/url]" % [w.weapon_id, _weapon_badge(w)])
+	for _k in range(me.weapons.size(), MAX_WEAPONS):
+		wparts.append("[bgcolor=#161c28][color=#39414f] ◇ [/color][/bgcolor]")
+	var w_full: bool = me.weapons.size() >= MAX_WEAPONS
+	var w_cnt := "WEAPONS %d/%d%s" % [me.weapons.size(), MAX_WEAPONS, "  FULL" if w_full else ""]
+	weapons_label.text = "[right][color=#%s]%s[/color]   %s[/right]" \
+		% ["ff9a55" if w_full else "6b7488", w_cnt, "  ".join(wparts)]
+	# Current stat upgrades, directly under the weapon slots.
+	var sparts := []
+	for sid in STAT_INFO:
+		var slvl := int(me.stat_levels.get(sid, 0))
+		if slvl > 0:
+			sparts.append(_stat_badge(STAT_INFO[sid], slvl))
+	stats_label.text = ("[right][color=#6b7488]STATS[/color]   %s[/right]" % "  ".join(sparts)) if not sparts.is_empty() else ""
+	if weapon_tip.visible and _tip_weapon_id != "":
+		weapon_tip.text = _weapon_tip_text(_tip_weapon_id)  # keep stats live while hovered
 	var lines := []
 	for pid in peer_ids:
 		if pid == local_id:
@@ -2548,35 +2566,47 @@ func _draw_ally_arrows() -> void:
 			PackedColorArray([col]))
 
 
-## Bottom-left strip: one badge per stat the local player has leveled, showing the
-## stat's icon glyph + how many times it was picked. Asset-free (drawn shapes; the
-## only glyphs are ♥/» which the default font renders).
-func _draw_stat_icons() -> void:
-	if not playing:
-		return
+## BBCode badge for one leveled stat (shown in the top-right stats row): the stat's
+## color-coded icon glyph + how many times it's been picked.
+func _stat_badge(info: Dictionary, lvl: int) -> String:
+	return "[color=#%s]%s[/color]×%d" % [info.color.to_html(false), info.icon, lvl]
+
+
+## A weapon slot was hovered: remember which weapon and show its current-stats tooltip.
+## _update_hud refreshes the text each frame so the numbers stay live while hovered.
+func _on_weapon_hover(meta) -> void:
+	_tip_weapon_id = str(meta)
+	weapon_tip.text = _weapon_tip_text(_tip_weapon_id)
+	weapon_tip.visible = _tip_weapon_id != ""
+
+
+func _on_weapon_unhover(_meta) -> void:
+	_tip_weapon_id = ""
+	weapon_tip.visible = false
+
+
+## Current effective stats of one owned weapon, for the hover tooltip. Effective damage
+## and cadence come from WeaponConfig.BASE scaled by level + the local player's Power/Haste
+## (cd = recurring cooldown/tick/re-hit per BASE's contract). Fusions have no BASE row, so
+## they show a qualitative line instead of fabricated numbers.
+func _weapon_tip_text(id: String) -> String:
 	var me: Player = players.get(local_id)
 	if me == null:
-		return
-	var font := ThemeDB.fallback_font
-	const BW := 38.0   # badge width
-	const BH := 30.0   # badge height
-	const GAP := 6.0
-	var x := 16.0
-	var y := stat_icons.get_viewport_rect().size.y - 72.0  # sit just above the hint line
-	for sid in STAT_INFO:
-		var lvl := int(me.stat_levels.get(sid, 0))
-		if lvl <= 0:
-			continue
-		var info: Dictionary = STAT_INFO[sid]
-		var col: Color = info.color
-		var rect := Rect2(x, y, BW, BH)
-		stat_icons.draw_rect(rect, Color(col.r, col.g, col.b, 0.20))   # translucent fill
-		stat_icons.draw_rect(rect, col, false, 2.0)                    # colored border
-		stat_icons.draw_string(font, Vector2(x + 7.0, y + 21.0), info.icon,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 19, col)                   # stat glyph
-		stat_icons.draw_string(font, Vector2(x + BW - 13.0, y + 12.0), "%d" % lvl,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.97, 1.0))  # level count
-		x += BW + GAP
+		return ""
+	var w = me.get_weapon(id)
+	if w == null:
+		return ""
+	var lines := ["[color=#cdd6e6]%s[/color]  [color=#9aa4b8]Lv %d[/color]" % [w.display_name, w.level]]
+	if WeaponConfig.BASE.has(id):
+		var b: Dictionary = WeaponConfig.BASE[id]
+		var dmg: float = b.dmg * (1.0 + b.growth * (w.level - 1)) * me.damage_mult
+		var cd: float = b.cd * me.rate_mult
+		lines.append("[color=#ff9a8a]DMG %.1f[/color]   [color=#9fd0ff]every %.2fs[/color]" % [dmg, cd])
+	else:
+		lines.append("[color=#ffd479]fusion[/color] [color=#9aa4b8]— scales with your stats[/color]")
+	if WEAPON_INFO.has(id):
+		lines.append("[color=#7e8aa0]%s[/color]" % WEAPON_INFO[id].level)
+	return "[right]" + "\n".join(lines) + "[/right]"
 
 
 # --- UI construction --------------------------------------------------------------
@@ -2607,14 +2637,45 @@ func _build_ui() -> void:
 	weapons_label.bbcode_enabled = true
 	weapons_label.scroll_active = false
 	weapons_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	weapons_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapons_label.mouse_filter = Control.MOUSE_FILTER_PASS  # PASS so [url] slot hover fires
+	weapons_label.meta_underlined = false
 	weapons_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	weapons_label.offset_left = -600.0
 	weapons_label.offset_right = -16.0
 	weapons_label.offset_top = 16.0
 	weapons_label.offset_bottom = 78.0
 	weapons_label.add_theme_font_size_override("normal_font_size", 20)
+	weapons_label.meta_hover_started.connect(_on_weapon_hover)
+	weapons_label.meta_hover_ended.connect(_on_weapon_unhover)
 	hud_root.add_child(weapons_label)
+
+	stats_label = RichTextLabel.new()
+	stats_label.bbcode_enabled = true
+	stats_label.scroll_active = false
+	stats_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	stats_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stats_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	stats_label.offset_left = -600.0
+	stats_label.offset_right = -16.0
+	stats_label.offset_top = 80.0
+	stats_label.offset_bottom = 116.0
+	stats_label.add_theme_font_size_override("normal_font_size", 18)
+	hud_root.add_child(stats_label)
+
+	weapon_tip = RichTextLabel.new()
+	weapon_tip.bbcode_enabled = true
+	weapon_tip.scroll_active = false
+	weapon_tip.fit_content = true
+	weapon_tip.autowrap_mode = TextServer.AUTOWRAP_OFF
+	weapon_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapon_tip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	weapon_tip.offset_left = -600.0
+	weapon_tip.offset_right = -16.0
+	weapon_tip.offset_top = 120.0
+	weapon_tip.add_theme_font_size_override("normal_font_size", 16)
+	weapon_tip.visible = false
+	hud_root.add_child(weapon_tip)
+
 	hint_label = _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	hint_label.text = HINT_COOP
 	banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
@@ -2622,12 +2683,6 @@ func _build_ui() -> void:
 	banner_label.offset_top = 150.0
 	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner_label.modulate.a = 0.0
-
-	stat_icons = Control.new()
-	stat_icons.set_anchors_preset(Control.PRESET_FULL_RECT)
-	stat_icons.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stat_icons.draw.connect(_draw_stat_icons)
-	hud_root.add_child(stat_icons)
 
 	arrows = Control.new()
 	arrows.set_anchors_preset(Control.PRESET_FULL_RECT)
