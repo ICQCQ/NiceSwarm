@@ -65,6 +65,17 @@ const STAT_INFO := {
 	"st_speed": "Speed", "st_hp": "Vitality", "st_magnet": "Magnet", "st_dash": "Dash",
 }
 
+# Compact on-screen badge per owned weapon: id -> [3-char code, color hex]. Fusions fall back
+# to gold initials of their display name (see _weapon_badge / _fusion_short).
+const WEAPON_ICON := {
+	"bolt": ["BLT", "9fd0ff"], "orbit": ["ORB", "b0a0ff"], "nova": ["NOV", "c79bff"],
+	"glaive": ["GLV", "9fe0c0"], "lightning": ["LTN", "fff07a"], "flame": ["FLM", "ff9a55"],
+	"mines": ["MNE", "ffb060"], "missiles": ["MSL", "ff8a6a"], "laser": ["LSR", "ff7a8a"],
+	"frost": ["FRS", "8fe0ff"], "gravity": ["GRV", "b58aff"], "turret": ["TRT", "c8d0e0"],
+	"venom": ["VNM", "8fdf6a"],
+}
+const SUP := ["", "¹", "²", "³"]  # superscript weapon level for the HUD badge (max level 3)
+
 # --- session / network ---
 var net: Net
 var spawner: EnemySpawner
@@ -156,7 +167,7 @@ var kills_label: Label
 var dash_label: Label
 var threat_label: Label
 var allies_label: Label
-var weapons_label: Label
+var weapons_label: RichTextLabel
 var xp_bar: ProgressBar
 var arrows: Control
 var hud_root: Control
@@ -173,7 +184,9 @@ var pause_panel: Control
 var pause_loadout: Label
 var pause_roster: Label
 var ingame_menu_panel: Control   # in-run menu/hub (resume · codex · settings · leave)
-var ingame_menu_hint: Label      # transient line for stubbed hub tabs
+var ingame_menu_hint: Label      # hub nav breadcrumb / tab hints
+var codex_body: RichTextLabel    # in-hub skill/monster codex content (hidden until opened)
+var codex_view := ""             # "" = hub root, "skills", or "monsters"
 var countdown_panel: Control     # resume countdown overlay
 var countdown_label: Label
 var menu_panel: Control
@@ -1434,15 +1447,18 @@ func _input(event: InputEvent) -> void:
 			_choose_upgrade(key - KEY_1)
 	elif ingame_menu:  # our own in-run menu/hub is open
 		if key == KEY_ESCAPE:
-			_resume_from_ingame_menu()
-		elif key == KEY_L:
-			_leave_from_menu()  # leaving is deliberate — never a stray single key
+			if codex_view != "":
+				_close_codex()        # ESC backs out of an open codex before resuming
+			else:
+				_resume_from_ingame_menu()
 		elif key == KEY_C:
-			ingame_menu_hint.text = "Skill codex — coming soon"
+			_show_codex("skills")
 		elif key == KEY_V:
-			ingame_menu_hint.text = "Monster codex — coming soon"
+			_show_codex("monsters")
 		elif key == KEY_O:
 			ingame_menu_hint.text = "Settings — coming soon"
+		elif key == KEY_L and codex_view == "":
+			_leave_from_menu()  # deliberate, hub-root only — never a stray key while reading a codex
 	elif paused_menu:  # a host paused us (client): wait for resume, or leave with M
 		if key == KEY_M:
 			_to_menu()
@@ -1473,7 +1489,7 @@ func _open_ingame_menu() -> void:
 	if not is_host() and get_tree().paused:
 		return  # already frozen by a host pause — don't stack a local menu on top
 	ingame_menu = true
-	ingame_menu_hint.text = ""
+	_close_codex()  # always open on the hub root, never a stale codex view
 	ingame_menu_panel.visible = true
 	if is_host():
 		get_tree().paused = true
@@ -1509,6 +1525,7 @@ func _leave_from_menu() -> void:
 func _force_close_ingame_menu() -> void:
 	ingame_menu = false
 	_cancel_countdown()
+	_close_codex()
 	if ingame_menu_panel != null:
 		ingame_menu_panel.visible = false
 	_clear_local_safe()
@@ -1619,8 +1636,8 @@ func _update_hud() -> void:
 		dash_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
 	var wparts := []
 	for w in me.weapons:
-		wparts.append("%s %d" % [w.display_name, w.level])
-	weapons_label.text = "  ·  ".join(wparts)
+		wparts.append(_weapon_badge(w))
+	weapons_label.text = "[right]" + "  ".join(wparts) + "[/right]"
 	var lines := []
 	for pid in peer_ids:
 		if pid == local_id:
@@ -1687,12 +1704,18 @@ func _build_ui() -> void:
 	dash_label = _make_label(Vector2(16, 114), 22, Color(0.5, 1.0, 0.7))
 	threat_label = _make_label(Vector2(540, 58), 22, Color(0.6, 0.65, 0.75))
 	allies_label = _make_label(Vector2(16, 146), 20, Color(0.85, 0.85, 0.95))
-	weapons_label = _make_label(Vector2.ZERO, 18, Color(0.75, 0.8, 0.9))
+	weapons_label = RichTextLabel.new()
+	weapons_label.bbcode_enabled = true
+	weapons_label.scroll_active = false
+	weapons_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	weapons_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	weapons_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	weapons_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	weapons_label.offset_top = 20.0
+	weapons_label.offset_left = -600.0
 	weapons_label.offset_right = -16.0
-	weapons_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	weapons_label.offset_top = 16.0
+	weapons_label.offset_bottom = 78.0
+	weapons_label.add_theme_font_size_override("normal_font_size", 20)
+	hud_root.add_child(weapons_label)
 	var hint := _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	hint.text = "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
 
@@ -1719,6 +1742,32 @@ func _make_label(pos: Vector2, size: int, color: Color) -> Label:
 	l.add_theme_color_override("font_color", color)
 	hud_root.add_child(l)
 	return l
+
+
+## Compact on-screen badge for an owned weapon: a colored ◆ + 3-char code + superscript level.
+## Base weapons use WEAPON_ICON; fusions fall back to gold initials of their display name.
+func _weapon_badge(w) -> String:
+	var code: String
+	var col: String
+	if WEAPON_ICON.has(w.weapon_id):
+		code = WEAPON_ICON[w.weapon_id][0]
+		col = WEAPON_ICON[w.weapon_id][1]
+	else:
+		code = _fusion_short(w.display_name)
+		col = "ffd479"  # fusion = gold
+	var lv := clampi(w.level, 0, SUP.size() - 1)
+	return "[color=#%s]◆%s[/color]%s" % [col, code, SUP[lv]]
+
+
+## Up-to-3-char code for a fusion: initials of each word, or first letters if it's one word.
+func _fusion_short(dname: String) -> String:
+	var s := ""
+	for word in dname.split(" ", false):
+		if not word.is_empty():
+			s += word.substr(0, 1)
+	if s.length() < 2:
+		s = dname.replace(" ", "")
+	return s.to_upper().substr(0, 3)
 
 
 func _make_overlay() -> Array:
@@ -1830,18 +1879,93 @@ func _build_ingame_menu_panel() -> void:
 	l.add_theme_font_size_override("font_size", 40)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(l)
-	# transient line used by the (stubbed) codex / settings tabs
+	# nav breadcrumb for the hub tabs (skill/monster codex, settings)
 	ingame_menu_hint = Label.new()
 	ingame_menu_hint.add_theme_font_size_override("font_size", 18)
 	ingame_menu_hint.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	ingame_menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(ingame_menu_hint)
+	# skill / monster codex body — hidden (and skipped by the VBox layout) until a tab opens
+	codex_body = RichTextLabel.new()
+	codex_body.bbcode_enabled = true
+	codex_body.scroll_active = true
+	codex_body.custom_minimum_size = Vector2(840, 480)
+	codex_body.add_theme_font_size_override("normal_font_size", 15)
+	codex_body.add_theme_font_size_override("bold_font_size", 16)
+	codex_body.visible = false
+	vbox.add_child(codex_body)
 	var foot := Label.new()
 	foot.text = "ESC resume   ·   C skill codex   ·   V monster codex   ·   O settings   ·   L leave game"
 	foot.add_theme_font_size_override("font_size", 16)
 	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(foot)
+
+
+## Open a codex tab inside the hub: swap the menu body for a scrollable list + breadcrumb.
+## C = skills, V = monsters; ESC (or _force_close) backs out via _close_codex.
+func _show_codex(kind: String) -> void:
+	codex_view = kind
+	if kind == "skills":
+		ingame_menu_hint.text = "SKILL CODEX      V monsters  ·  ESC back"
+		codex_body.text = _skill_codex_bbcode()
+	else:
+		ingame_menu_hint.text = "MONSTER CODEX      C skills  ·  ESC back"
+		codex_body.text = _monster_codex_bbcode()
+	codex_body.visible = true
+	codex_body.scroll_to_line(0)
+
+
+func _close_codex() -> void:
+	codex_view = ""
+	if codex_body != null:
+		codex_body.visible = false
+		codex_body.text = ""
+	if ingame_menu_hint != null:
+		ingame_menu_hint.text = ""
+
+
+## Every weapon (with its HUD badge) + the stats, each with a one-line description.
+func _skill_codex_bbcode() -> String:
+	var s := "[b]WEAPONS[/b]      max one, then merge two maxed weapons into a fusion\n\n"
+	for wid in WEAPON_INFO:
+		var info: Dictionary = WEAPON_INFO[wid]
+		var ic: Array = WEAPON_ICON.get(wid, ["?", "ffffff"])
+		s += "[color=#%s]◆%s[/color]  [b]%s[/b] — %s\n" % [ic[1], ic[0], info.name, info.learn]
+	s += "\n[b]STATS[/b]      stack with every level-up\n\n"
+	var stat_desc := {
+		"Power": "more weapon damage", "Haste": "attack faster",
+		"Area": "bigger blasts, reach and projectiles", "Duration": "effects last longer",
+		"Speed": "move faster", "Vitality": "+1 max health",
+		"Magnet": "wider pickup range", "Dash": "shorter dash cooldown",
+	}
+	for sid in STAT_INFO:
+		var nm: String = STAT_INFO[sid]
+		s += "•  [b]%s[/b] — %s\n" % [nm, stat_desc.get(nm, "")]
+	return s
+
+
+## Every enemy archetype with its tier names (Grunt → Bruiser → …), colored by the class,
+## and a one-line behavior note. Built from EnemyConfig.CLASSES so new classes appear here too.
+func _monster_codex_bbcode() -> String:
+	var blurb := {
+		"brawler": "baseline chasers", "rusher": "fast, fragile darters",
+		"tank": "huge, slow, heavy hits; immune to pull", "caster": "ranged, telegraphed strikes",
+		"warden": "armored — shrugs off part of every hit", "burster": "spits a ring of shards on death",
+		"shard": "a burster's bullet — phases through, expires", "sentinel": "phases an unbreakable shield — strike between",
+		"wisp": "immune to ENERGY; drifts unpredictably", "bouncer": "ricochets, phases, can't be interrupted",
+		"disruptor": "zones that slow you and lock your dash", "defiler": "lays lingering disrupt fields on the ground",
+		"elite": "tanky special — always drops a chest", "boss": "periodic giant — a unique gimmick + map-wide slams",
+	}
+	var s := "[b]ENEMIES[/b]      tiers escalate with time, level and difficulty\n\n"
+	for cls in EnemyConfig.CLASSES:
+		var tiers: Array = EnemyConfig.CLASSES[cls]
+		var names := []
+		for t in tiers:
+			names.append(t.name)
+		var col: Color = tiers[0].col
+		s += "[color=#%s]●[/color]  [b]%s[/b] — %s\n" % [col.to_html(false), " → ".join(names), blurb.get(cls, "")]
+	return s
 
 
 func _build_countdown_panel() -> void:
