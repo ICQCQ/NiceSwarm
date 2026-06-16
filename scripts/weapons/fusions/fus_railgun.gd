@@ -12,24 +12,31 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(750.0)
+	var target := player.nearest_enemy(999.0)
 	if target == null:
 		cooldown = 0.1
 		return
 	var dir := (target.global_position - player.global_position).normalized()
-	var length := 600.0 * fuse_area()
-	var width := 12.0 * fuse_area()
-	var dmg := 3.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var length := 999.0 * fuse_area()            # long line-of-sight rail
+	var zap_r := 333.0 * fuse_area()             # zap everything near the beam
+	var dmg := 5.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	var origin := player.global_position
-	for e in Main.instance.enemies_in_radius(origin, length + 64.0):
-		var rel: Vector2 = e.global_position - origin
-		var along := rel.dot(dir)
-		if along >= 0.0 and along <= length and (dir * along).distance_to(rel) <= width + e.radius:
-			damage_dealt += dmg
-			e.take_hit(dmg, origin, Enemy.DMG_PHYS, player.peer_id)
-			ignite(e, dmg)
 	var fx := LightningFx.new()
 	fx.points = [origin, origin + dir * length]
 	player.get_parent().add_child(fx)
+	for e in Main.instance.enemies_in_radius(origin, length + zap_r + 64.0):
+		var rel: Vector2 = e.global_position - origin
+		var along := rel.dot(dir)
+		if along < 0.0 or along > length:
+			continue
+		var beam_pt := origin + dir * along
+		if beam_pt.distance_to(e.global_position) > zap_r + e.radius:
+			continue
+		damage_dealt += dmg
+		e.take_hit(dmg, origin, Enemy.DMG_PHYS, player.peer_id)
+		ignite(e, dmg)
+		var z := LightningFx.new()            # arc from the beam to each zapped foe
+		z.points = [beam_pt, e.global_position]
+		player.get_parent().add_child(z)
 	Sfx.play("lightning", origin)
-	cooldown = 1.3 * fuse_rate()
+	cooldown = 0.9 * fuse_rate()
