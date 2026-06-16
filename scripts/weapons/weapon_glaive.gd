@@ -1,6 +1,7 @@
 class_name WeaponGlaive
 extends WeaponBase
-## Boomerang glaive thrower. Lv3/Lv5 add extra glaives in a fan.
+## Boomerang glaive thrower. Glaives in the fan grow with level: 1 at Lv1, 2 at
+## Lv2, then +1 every level (3 at Lv3 … 7 at Lv7), frozen past the count cap.
 
 var cooldown := 0.8
 

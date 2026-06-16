@@ -1,8 +1,13 @@
 class_name WeaponNova
 extends WeaponBase
-## Periodic blast damaging everything around the player. Level = radius + damage.
+## Periodic blast damaging everything around the player. Level = radius + damage,
+## and past Lv4 each pulse echoes: 1 extra shockwave at Lv5, 2 at Lv6, 3 at Lv7.
+
+const ECHO_GAP := 0.22  # seconds between a pulse and its echoes (x Haste)
 
 var cooldown := 1.5
+var echoes_left := 0
+var echo_cd := 0.0
 
 
 func _init() -> void:
@@ -13,9 +18,27 @@ func _init() -> void:
 func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		return
+	# Above-Lv4 kicker: drain queued echo pulses so high levels hit several times
+	# per cooldown instead of only widening the radius.
+	if echoes_left > 0:
+		echo_cd -= delta
+		if echo_cd <= 0.0:
+			echoes_left -= 1
+			echo_cd = ECHO_GAP * player.rate_mult
+			_blast()
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
+	if _blast():
+		cooldown = WeaponConfig.BASE.nova.cd * player.rate_mult
+		echoes_left = maxi(0, count_level() - 4)  # Lv5:1, Lv6:2, Lv7:3
+		echo_cd = ECHO_GAP * player.rate_mult
+	else:
+		cooldown = 0.25  # nothing in range, retry soon
+
+
+## One shockwave: damages everything in the blast radius. Returns whether it hit.
+func _blast() -> bool:
 	var radius := (130.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.nova.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.nova.growth * (level - 1))
 	var hit_any := false
@@ -29,7 +52,6 @@ func _physics_process(delta: float) -> void:
 			push(e, global_position)
 			hit_any = true
 	if hit_any:
-		cooldown = WeaponConfig.BASE.nova.cd * player.rate_mult
 		var fx := RingFx.new()
 		fx.position = global_position
 		fx.radius = 25.0
@@ -38,5 +60,4 @@ func _physics_process(delta: float) -> void:
 		fx.color = Color(0.55, 0.5, 1.0)
 		player.get_parent().add_child(fx)
 		Sfx.play("nova", global_position)
-	else:
-		cooldown = 0.25  # nothing in range, retry soon
+	return hit_any
