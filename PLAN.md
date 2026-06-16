@@ -140,6 +140,35 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-16 — Session 6: auto-updating launcher (branch `feat/launcher`, worktree)
+- **Goal:** a small, cross-platform launcher that checks for updates and downloads the
+  game automatically, then launches it. Design + rationale in [LAUNCHER.md](LAUNCHER.md).
+- **Architecture:** the launcher is the primary distributable; the ~100 MB game binary is
+  managed in a per-user data dir (`%LOCALAPPDATA%\NiceSwarm` on Windows, `~/Library/
+  Application Support/NiceSwarm` on macOS). Because the game isn't running during a
+  download, the Windows locked-exe problem never arises. **Reuses the existing `.sha256`
+  sidecar contract** — asset resolution mirrors `update_check.gd:_sidecar_url()` exactly
+  (Windows x86_64 bare / arm64 `-arch` / `-debug`; macOS one universal zip whose sidecar
+  hashes the inner Mach-O, not the zip).
+- **Built in Go** (`launcher/`, zero external deps, ~6 MB binary). Packages: `release`
+  (asset/URL resolution), `download` (HTTP + redirect-follow + SHA256 verify + progress),
+  `install` (data dir, atomic replace on Win / `.app` swap + `xattr` quarantine clear on
+  mac, launch), `config` (persists `--debug`). `--debug` selects the debug game build
+  (Windows x86_64 only; macOS/arm64 downgrade to release). **Installed Go via scoop** (was
+  absent on this machine; run `go` as `~\scoop\shims\go.exe` from agent tools).
+- **CI:** new `.github/workflows/build-launcher.yml` publishes `NiceSwarm-Launcher*.{exe,zip}`
+  to a **separate `launcher` rolling tag** (+ `launcher-v*`), path-filtered to `launcher/**`
+  so game commits don't republish it. One Linux job cross-compiles both Windows arches; a
+  macOS job builds a universal `.app` (ad-hoc signed).
+- **Verified empirically (Windows):** `go build`/`go vet`/`go test ./...` green; live sidecar
+  fetch against the real `latest` release returned a valid 64-hex hash; all 4 cross-compile
+  targets build; **full run downloaded 106 MB → SHA256-verified → installed to LOCALAPPDATA
+  → launched the game** (exit 0); 2nd run printed "already up to date" (no re-download).
+  macOS path is implemented but **untested** (no mac host here) — Phase 2.
+- **Next:** Phase 2 real macOS test (`.app` swap, quarantine, the no-terminal progress UX);
+  Phase 3 launcher self-update (it becomes the locked exe — rename-self-to-`.old` trick) +
+  Windows arm64-debug asset. A native Windows progress window (vs console) is optional polish.
+
 ### 2026-06-16 — Session 5: early-game XP catch-up (branch `feat/early-xp-bonus`, worktree)
 - **Goal:** snappier opening — a 2× XP bonus for the first 5 levels, and make the very first
   level-up (1 → 2) cost only 2 XP.

@@ -1,0 +1,5 @@
+# Local build outputs (CI builds into dist/; never commit compiled binaries)
+/dist/
+/build/
+*.exe
+NiceSwarm-Launcher
