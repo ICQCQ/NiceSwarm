@@ -353,7 +353,7 @@ func _skill_codex_bbcode() -> String:
 		"Magnet": "wider pickup range", "Dash": "shorter dash cooldown",
 	}
 	for sid in Main.STAT_INFO:
-		var nm: String = Main.STAT_INFO[sid]
+		var nm: String = Main.STAT_INFO[sid].label
 		s += "•  [b]%s[/b] — %s\n" % [nm, stat_desc.get(nm, "")]
 	return s
 
