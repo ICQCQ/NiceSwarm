@@ -32,9 +32,7 @@ func main() {
 	}
 
 	// Sweep the parked backup left by a previous launcher self-update, if any.
-	if exe, err := os.Executable(); err == nil {
-		selfupdate.CleanupOld(exe)
-	}
+	selfupdate.CleanupSelf()
 
 	// An explicit flag wins and is persisted; otherwise the stored value is used.
 	cfg := config.Load(dataDir)

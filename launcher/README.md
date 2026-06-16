@@ -39,7 +39,8 @@ The game is installed under a per-user data dir (`%LOCALAPPDATA%\NiceSwarm` on W
 | `internal/release` | asset-name + URL resolution (mirrors `update_check.gd:_sidecar_url()`) |
 | `internal/download` | HTTP fetch (follows GitHub redirects) + SHA256 verify + progress |
 | `internal/install` | data dir, atomic replace (Win) / `.app` swap + quarantine clear (mac), launch |
-| `internal/selfupdate` | rename-aside + verified swap + rollback for the launcher's own binary |
+| `internal/macapp` | shared macOS bundle helpers: unzip, find `.app`, inner Mach-O, quarantine |
+| `internal/selfupdate` | move-aside + verified swap + rollback + re-exec for the launcher itself (`_windows`/`_darwin`/`_other` per-OS files) |
 | `internal/config` | persists the `--debug` preference to `launcher.json` |
 | `macos/Info.plist` | bundle manifest for the macOS `.app` wrapper (CI) |
 
@@ -60,6 +61,7 @@ CI (`.github/workflows/build-launcher.yml`) cross-compiles Windows x86_64/arm64 
 Windows backend is pure-Go, so this stays a CGO-free cross-build from Linux — and
 publishes them to the **`launcher`** release tag (decoupled from the game's `latest`
 tag). Windows binaries link the `windowsgui` subsystem (no stray console window). The
-macOS universal `.app` requires cgo (AppKit/Metal) and is built + uploaded as a CI
-artifact only until validated on a real Mac. Trigger: changes under `launcher/**` or
-manual dispatch.
+macOS universal `.app` requires cgo (AppKit/Metal), is built + ad-hoc-signed on the
+`macos-latest` runner, and is **also published** to the `launcher` tag (its sidecar hashes
+the inner Mach-O *after* signing) — CI-compiled but runtime-unverified on physical Apple
+hardware, so treat it as beta. Trigger: changes under `launcher/**` or manual dispatch.

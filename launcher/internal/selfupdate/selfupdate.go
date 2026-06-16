@@ -1,75 +1,119 @@
-// Package selfupdate replaces the running launcher executable with a freshly
-// downloaded, hash-verified copy. On Windows a running .exe cannot be overwritten but
-// it CAN be renamed, so the swap is: move self -> self.old (frees the locked name),
-// write the new bytes to the original path, re-exec, then delete the .old on the next
-// startup. Any failure after the rename rolls the .old back, so a botched update never
+// Package selfupdate replaces the running launcher with a freshly downloaded,
+// hash-verified copy and re-execs it. Neither OS lets you clobber a running image in
+// place, but both let you move it aside, so the swap is: move the target -> target.old
+// (frees the path), move the new copy into place, re-exec, then delete the .old on the
+// next startup. Any failure after the move rolls .old back, so a botched update never
 // leaves the user without a working launcher.
 //
-// The hash MUST be verified by the caller before calling Replace — this package only
-// performs the file dance, never the trust decision.
+// The "target" is the unit that gets swapped: the .exe on Windows, the whole .app
+// bundle on macOS. Platform specifics (resolving the target, staging the download,
+// re-exec) live in the build-tagged selfupdate_<os>.go files; this file holds the
+// platform-agnostic move/rollback and the verify-then-swap orchestration.
 package selfupdate
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
+	"strings"
+	"time"
+
+	"niceswarm-launcher/internal/download"
+	"niceswarm-launcher/internal/release"
 )
 
-// oldSuffix is appended to the running exe when it is moved aside during a swap.
-const oldSuffix = ".old"
+const (
+	oldSuffix       = ".old"
+	sidecarTimeout  = 10 * time.Second
+	downloadTimeout = 30 * time.Minute
+)
 
-// OldPath returns the parked-backup path for an executable.
-func OldPath(exePath string) string { return exePath + oldSuffix }
+// OldPath returns the parked-backup path for a swap target.
+func OldPath(target string) string { return target + oldSuffix }
 
-// CleanupOld removes the leftover <exe>.old from a previous successful self-update.
-// Best-effort and silent: right after a re-exec the old image may still be momentarily
-// locked, in which case the following startup clears it.
-func CleanupOld(exePath string) { _ = os.Remove(OldPath(exePath)) }
+// CleanupOld removes a parked <target>.old backup (file or directory). Best-effort and
+// silent: right after a re-exec the old image may still be momentarily locked, in which
+// case the following startup clears it.
+func CleanupOld(target string) { _ = os.RemoveAll(OldPath(target)) }
 
-// Replace swaps the file at dst (the running launcher) for the verified file at src.
-// dst is moved to dst.old first so the locked running image is freed, then the new
-// bytes are copied into place. If the copy fails, dst.old is restored. src is left for
-// the caller to remove. The dst.old backup is intentionally kept on success — it is
-// still the locked running image; CleanupOld removes it next startup.
+// CleanupSelf sweeps the backup parked next to this launcher's swap target (the .exe on
+// Windows, the .app on macOS) from a previous successful self-update. No-op if the
+// target can't be resolved or no backup exists.
+func CleanupSelf() {
+	if t, err := selfTarget(); err == nil {
+		CleanupOld(t)
+	}
+}
+
+// Replace swaps dst (a file or directory) for src: move dst aside to dst.old, then move
+// src into dst's place. On failure after the move, dst.old is restored so the caller is
+// never left without a working launcher. src and dst MUST be on the same volume (the
+// platform stagers download next to the target to guarantee this).
 func Replace(dst, src string) error {
 	backup := OldPath(dst)
-	_ = os.Remove(backup) // clear a stale backup so the rename can't collide
+	_ = os.RemoveAll(backup) // clear a stale backup so the move can't collide
 	if err := os.Rename(dst, backup); err != nil {
 		return fmt.Errorf("move running launcher aside: %w", err)
 	}
-	if err := copyFile(src, dst); err != nil {
+	if err := os.Rename(src, dst); err != nil {
 		// Roll back: put the working launcher back exactly where it was.
 		if rbErr := os.Rename(backup, dst); rbErr != nil {
-			return fmt.Errorf("write new launcher: %w (ROLLBACK FAILED: %v — restore %q manually)", err, rbErr, backup)
+			return fmt.Errorf("install new launcher: %w (ROLLBACK FAILED: %v — restore %q manually)", err, rbErr, backup)
 		}
-		return fmt.Errorf("write new launcher: %w (rolled back, launcher intact)", err)
+		return fmt.Errorf("install new launcher: %w (rolled back, launcher intact)", err)
 	}
 	return nil
 }
 
-// ReExec starts a fresh copy of the launcher at exePath with args, wired to the current
-// std streams, and returns. The caller must exit afterwards so the now-renamed running
-// image releases and the next process can clean up the .old backup.
-func ReExec(exePath string, args []string) error {
-	cmd := exec.Command(exePath, args...)
-	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
-	return cmd.Start()
+// Outdated reports whether a newer launcher than the running one is published. Silent on
+// any failure (offline / unsupported platform) — returns false. The running executable
+// (os.Executable()) is exactly what the sidecar hashes on both platforms: the .exe on
+// Windows, the inner Mach-O on macOS.
+func Outdated() bool {
+	if release.LauncherSidecarURL() == "" {
+		return false
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	want, err := download.SidecarHash(release.LauncherSidecarURL(), sidecarTimeout)
+	if err != nil {
+		return false
+	}
+	local := download.HashFile(exe)
+	return local != "" && !strings.EqualFold(local, want)
 }
 
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+// UpdateSelf downloads the newest launcher, verifies its published hash BEFORE any swap,
+// replaces the running binary/bundle (with rollback), and re-execs the new copy. On
+// success the process has handed off — the caller should exit. Any failure returns an
+// error with the launcher left intact.
+func UpdateSelf(prog download.Progress) error {
+	url := release.LauncherSidecarURL()
+	if url == "" {
+		return fmt.Errorf("self-update isn't supported on this platform")
+	}
+	target, err := selfTarget()
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	want, err := download.SidecarHash(url, sidecarTimeout)
+	if err != nil {
+		return fmt.Errorf("fetch launcher checksum: %w", err)
+	}
+	newPath, cleanup, err := stageNewLauncher(target, want, prog)
+	if cleanup != nil {
+		defer cleanup()
+	}
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+	if err := Replace(target, newPath); err != nil {
 		return err
 	}
-	return out.Close()
+	postSwap(target) // e.g. clear quarantine on macOS
+	if err := reExec(target); err != nil {
+		return fmt.Errorf("updated, but relaunch failed (%w) — please reopen the launcher", err)
+	}
+	return nil
 }

@@ -64,3 +64,38 @@ func TestCleanupOld(t *testing.T) {
 		t.Errorf("CleanupOld did not remove the backup")
 	}
 }
+
+// On macOS the swap target is a .app *directory*, so Replace + CleanupOld must handle
+// directories (rename-based swap, RemoveAll cleanup), not just files.
+func TestReplaceAndCleanupDirectory(t *testing.T) {
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "App.app")
+	src := filepath.Join(dir, "App-new.app")
+	mustBundle := func(root, marker string) {
+		inner := filepath.Join(root, "Contents", "MacOS")
+		if err := os.MkdirAll(inner, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(inner, "bin"), []byte(marker), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustBundle(dst, "OLD")
+	mustBundle(src, "NEW")
+
+	if err := Replace(dst, src); err != nil {
+		t.Fatalf("Replace(dir): %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dst, "Contents", "MacOS", "bin")); string(got) != "NEW" {
+		t.Errorf("swapped bundle inner = %q, want NEW", got)
+	}
+	if _, err := os.Stat(OldPath(dst)); err != nil {
+		t.Errorf("backup bundle should exist after a directory swap: %v", err)
+	}
+
+	// CleanupOld must remove the parked .app.old directory (os.Remove would fail on it).
+	CleanupOld(dst)
+	if _, err := os.Stat(OldPath(dst)); !os.IsNotExist(err) {
+		t.Errorf("CleanupOld did not remove the .app.old directory")
+	}
+}

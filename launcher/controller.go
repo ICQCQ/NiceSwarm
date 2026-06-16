@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,10 +14,7 @@ import (
 	"niceswarm-launcher/internal/selfupdate"
 )
 
-const (
-	sidecarTimeout  = 10 * time.Second
-	downloadTimeout = 30 * time.Minute
-)
+const sidecarTimeout = 10 * time.Second
 
 // controller holds the launcher's mutable UI state, written by background workers and
 // read by the Gio frame layout. All field access goes through mu; workers call
@@ -27,7 +23,6 @@ const (
 type controller struct {
 	w       *app.Window
 	dataDir string
-	exePath string // this launcher's own path, for the self-update
 
 	mu               sync.Mutex
 	status           string
@@ -39,8 +34,7 @@ type controller struct {
 }
 
 func newController(w *app.Window, dataDir string, cfg config.Config) *controller {
-	exe, _ := os.Executable()
-	c := &controller{w: w, dataDir: dataDir, exePath: exe, progress: -1, status: "Starting…"}
+	c := &controller{w: w, dataDir: dataDir, progress: -1, status: "Starting…"}
 	c.target, _ = release.Resolve(cfg.Debug)
 	return c
 }
@@ -145,15 +139,7 @@ func (c *controller) checkAndUpdate(debug bool) {
 // Silent on any failure (offline / unsupported platform). Runs in its own goroutine and
 // does NOT claim the worker slot (it is read-only and harmless to overlap a game check).
 func (c *controller) checkLauncher() {
-	url := release.LauncherSidecarURL()
-	if url == "" || c.exePath == "" {
-		return
-	}
-	want, err := download.SidecarHash(url, sidecarTimeout)
-	if err != nil {
-		return
-	}
-	if local := download.HashFile(c.exePath); local != "" && !strings.EqualFold(local, want) {
+	if selfupdate.Outdated() {
 		c.update(func() { c.launcherOutdated = true })
 	}
 }
@@ -170,42 +156,14 @@ func (c *controller) play() {
 }
 
 // updateLauncher downloads the newest launcher, verifies its hash, swaps the running
-// binary (rename-aside + write + rollback-on-failure), and re-execs. Gated behind an
-// explicit button. Assumes the worker slot is claimed; runs in its own goroutine.
+// binary/bundle (with rollback), and re-execs — all inside internal/selfupdate, which
+// owns the per-OS dance. Gated behind an explicit button. Assumes the worker slot is
+// claimed; runs in its own goroutine. On success the process has handed off → exit.
 func (c *controller) updateLauncher() {
 	defer c.finish()
-	if c.exePath == "" {
-		c.update(func() { c.status = "Self-update isn't supported on this platform yet." })
-		return
-	}
-	want, err := download.SidecarHash(release.LauncherSidecarURL(), sidecarTimeout)
-	if err != nil {
-		c.update(func() { c.status = "Launcher update check failed: " + err.Error() })
-		return
-	}
-	c.update(func() { c.status = "Downloading new launcher …"; c.progress = 0 })
-
-	tmp := c.exePath + ".new"
-	got, err := download.ToFile(release.LauncherDownloadURL(), tmp, downloadTimeout, c.progressFn())
-	if err != nil {
-		os.Remove(tmp)
-		c.update(func() { c.status = "Launcher download failed: " + err.Error() })
-		return
-	}
-	if !strings.EqualFold(got, want) { // verify BEFORE the swap, never after
-		os.Remove(tmp)
-		c.update(func() { c.status = "Launcher update hash mismatch — aborted, launcher unchanged." })
-		return
-	}
-	if err := selfupdate.Replace(c.exePath, tmp); err != nil {
-		os.Remove(tmp)
+	if err := selfupdate.UpdateSelf(c.progressFn()); err != nil {
 		c.update(func() { c.status = err.Error() })
 		return
 	}
-	os.Remove(tmp)
-	if err := selfupdate.ReExec(c.exePath, os.Args[1:]); err != nil {
-		c.update(func() { c.status = "Updated, but the relaunch failed — please reopen the launcher." })
-		return
-	}
-	os.Exit(0) // hand off to the freshly written launcher
+	os.Exit(0)
 }

@@ -65,22 +65,32 @@ On open the launcher hashes its own executable (`os.Executable()`) and compares 
 `.sha256` sidecar published for the launcher binary on the `launcher` tag (CI emits these
 alongside the binaries). On a mismatch the window surfaces an **Update Launcher** button.
 
-Clicking it performs a real self-replace (`internal/selfupdate`). On Windows a running
-`.exe` can't be overwritten but **can** be renamed, so the swap is:
+Clicking it performs a real self-replace (`internal/selfupdate`). Neither OS lets you
+clobber a running image in place, but both let you move it aside. The unit swapped (the
+"target") is the **`.exe` on Windows** and the **whole `.app` bundle on macOS**:
 
-1. Fetch the launcher sidecar hash; download the new launcher to `<exe>.new`.
-2. **Verify SHA256 before any swap** (a mismatch aborts and leaves the launcher untouched).
-3. `Replace`: move `<exe>` → `<exe>.old` (frees the locked name), write the new bytes to
-   `<exe>`. **If the write fails, `<exe>.old` is renamed back** — a botched update never
+1. Fetch the launcher sidecar hash, then stage the new launcher **next to the target**
+   (same volume, so the later rename is atomic): Windows downloads to `<exe>.new`; macOS
+   downloads the zip into a staging dir beside the `.app`, extracts it, and locates the
+   new `.app`.
+2. **Verify SHA256 before any swap** — Windows over the downloaded `.exe`, macOS over the
+   extracted **inner Mach-O** (matching the sidecar). A mismatch aborts, launcher untouched.
+3. `Replace`: move `target` → `target.old` (frees the path), then move the new copy into
+   place. **If that move fails, `target.old` is renamed back** — a botched update never
    leaves the user without a working launcher.
-4. Re-exec the freshly written launcher (same args) and exit.
-5. The next startup runs `CleanupOld` to delete the parked `<exe>.old`.
+4. Platform post-swap: macOS clears Gatekeeper quarantine on the new bundle.
+5. Re-exec the new copy — Windows runs the new `.exe` (same args); macOS uses `open -n`
+   (a plain `open` would just reactivate the still-running old instance) — then exit.
+6. The next startup runs `CleanupSelf` to delete the parked `target.old`
+   (`os.RemoveAll`, since on macOS the backup is a directory).
 
 Best-effort throughout: any failure (offline, 404, unhashable, read-only directory) is
-reported in the status line and leaves the launcher intact. The self-check + self-replace
-are **Windows-only** for now; macOS ships the launcher as a `.app`-in-zip and stays
-detect-skipped (see Phase 2). The in-game `scripts/core/update_check.gd` still shows its
-own banner notice; the launcher is what performs both the game and launcher updates.
+reported in the status line and leaves the launcher intact. The shared move/rollback +
+verify-then-swap orchestration lives in `selfupdate.go`; the per-OS target resolution,
+download staging, and re-exec live in the build-tagged `selfupdate_windows.go` /
+`selfupdate_darwin.go` (a `selfupdate_other.go` stub keeps non-launcher platforms, e.g.
+the Linux CI runner, compiling). The in-game `scripts/core/update_check.gd` still shows
+its own banner notice; the launcher is what performs both the game and launcher updates.
 
 ## Asset contract (reused, not reinvented)
 
@@ -116,8 +126,9 @@ runs (no flag ⇒ use the stored value, default release).
 ## Distribution: the launcher ships to its own `launcher` tag
 
 The game ships to the rolling `latest` tag (every `publish` push). The launcher is
-**decoupled** — the **Windows** build publishes to a separate **`launcher`** rolling
-tag (the macOS build is artifact-only until validated on a real Mac — see Phasing):
+**decoupled** — both the Windows and the macOS builds publish to a separate **`launcher`**
+rolling tag (the macOS binary is CI-compiled but runtime-unverified on a real Mac — see
+Phasing):
 
 ```
 …/releases/download/latest/NiceSwarm.exe            <- game (downloaded BY the launcher)
@@ -126,9 +137,10 @@ tag (the macOS build is artifact-only until validated on a real Mac — see Phas
 
 The launcher build is **path-filtered** (`launcher/**`) + `workflow_dispatch`, so it
 does **not** rebuild on every game commit. A Linux job cross-compiles the Windows
-binaries; a separate macOS job builds the universal `.app`. (Pinned `launcher-v*` tag
-releases are deferred — combining a `tags:` trigger with the `paths:` filter is a known
-footgun, so it needs its own workflow; see Phasing.)
+binaries; a separate macOS job (`needs: launcher-windows`, so the two don't race the
+shared `launcher` release) builds + publishes the universal `.app`. (Pinned `launcher-v*`
+tag releases are deferred — combining a `tags:` trigger with the `paths:` filter is a
+known footgun, so it needs its own workflow; see Phasing.)
 
 | Artifact | GOOS/GOARCH |
 |----------|-------------|
@@ -146,21 +158,30 @@ footgun, so it needs its own workflow; see Phasing.)
 - Launch with `open <app>`.
 - The launcher binary itself also needs quarantine cleared / ad-hoc signing to run; it is
   distributed inside its own minimal wrapper and ad-hoc signed in CI (matching the game's
-  existing macOS signing). macOS support is implemented but **less tested than Windows**.
+  existing macOS signing).
+- **Launcher self-update on macOS** swaps the whole running `.app` bundle (it isn't
+  hard-locked like a Windows `.exe`): stage the new `.app` beside the old one, verify the
+  inner Mach-O hash, rename-swap with rollback, clear quarantine, and re-exec with
+  `open -n`. The self-check hashes `os.Executable()` (the inner Mach-O), which equals the
+  sidecar CI publishes **after** ad-hoc signing.
+- ⚠️ macOS support is **CI-compiled on a real Mac VM but not yet runtime-verified** on
+  physical hardware. The rename-with-rollback swap is the safety net that makes
+  ship-then-validate acceptable; treat the macOS launcher as beta until confirmed on a Mac.
 
 ## Phasing
 
 - **Phase 1 — Windows (core):** ✅ asset resolution, download + verify + atomic replace into
   `%LOCALAPPDATA%`, launch, offline fallback, `--debug`, **Gio window with a progress bar,
   Check-for-Updates button, and Debug toggle**. CI → `launcher` tag.
-- **Phase 2 — macOS:** validate the zip handling, inner-Mach-O hash compare, `.app` replace,
-  quarantine clear, and signed wrapper on a real Mac, then flip the CI macOS job from
-  artifact-only to publishing the `launcher` tag. The Gio window already solves the old
-  no-terminal-progress UX; the launcher self-replace still needs the macOS `.app`-swap path.
-- **Phase 3 — polish:** ✅ launcher **self-replace** now ships on Windows (rename-to-`.old`,
-  verify, write, re-exec, clean up next run — see `internal/selfupdate`). Remaining: pinned
-  `launcher-v*` release workflow (separate file, no `paths:` filter); the macOS self-replace
-  path; a Windows arm64-debug asset.
+- **Phase 2 — macOS:** ✅ implemented (CI-compiled on a real Mac VM): Gio window, game
+  install via zip/inner-Mach-O hash/`.app` swap/quarantine clear, the `.app`-swap launcher
+  self-replace, ad-hoc-signed wrapper, sidecar hashed after signing, and **published to the
+  `launcher` tag**. The Gio window also retired the old no-terminal-progress UX. Remaining:
+  runtime validation on physical Apple hardware (the build is unverified there).
+- **Phase 3 — polish:** ✅ launcher **self-replace** ships on both Windows and macOS
+  (move-aside → verify → swap → re-exec → clean up next run — see `internal/selfupdate`).
+  Remaining: pinned `launcher-v*` release workflow (separate file, no `paths:` filter); a
+  Windows arm64-debug asset.
 
 ## Build / run locally
 

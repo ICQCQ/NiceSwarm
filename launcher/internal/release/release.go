@@ -60,17 +60,21 @@ func (t Target) DownloadURL() string { return GameBase + t.AssetFile }
 func (t Target) SidecarURL() string { return GameBase + t.AssetFile + ".sha256" }
 
 // LauncherAsset returns the launcher's OWN published filename for this platform, used
-// for the self-update check (does a newer launcher exist?). Returns "" where the
-// self-check isn't supported yet — currently macOS, whose launcher ships as a .app
-// inside a zip and is published artifact-only (see LAUNCHER.md Phase 2).
+// for the self-update (does a newer launcher exist, and what do we fetch?). Windows is
+// the bare/`-arch` exe; macOS is the universal `.app`-in-zip (its sidecar hashes the
+// inner Mach-O, like the game). Returns "" on platforms with no published launcher.
 func LauncherAsset() string {
-	if runtime.GOOS != "windows" {
+	switch runtime.GOOS {
+	case "windows":
+		if runtime.GOARCH == "arm64" {
+			return "NiceSwarm-Launcher-arm64.exe"
+		}
+		return "NiceSwarm-Launcher.exe"
+	case "darwin":
+		return "NiceSwarm-Launcher-macos.zip"
+	default:
 		return ""
 	}
-	if runtime.GOARCH == "arm64" {
-		return "NiceSwarm-Launcher-arm64.exe"
-	}
-	return "NiceSwarm-Launcher.exe"
 }
 
 // LauncherSidecarURL is the ".sha256" for this launcher's own asset, or "" if the
