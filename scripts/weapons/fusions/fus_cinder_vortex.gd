@@ -32,13 +32,13 @@ func _physics_process(delta: float) -> void:
 	pud.source_pid = player.peer_id
 	pud.source_weapon = self
 	pud.radius = r * 0.85
-	pud.damage = 0.6 * dmg
+	pud.damage = 0.9 * dmg
 	pud.max_life = life
 	pud.life = life
 	pud.fiery = true
-	pud.burn_dps = 0.7 * dmg
+	pud.burn_dps = 0.9 * dmg
 	pud.burn_dur = 1.4 * fuse_duration()
 	pud.position = target.global_position
 	player.get_parent().add_child(pud)
 	Sfx.play("flame", target.global_position)
-	cooldown = 5.5 * fuse_rate()
+	cooldown = 4.5 * fuse_rate()

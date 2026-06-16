@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + 1.8 / fuse_rate() * delta, TAU)
+	angle = fmod(angle + 2.8 / fuse_rate() * delta, TAU)
 	queue_redraw()
 	var expired := []
 	for k in hit_cd:

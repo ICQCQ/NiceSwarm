@@ -19,7 +19,7 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			damage_dealt += dmg
 			e.take_hit(dmg, global_position, Enemy.DMG_ICE, player.peer_id)
-			e.apply_slow(0.3, 2.0 * fuse_duration())
+			e.apply_slow(0.5, 2.0 * fuse_duration())
 			push(e, global_position)
 			any = true
 	if not any:
@@ -33,4 +33,4 @@ func _physics_process(delta: float) -> void:
 	fx.color = Color(0.6, 0.9, 1.0)
 	player.get_parent().add_child(fx)
 	Sfx.play("frost", global_position)
-	cooldown = 3.0 * fuse_rate()
+	cooldown = 2.4 * fuse_rate()

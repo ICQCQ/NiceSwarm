@@ -41,7 +41,7 @@ func _physics_process(delta: float) -> void:
 			lf.points = [h.global_position, nb.global_position]
 			player.get_parent().add_child(lf)
 	Sfx.play("lightning", global_position)
-	cooldown = 2.8 * fuse_rate()
+	cooldown = 2.2 * fuse_rate()
 func _nearest_beyond(from: Vector2, rng: float) -> Node2D:
 	var best: Node2D = null
 	var bd := rng * rng

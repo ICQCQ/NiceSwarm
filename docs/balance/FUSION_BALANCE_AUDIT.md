@@ -38,6 +38,8 @@ direct DPS if it brings strong AoE/CC/DoT.
   **[Applied 2026-06-17: Glacial Edge & Storm Disc glaives +`dmg×0.6` direct; Vortex Blade glaives +~2.0 direct, well kept.]**
 - **Gravity/vortex fusions** (Glacier, Black Bog, Cinder Vortex) trade *all* damage
   for CC and fall below a utility floor — add a detonation/burst payoff or lower cd.
+  **[Applied 2026-06-17: Glacier well 1.2→2.5 + cd 6→5; Black Bog well 0.96→1.5, puddle 1.2→1.6/tick, cd 5.5→4.5; Cinder Vortex pool 0.6→0.9/tick, burn 0.7→0.9, cd 5.5→4.5. Also: Absolute Zero slow 30%→50% + cd 3→2.4; Ion Storm spin 1.8→2.8; Acid Ray spin 1.6→2.4 + dmg 1.0→1.3; Thunderclap cd 2.8→2.2.]**
+- **Mechanics note (verified):** `VenomPuddle.damage` is **per-tick** (0.4s → ×2.5 DPS); `GravityWell.damage` lands **once per enemy** (CC value is the pull/freeze/zone, not the well hit).
 
 
 ## Turret Family — verified math (2026-06-17)
