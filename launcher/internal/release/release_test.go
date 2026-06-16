@@ -41,9 +41,11 @@ func TestSidecarURL(t *testing.T) {
 // The launcher self-update check resolves its OWN asset on the `launcher` tag
 // (Windows only for now; "" elsewhere).
 func TestLauncherSelfResolve(t *testing.T) {
-	if runtime.GOOS != "windows" {
+	switch runtime.GOOS {
+	case "windows", "darwin": // platforms with a published launcher + self-update
+	default:
 		if got := LauncherAsset(); got != "" {
-			t.Errorf("LauncherAsset on %s = %q, want \"\" (self-check unsupported)", runtime.GOOS, got)
+			t.Errorf("LauncherAsset on %s = %q, want \"\" (self-update unsupported)", runtime.GOOS, got)
 		}
 		if got := LauncherSidecarURL(); got != "" {
 			t.Errorf("LauncherSidecarURL on %s = %q, want \"\"", runtime.GOOS, got)
@@ -51,7 +53,10 @@ func TestLauncherSelfResolve(t *testing.T) {
 		return
 	}
 	want := "NiceSwarm-Launcher.exe"
-	if runtime.GOARCH == "arm64" {
+	switch {
+	case runtime.GOOS == "darwin":
+		want = "NiceSwarm-Launcher-macos.zip"
+	case runtime.GOARCH == "arm64":
 		want = "NiceSwarm-Launcher-arm64.exe"
 	}
 	if got := LauncherAsset(); got != want {

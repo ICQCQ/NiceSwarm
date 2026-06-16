@@ -5,9 +5,7 @@
 package install
 
 import (
-	"archive/zip"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +14,7 @@ import (
 	"time"
 
 	"niceswarm-launcher/internal/download"
+	"niceswarm-launcher/internal/macapp"
 	"niceswarm-launcher/internal/release"
 )
 
@@ -59,7 +58,7 @@ func LaunchTarget(dataDir string, t release.Target) string {
 // the .exe on Windows, the inner Mach-O of the .app on macOS ("" if not installed).
 func installedExecutable(dataDir string, t release.Target) (string, error) {
 	if t.GOOS == "darwin" {
-		return macInnerBinary(filepath.Join(dataDir, "NiceSwarm.app"))
+		return macapp.InnerBinary(filepath.Join(dataDir, "NiceSwarm.app"))
 	}
 	return filepath.Join(dataDir, t.AssetFile), nil
 }
@@ -128,14 +127,14 @@ func applyMac(dataDir string, t release.Target, wantHash string, prog download.P
 	staging := filepath.Join(dataDir, "_staging")
 	os.RemoveAll(staging)
 	defer os.RemoveAll(staging)
-	if err := unzip(zipTmp, staging); err != nil {
+	if err := macapp.Unzip(zipTmp, staging); err != nil {
 		return err
 	}
-	stagedApp, err := findApp(staging)
+	stagedApp, err := macapp.FindApp(staging)
 	if err != nil {
 		return err
 	}
-	inner, err := macInnerBinary(stagedApp)
+	inner, err := macapp.InnerBinary(stagedApp)
 	if err != nil || inner == "" {
 		return fmt.Errorf("no inner binary in downloaded .app")
 	}
@@ -148,8 +147,7 @@ func applyMac(dataDir string, t release.Target, wantHash string, prog download.P
 	if err := os.Rename(stagedApp, finalApp); err != nil {
 		return err
 	}
-	// Best-effort: clear Gatekeeper quarantine so the first launch isn't blocked.
-	_ = exec.Command("xattr", "-dr", "com.apple.quarantine", finalApp).Run()
+	macapp.ClearQuarantine(finalApp) // best-effort: unblock the first launch
 	return nil
 }
 
@@ -159,86 +157,4 @@ func Launch(path string) error {
 		return exec.Command("open", path).Start()
 	}
 	return exec.Command(path).Start()
-}
-
-// macInnerBinary returns the single executable in <app>/Contents/MacOS, or "" if the
-// app isn't present. Godot names it after product_name, so don't assume "NiceSwarm".
-func macInnerBinary(appPath string) (string, error) {
-	dir := filepath.Join(appPath, "Contents", "MacOS")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", nil // not installed yet
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			return filepath.Join(dir, e.Name()), nil
-		}
-	}
-	return "", nil
-}
-
-func unzip(src, dest string) error {
-	r, err := zip.OpenReader(src)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-	prefix := filepath.Clean(dest) + string(os.PathSeparator)
-	for _, f := range r.File {
-		fp := filepath.Join(dest, f.Name)
-		if !strings.HasPrefix(fp, prefix) { // zip-slip guard
-			return fmt.Errorf("unsafe zip path %q", f.Name)
-		}
-		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(fp, 0o755); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(fp), 0o755); err != nil {
-			return err
-		}
-		if err := extractOne(f, fp); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// extractOne writes one zip entry to dest, preserving its mode (the executable bit
-// on the inner Mach-O matters).
-func extractOne(f *zip.File, dest string) error {
-	rc, err := f.Open()
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, rc)
-	return err
-}
-
-func findApp(root string) (string, error) {
-	var found string
-	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && strings.HasSuffix(d.Name(), ".app") {
-			found = p
-			return filepath.SkipAll
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if found == "" {
-		return "", fmt.Errorf("no .app found in archive")
-	}
-	return found, nil
 }
