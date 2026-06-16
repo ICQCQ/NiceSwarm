@@ -137,15 +137,16 @@ const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent
 const BOSS_FIGHT_SECONDS := 8.0  # boss hp ~= recent_dps * this (target single-boss fight length)
 const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
+const BOSS_HP_PER_PACE := 0.02   # boss hp x(1 + this*run_progress): 1× at pace 0, 3× at pace 100
 
 
 ## Boss HP from the three factors the design calls for: the party's recent DPS (so the
 ## fight scales to the party's actual output), party level, and player count. `tier_floor`
 ## is the boss tier's static/difficulty base — a floor so a boss is never trivial when
 ## recent DPS is momentarily low. Pure + static, so it's unit-testable without a Main.
-static func boss_hp(tier_floor: float, recent_dps: float, level: int, players: int) -> float:
+static func boss_hp(tier_floor: float, recent_dps: float, level: int, players: int, run_progress: float = 0.0) -> float:
 	var base := maxf(tier_floor, recent_dps * BOSS_FIGHT_SECONDS)
-	return base * (1.0 + BOSS_HP_PER_LEVEL * (level - 1)) * (1.0 + BOSS_HP_PER_PLAYER * (players - 1))
+	return base * (1.0 + BOSS_HP_PER_LEVEL * (level - 1)) * (1.0 + BOSS_HP_PER_PLAYER * (players - 1)) * (1.0 + BOSS_HP_PER_PACE * run_progress)
 
 # --- bouncer: special population, separate from the normal pool/desired_pop ---
 const BOUNCER_UNLOCK := 165.0       # bouncers start appearing at this elapsed time

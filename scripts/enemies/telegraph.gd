@@ -22,6 +22,7 @@ var puppet := false
 var net_id := 0
 var net_target := Vector2.ZERO  # unused (static) — kept for the generic sync path
 var main_ref: Node
+var is_boss := false  # set for boss-slam telegraphs; excluded from the caster cap count
 
 
 func _ready() -> void:

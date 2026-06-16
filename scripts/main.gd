@@ -139,6 +139,9 @@ var cfg_scale_i := 1
 # --- shared run state (host simulates; clients receive) ---
 var world: Node2D
 var elapsed := 0.0
+## 0-100 progress through the run; 100 = WIN_TIME (game end). Pure derived value.
+var run_progress: float:
+	get: return clampf(elapsed / WIN_TIME * 100.0, 0.0, 100.0)
 var kills := 0
 var level := 1
 var xp := 0
@@ -1529,13 +1532,16 @@ func nearest_enemy_to(pos: Vector2, max_range: float) -> Node2D:
 ## `ignore_cap`: bypass MAX_TELEGRAPHS — for boss slams, which must always render
 ## in full (a multi-strike pattern split by the cap would leave silent gaps).
 func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0, warn: float = -1.0, ignore_cap: bool = false) -> void:
-	if not ignore_cap and telegraphs_by_id.size() >= GameConfig.MAX_TELEGRAPHS:
-		return  # arena already saturated with danger zones — don't blanket it (undodgeable)
+	if not ignore_cap:
+		var caster_count := telegraphs_by_id.values().filter(func(t): return not t.is_boss).size()
+		if caster_count >= GameConfig.MAX_TELEGRAPHS:
+			return  # arena already saturated with caster danger zones — don't blanket it
 	var tz := TelegraphZone.new()
 	tz.radius = radius
 	tz.warn = TELEGRAPH_WARN if warn < 0.0 else warn
 	tz.damage = damage
 	tz.effect = effect
+	tz.is_boss = ignore_cap
 	tz.main_ref = self
 	tz.net_id = item_seq
 	item_seq += 1

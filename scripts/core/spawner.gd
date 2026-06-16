@@ -305,9 +305,9 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 		# Boss hp tracks the party's recent DPS (+ level + count) so it's always a real fight,
 		# never melted by a snowball build. Floor = the static tier base (hp0) so the DPS/level/
 		# count terms — the three factors asked for — drive it, not the time/difficulty curve.
-		e.hp = GameConfig.boss_hp(d.hp0, recent_dps(), main.level, main.peer_ids.size())
+		e.hp = GameConfig.boss_hp(d.hp0, recent_dps(), main.level, main.peer_ids.size(), main.run_progress)
 		if Engine.time_scale > 1.0:  # sim/FF: log the boss sizing for balance verification
-			print("[boss] %s tier=%d hp=%d (rdps=%.0f lvl=%d N=%d)" % [d.name, tier, int(e.hp), recent_dps(), main.level, main.peer_ids.size()])
+			print("[boss] %s tier=%d hp=%d (rdps=%.0f lvl=%d N=%d pace=%.0f)" % [d.name, tier, int(e.hp), recent_dps(), main.level, main.peer_ids.size(), main.run_progress])
 	else:
 		# Base enemies also get tankier as the party levels (ENEMY_HP_PER_LEVEL), on top of
 		# party-size scaling and the difficulty hp curve.
