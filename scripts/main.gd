@@ -259,7 +259,8 @@ var pause_roster: Label
 var ingame_menu_panel: Control   # in-run menu/hub (resume · codex · settings · leave)
 var ingame_menu_hint: Label      # hub nav breadcrumb / tab hints
 var codex_body: RichTextLabel    # in-hub skill/monster codex content (hidden until opened)
-var codex_view := ""             # "" = hub root, "skills", or "monsters"
+var codex_view := ""             # "" = hub root, "skills", "monsters", or "settings"
+var settings_panel: VBoxContainer  # in-hub settings tab (hidden until opened)
 var countdown_panel: Control     # resume countdown overlay
 var countdown_label: Label
 var menu_panel: Control
@@ -276,6 +277,9 @@ var _update_hash := ""          # sha256 of the newer build, for the Skip-this-v
 var ip_edit: LineEdit
 var port_edit: LineEdit
 var status_label: Label
+var settings: GameSettings        # client-local prefs (audio/display/shake), persisted
+var settings_overlay: Control     # main-menu settings overlay (own dim, Back button)
+var settings_overlay_rows: VBoxContainer  # cycler rows inside the menu overlay
 var debug: DebugPanel            # F1 debug/testing panel (ui/debug_panel.gd)
 var hud: GameHud                 # in-run HUD logic / banners (ui/game_hud.gd)
 var gameui: GameUI               # UI tree construction (ui/game_ui.gd)
@@ -311,6 +315,9 @@ func _ready() -> void:
 	gameui.name = "UI"
 	gameui.main = self
 	add_child(gameui)
+	settings = GameSettings.new()
+	settings.load_from_disk()
+	settings.apply_all()
 	_load_profile()
 	gameui.build()
 	_show_menu("")
@@ -2427,7 +2434,7 @@ func _input(event: InputEvent) -> void:
 		elif key == KEY_V:
 			gameui._show_codex("monsters")
 		elif key == KEY_O:
-			ingame_menu_hint.text = "Settings — coming soon"
+			gameui._show_settings()
 		elif key == KEY_L and codex_view == "":
 			_leave_from_menu()  # deliberate, hub-root only — never a stray key while reading a codex
 	elif paused_menu:  # paused by another player's menu (or a reconnect): open my own menu, or leave with M
@@ -2465,6 +2472,17 @@ func _to_menu() -> void:
 ## ESC during play. The hub is the same for everyone; only the freeze mechanic differs:
 ## the host (and solo) globally pause the run; a client can't pause the shared sim, so it
 ## holds its own avatar still and asks the host to make it invulnerable (auto-safe).
+## Main-menu "Settings" button: relabel the cyclers to the current values (they may
+## have changed from the in-game tab) and show the overlay on top of the menu.
+func _on_settings_pressed() -> void:
+	gameui._relabel_menu_settings()
+	settings_overlay.visible = true
+
+
+func _on_settings_back_pressed() -> void:
+	settings_overlay.visible = false
+
+
 func _open_ingame_menu() -> void:
 	if ingame_menu:
 		return

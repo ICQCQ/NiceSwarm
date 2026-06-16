@@ -8,6 +8,12 @@ extends Node
 
 var main: Main
 
+# Settings cyclers, recorded per-panel so the value labels can be refreshed when a
+# panel is (re)shown — the in-hub tab and the main-menu overlay share one
+# GameSettings, so a change in one must relabel the other on open.
+var _ingame_setting_rows: Array = []
+var _menu_setting_rows: Array = []
+
 
 func build() -> void:
 	main.ui = CanvasLayer.new()
@@ -105,6 +111,7 @@ func build() -> void:
 	_build_countdown_panel()
 	_build_menu()
 	_build_lobby_panel()
+	_build_settings_overlay()
 	_build_stats_panel()
 	if OS.is_debug_build():
 		main.debug.build()
@@ -278,6 +285,12 @@ func _build_ingame_menu_panel() -> void:
 	main.codex_body.add_theme_font_size_override("bold_font_size", 16)
 	main.codex_body.visible = false
 	vbox.add_child(main.codex_body)
+	# settings tab body — hidden (and skipped by the VBox layout) until O opens it
+	main.settings_panel = VBoxContainer.new()
+	main.settings_panel.add_theme_constant_override("separation", 8)
+	main.settings_panel.visible = false
+	vbox.add_child(main.settings_panel)
+	_build_settings_rows(main.settings_panel, _ingame_setting_rows)
 	var foot := Label.new()
 	foot.text = "ESC resume   ·   C skill codex   ·   V monster codex   ·   O settings   ·   L leave game"
 	foot.add_theme_font_size_override("font_size", 16)
@@ -290,6 +303,8 @@ func _build_ingame_menu_panel() -> void:
 ## C = skills, V = monsters; ESC (or _force_close) backs out via _close_codex.
 func _show_codex(kind: String) -> void:
 	main.codex_view = kind
+	if main.settings_panel != null:
+		main.settings_panel.visible = false  # codex and settings share the hub body slot
 	if kind == "skills":
 		main.ingame_menu_hint.text = "SKILL CODEX      V monsters  ·  ESC back"
 		main.codex_body.text = _skill_codex_bbcode()
@@ -305,8 +320,22 @@ func _close_codex() -> void:
 	if main.codex_body != null:
 		main.codex_body.visible = false
 		main.codex_body.text = ""
+	if main.settings_panel != null:
+		main.settings_panel.visible = false
 	if main.ingame_menu_hint != null:
 		main.ingame_menu_hint.text = ""
+
+
+## Open the settings tab inside the in-game hub (the "O settings" entry). Treated as
+## another codex_view so ESC backs out via _close_codex; relabel first since the
+## main-menu overlay shares the same GameSettings and may have changed a value.
+func _show_settings() -> void:
+	main.codex_view = "settings"
+	main.ingame_menu_hint.text = "SETTINGS      C skills  ·  V monsters  ·  ESC back"
+	if main.codex_body != null:
+		main.codex_body.visible = false
+	_relabel(_ingame_setting_rows)
+	main.settings_panel.visible = true
 
 
 ## Every weapon (with its HUD badge) + the stats, each with a one-line description.
@@ -592,6 +621,13 @@ func _build_menu() -> void:
 	_make_cycler(vbox, "Enemy scale", func(): return str(Main.SCALE_OPTS[main.cfg_scale_i]) + "x",
 		func(): main.cfg_scale_i = (main.cfg_scale_i + 1) % Main.SCALE_OPTS.size())
 
+	var settings_btn := Button.new()
+	settings_btn.text = "Settings"
+	settings_btn.custom_minimum_size = Vector2(360, 44)
+	settings_btn.add_theme_font_size_override("font_size", 20)
+	settings_btn.pressed.connect(main._on_settings_pressed)
+	vbox.add_child(settings_btn)
+
 	main.status_label = Label.new()
 	main.status_label.add_theme_font_size_override("font_size", 18)
 	main.status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
@@ -674,3 +710,102 @@ func _build_lobby_panel() -> void:
 	leave_btn.add_theme_font_size_override("font_size", 22)
 	leave_btn.pressed.connect(main._on_lobby_leave_pressed)
 	vbox.add_child(leave_btn)
+
+
+## Main-menu settings overlay (own dim + Back button) so audio/display can be set
+## before a run too. Same rows as the in-game hub tab, bound to the same GameSettings.
+func _build_settings_overlay() -> void:
+	var parts := _make_overlay()
+	main.settings_overlay = parts[0]
+	var vbox: VBoxContainer = parts[1]
+
+	var title := Label.new()
+	title.text = "SETTINGS"
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	main.settings_overlay_rows = VBoxContainer.new()
+	main.settings_overlay_rows.add_theme_constant_override("separation", 8)
+	vbox.add_child(main.settings_overlay_rows)
+	_build_settings_rows(main.settings_overlay_rows, _menu_setting_rows)
+
+	var back := Button.new()
+	back.text = "Back"
+	back.custom_minimum_size = Vector2(360, 52)
+	back.add_theme_font_size_override("font_size", 22)
+	back.pressed.connect(main._on_settings_back_pressed)
+	vbox.add_child(back)
+
+
+## Build the four setting cyclers into `parent`, recording each into `rows_out` for
+## later relabeling. get_text reads the live value; advance mutates+applies+saves.
+func _build_settings_rows(parent: Node, rows_out: Array) -> void:
+	_make_setting_cycler(parent, "Master volume",
+		func(): return "%d%%" % int(round(main.settings.volume * 100.0)),
+		_adv_volume, rows_out)
+	_make_setting_cycler(parent, "Mute audio",
+		func(): return "On" if main.settings.muted else "Off",
+		_adv_mute, rows_out)
+	_make_setting_cycler(parent, "Fullscreen",
+		func(): return "On" if main.settings.fullscreen else "Off",
+		_adv_fullscreen, rows_out)
+	_make_setting_cycler(parent, "Screen shake",
+		func(): return "On" if main.settings.screen_shake else "Off",
+		_adv_shake, rows_out)
+
+
+## Like _make_cycler, but records {button, get_text} into rows_out so _relabel can
+## refresh stale labels when the panel is reshown (the two panels share state).
+func _make_setting_cycler(parent: Node, label: String, get_text: Callable, advance: Callable, rows_out: Array) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", 18)
+	l.custom_minimum_size = Vector2(220, 38)
+	row.add_child(l)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(132, 38)
+	b.add_theme_font_size_override("font_size", 18)
+	b.text = get_text.call()
+	b.pressed.connect(func():
+		advance.call()
+		b.text = get_text.call())
+	row.add_child(b)
+	rows_out.append({"btn": b, "fn": get_text})  # not "get"/"b": those collide with Dictionary methods
+
+
+func _relabel(rows: Array) -> void:
+	for r in rows:
+		r["btn"].text = r["fn"].call()
+
+
+func _relabel_menu_settings() -> void:
+	_relabel(_menu_setting_rows)
+
+
+# Setting mutators — passed as the cyclers' `advance`; each applies live + persists.
+func _adv_volume() -> void:
+	main.settings.volume = GameSettings.next_volume(main.settings.volume)
+	main.settings.apply_audio()
+	main.settings.save()
+
+
+func _adv_mute() -> void:
+	main.settings.muted = not main.settings.muted
+	main.settings.apply_audio()
+	main.settings.save()
+
+
+func _adv_fullscreen() -> void:
+	main.settings.fullscreen = not main.settings.fullscreen
+	main.settings.apply_window()
+	main.settings.save()
+
+
+func _adv_shake() -> void:
+	main.settings.screen_shake = not main.settings.screen_shake
+	main.settings.save()

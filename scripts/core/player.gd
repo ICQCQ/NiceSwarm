@@ -277,7 +277,9 @@ func _update_cam(delta: float) -> void:
 		return
 	if shake > 0.0:
 		shake = maxf(shake - 40.0 * delta, 0.0)
-		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
+		# Accessibility: a player can disable camera shake in Settings (client-local).
+		var shake_on := Main.instance == null or Main.instance.settings == null or Main.instance.settings.screen_shake
+		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake if shake_on else Vector2.ZERO
 	else:
 		cam.offset = Vector2.ZERO
 
