@@ -19,6 +19,7 @@ const MODULES := [
 	"res://tests/test_spawner.gd",
 	"res://tests/test_gems.gd",
 	"res://tests/test_stats.gd",
+	"res://tests/test_settings.gd",
 ]
 
 

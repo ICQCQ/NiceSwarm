@@ -140,6 +140,34 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-16 — Session 8: settings menu (audio / display / accessibility)
+- **Goal:** implement the long-stubbed settings menu (the in-game hub's "O settings"
+  showed only "coming soon").
+- **`GameSettings` (`scripts/core/settings.gd`, new `class_name`):** client-local prefs —
+  **master volume** (10% cycler), **mute**, **fullscreen**, **screen shake** — persisted to
+  `user://settings.cfg` via `store_var` (mirrors the profile save/load). `apply_audio()`
+  drives Master bus 0 (mutes the bus when muted **or** volume 0, since `linear_to_db(0)` is
+  `-INF`); `apply_window()` toggles `DisplayServer` fullscreen (no-op under headless);
+  `apply_all()` runs both. Deliberately **NOT net-synced** — every player keeps their own.
+- **Wiring:** `main._ready` creates + loads + applies settings before the UI builds. The hub
+  "O" key now opens a real settings tab (`gameui._show_settings`, treated as another
+  `codex_view` so ESC backs out via `_close_codex`; codex/settings share the hub body slot).
+  Added a **Settings button + overlay on the main menu** too (own dim + Back button — menus
+  are mouse-driven, no ESC perturbation) so audio/display can be set before a run. Both panels
+  share one `GameSettings`; each is relabeled on show (`_relabel`) so a change in one isn't
+  stale in the other. **Screen-shake gate** is the single apply point in `player._update_cam`
+  (shake still decays; only the `cam.offset` write is suppressed when disabled).
+- **GDScript trap avoided:** the relabel row dicts use keys `btn`/`fn`, not `b`/`get` —
+  `dict.get` resolves to `Dictionary.get()`, not the key.
+- **Verified:** `--import` clean (new class_name); unit suite **1078 passed, 0 failed** (+10:
+  new `tests/test_settings.gd` covers `next_volume` cycling + a save/load round-trip through a
+  **temp** `user://settings_test.cfg`, never the real file — `save`/`load_from_disk` gained an
+  optional path arg for this); 300-frame boot smoke + 600-frame solo run both error-free.
+  **Not** verified interactively (no display here): live volume/mute audibility, the actual
+  fullscreen switch, and the on-screen panel layout need a real window — call those out.
+- **Next:** real in-game check of the settings panels (layout + that volume/fullscreen/shake
+  actually take effect); consider a VSync toggle and per-bus (SFX vs music) volume if music lands.
+
 ### 2026-06-16 — Session 7: weapon codex + full hover stat tooltip (branch `feat/weapon-codex`, worktree)
 - **Goal:** write down a weapon/skill codex + all fusions, and make the in-game weapon-icon
   hover tooltip always show **all** weapon stats, including for fusion weapons.
