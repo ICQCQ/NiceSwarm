@@ -1867,7 +1867,7 @@ func _build_choice_pool(p: Player) -> Array:
 		if w.level < MAX_WEAPON_LEVEL:
 			var desc: String
 			if w is WeaponFused:
-				desc = "+1 level to every fused part"
+				desc = "+%d%% to all stats of this fusion" % int(GameConfig.AMALGAM_STAT_PER_LEVEL * 100.0)
 			elif WEAPON_INFO.has(w.weapon_id):
 				desc = WEAPON_INFO[w.weapon_id].level
 			else:

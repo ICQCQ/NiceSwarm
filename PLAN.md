@@ -140,6 +140,22 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-17 — Session 11: fusion damage — fresh-fusion boost + amalgam per-level scaling
+- **Two requests, one mechanism.** Added `WeaponBase.fuse_pow`/`born_dmg` (both default 1.0 →
+  no effect on base/standalone weapons) and 4 `fuse_*()` stat accessors; replaced all 424
+  `player.{damage,area,duration,rate}_mult` reads in `weapon_fusions.gd` with them (identity at
+  the defaults, so standalone fusions are unchanged).
+- **#1 fresh fusion not weak:** a signature fusion is born with `born_dmg = GameConfig.FUSION_BORN_DMG`
+  (×1.5 damage) so it isn't a downgrade from the two maxed weapons it consumed. (Flat multiplier, a
+  tunable approximation of "≥ the 2 combined" — an exact per-fusion floor would need editing each of
+  the 78 damage constants.)
+- **#2 amalgam scaling:** `WeaponFused` leveling now buffs ALL its components' stats by
+  `GameConfig.AMALGAM_STAT_PER_LEVEL` (5%) per level via `fuse_pow`, instead of bumping each
+  component's level. Components are maxed (Lv7) at merge, so base/counts are already capped.
+- **Verify:** `[tests] 1103 passed` (incl. new `test_merge` asserts for born_dmg + amalgam fuse_pow);
+  `NICESWARM_TEST=all_fusions` smoke runs all 78 fusions clean. Made `test_config` MAX_GEMS a
+  positivity check (was a brittle exact 500) since it's a tunable knob.
+
 ### 2026-06-17 — Session 10: slow buff + visual/balance tweaks
 - **Slow buff ("really slow enemy"):** every slow source funnels through `Enemy.apply_slow`,
   so the buff is one central change there. New `GameConfig.SLOW_POTENCY` (1.6) deepens the

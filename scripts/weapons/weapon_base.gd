@@ -17,7 +17,24 @@ var dps: float = 0.0
 var _dps_bucket: float = 0.0
 var _dps_timer: float = 1.0
 var tier := 0   # fusion depth: 0 = base weapon, 1 = base+base fusion, 2 = deep (final). See GameConfig.MAX_FUSION_TIER.
+# Fusion stat scaling (1.0 = no effect, so standalone/base weapons are untouched):
+#  - fuse_pow: an AMALGAM (WeaponFused) sets this on its components to buff ALL stats by
+#    GameConfig.AMALGAM_STAT_PER_LEVEL per amalgam level; applied via the fuse_* helpers.
+#  - born_dmg: a fresh SIGNATURE fusion is born with a flat damage boost so it isn't a
+#    downgrade from the two maxed weapons it consumed (GameConfig.FUSION_BORN_DMG).
+var fuse_pow := 1.0
+var born_dmg := 1.0
 var player: Player
+
+
+## Fusion-aware stat accessors. Fused weapons read these instead of player.* so an
+## amalgam can scale its components (fuse_pow) and a fresh fusion can carry a base-damage
+## boost (born_dmg). Haste DIVIDES by fuse_pow (lower rate = faster). At the 1.0 defaults
+## these return the raw player stat, so behavior is unchanged for non-fused weapons.
+func fuse_damage() -> float: return player.damage_mult * fuse_pow * born_dmg
+func fuse_area() -> float: return player.area_mult * fuse_pow
+func fuse_duration() -> float: return player.duration_mult * fuse_pow
+func fuse_rate() -> float: return player.rate_mult / fuse_pow
 
 
 ## Node-count level: spawn COUNTS (projectiles/blades/turrets/chains/beams)

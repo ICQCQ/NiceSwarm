@@ -29,14 +29,21 @@ const NET_PORT := 24565          # default co-op port
 # on top of its own Lv1->3 growth and the player's Power picks. Lets weapons you never
 # pour level-ups into still keep pace as the run (and enemy HP) scales. Tunable via FF.
 const WEAPON_LEVEL_POWER := 0.025   # was 0.04 — dialed back to shrink the late-game DPS snowball
+# Fusion scaling (see WeaponBase.fuse_* / WeaponFused):
+#  - AMALGAM_STAT_PER_LEVEL: leveling an amalgam (WeaponFused) buffs ALL of its components'
+#    stats by this fraction per level (flat), instead of leveling each component.
+#  - FUSION_BORN_DMG: a fresh SIGNATURE fusion is born with this damage multiplier so it isn't
+#    a downgrade from the two maxed weapons it consumed (the born-at-Lv1 DPS dip).
+const AMALGAM_STAT_PER_LEVEL := 0.05   # +5% all stats per amalgam level
+const FUSION_BORN_DMG := 1.5           # fresh signature fusion deals ×this base damage
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
 const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
 # Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
-const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
+const ENEMY_SPEED_DIFF_SCALE := 0.020  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
 const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
-const ENEMY_HP_PER_LEVEL := 0.05       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const ENEMY_HP_PER_LEVEL := 0.02       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
 # Frost / slow potency. Every applied slow funnels through Enemy.apply_slow, which
 # deepens the incoming speed factor by SLOW_POTENCY (so frost/freeze "really" bites)
@@ -140,7 +147,7 @@ const BOSS_KILL_INTERVAL_GROWTH := 100   # added to the interval each time a bos
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
 const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
-const BOSS_FIGHT_SECONDS := 8.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_FIGHT_SECONDS := 5.0  # boss hp ~= recent_dps * this (target single-boss fight length)
 const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
 const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end

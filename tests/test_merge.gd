@@ -45,6 +45,8 @@ func run(t) -> void:
 	var b1 = _fuse(p, "frost", "lightning")       # tier-1 signature fusion
 	t.eq(a1.tier, 1, "bolt+nova is tier 1")
 	t.eq(b1.tier, 1, "frost+lightning is tier 1")
+	# #1: a fresh signature fusion carries the born damage boost (not a downgrade from inputs)
+	t.eq(a1.born_dmg, GameConfig.FUSION_BORN_DMG, "fresh signature fusion has the born damage boost")
 	var t2a = _fuse(p, a1.weapon_id, b1.weapon_id)
 	t.eq(t2a.tier, 2, "tier-2 #1 has tier 2")
 	t.eq(t2a.get_child_count(), 2, "tier-2 #1 holds its 2 components")
@@ -55,6 +57,11 @@ func run(t) -> void:
 	var t2b = _fuse(p, c1.weapon_id, d1.weapon_id)
 	t.eq(t2b.tier, 2, "tier-2 #2 has tier 2")
 	t.eq(t2b.get_child_count(), 2, "tier-2 #2 holds its 2 components")
+	# #2: leveling an amalgam buffs ALL its components' stats by AMALGAM_STAT_PER_LEVEL/level
+	t.approx(t2b.components[0].fuse_pow, 1.0, 0.0001, "fresh amalgam has no stat boost yet")
+	t2b.level_up()
+	t.approx(t2b.components[0].fuse_pow, 1.0 + GameConfig.AMALGAM_STAT_PER_LEVEL,
+		0.0001, "amalgam level-up scales component fuse_pow by the per-level boost")
 
 	# both tier-2 weapons must coexist as distinct, owned, processing weapons
 	t.eq(p.weapons.size(), 2, "exactly the two tier-2 weapons remain")

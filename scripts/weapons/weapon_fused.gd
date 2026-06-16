@@ -1,10 +1,11 @@
 class_name WeaponFused
 extends WeaponBase
-## Fusion of two maxed attacks living in ONE weapon slot. The component
-## weapons keep firing as child nodes; each fusion level-up raises every
-## component's level by one (damage/area/cadence scale past Lv3; spawn counts
-## freeze via count_level), so fused parts keep growing. A tier-1 fusion can be
-## merged once more into a final tier-2 fusion (GameConfig.MAX_FUSION_TIER) — no T3.
+## Fusion of two maxed attacks living in ONE weapon slot. The component weapons keep
+## firing as child nodes. Leveling the amalgam buffs ALL of its components' stats by a
+## flat +GameConfig.AMALGAM_STAT_PER_LEVEL per level via WeaponBase.fuse_pow — it does
+## NOT raise each component's own level. Components were maxed (Lv7) when merged, so their
+## base damage and spawn counts are already at cap; this flat boost is the deep fusion's
+## clean scaling axis. A fusion can be merged again up to GameConfig.MAX_FUSION_TIER.
 
 var components: Array = []  # leaf WeaponBase nodes
 
@@ -27,9 +28,16 @@ func setup(parts: Array) -> void:
 	ids.sort()
 	weapon_id = "fused_" + "_".join(ids)
 	display_name = " + ".join(names)
+	_apply_stat_boost()
 
 
 func level_up() -> void:
 	level += 1
+	_apply_stat_boost()
+
+
+## Push the current per-level stat multiplier onto every component (see class doc).
+func _apply_stat_boost() -> void:
+	var boost := 1.0 + GameConfig.AMALGAM_STAT_PER_LEVEL * (level - 1)
 	for c in components:
-		c.level += 1
+		c.fuse_pow = boost

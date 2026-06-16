@@ -377,6 +377,7 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 	var sig := Fusions.make(id_a, id_b)
 	if sig != null:
 		sig.tier = new_tier
+		sig.born_dmg = GameConfig.FUSION_BORN_DMG  # fresh-fusion damage boost (vs the 2 maxed inputs)
 		# A signature fusion is born at level 1 and levels up 1..MAX like a base
 		# weapon (its default WeaponBase.level is 1). This intentionally gates the
 		# NEXT merge: the [MERGE] pool only offers MAXED weapons, so a fresh fusion

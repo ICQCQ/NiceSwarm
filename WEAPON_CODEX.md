@@ -107,16 +107,17 @@ Merging two **Lv7** weapons consumes both and produces **one distinct new weapon
 slot (freeing a slot). Every fusion honors the same four stat axes. Pairs are listed
 alphabetically by result name; the same data backs the `[FUSE]` upgrade pick text in-game.
 
-**A signature fusion is born at Lv1 and levels up 1..Lv7 like a base weapon.** At Lv1 its
-damage growth term is ×1.0, so a fresh fusion is *weaker* than the two Lv7 weapons it consumed —
-an accepted DPS dip that rewards leveling it back up. The payoff is its richer multi-hit/AoE
-behavior plus room to grow. This also **gates the next merge**: the `[MERGE]` pool only offers
-**maxed** weapons, so a signature fusion must be leveled all the way to `MAX_WEAPON_LEVEL` before
-it can be amalgamated again into a higher tier — only a maxed-out fusion fuses on.
+**A signature fusion is born at Lv1 and levels up 1..Lv7 like a base weapon.** It carries a
+born damage boost (`GameConfig.FUSION_BORN_DMG`, ×1.5) so a fresh fusion isn't a downgrade from
+the two Lv7 weapons it consumed, then keeps growing as you level it. This also **gates the next
+merge**: the `[MERGE]` pool only offers **maxed** weapons, so a signature fusion must be leveled
+all the way to `MAX_WEAPON_LEVEL` before it can be amalgamated again into a higher tier — only a
+maxed-out fusion fuses on.
 
-The generic **Amalgam** fallback (uncovered pairs) is different: it keeps **both component weapons
-running and levels them together** as one slot — so it starts at full component power with no
-cliff either, and *can* keep leveling (its components scale past Lv7).
+The generic **Amalgam** (deeper merges / uncovered pairs) keeps **both component weapons running**
+as one slot. Leveling the amalgam buffs **all of its components' stats** by
+`GameConfig.AMALGAM_STAT_PER_LEVEL` (+5%) per level (the components were maxed when merged, so this
+flat all-stat boost is its scaling axis rather than re-leveling each part).
 
 | Pair | Fusion | Behavior |
 |------|--------|----------|
