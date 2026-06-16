@@ -140,6 +140,17 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-17 — Session 12: amalgam tooltip + turret-fusion keeps its gun
+- **Amalgam hover tooltip:** hovering a fused weapon now lists every weapon inside it
+  (`game_hud._fusion_parts_block`) — each component's name, level, per-hit DMG (base parts),
+  and live DPS/total. Reuses the universal `WeaponBase.dps`/`damage_dealt`.
+- **Turret fusions keep the normal gun:** turret-fusion modes whose effect is NOT a fired
+  bullet — deploys (mines/gravity/venom) and AoE/chain (nova/lightning/flame) — now also fire
+  the normal turret bolt on an independent `gun_cd` timer (`turret_node.GUN_RETAINING_MODES` +
+  extracted `_fire_bolt()`). So e.g. a Mine Layer plants mines AND shoots like a normal turret.
+  Bullet modes (missile/frost/glaive + plain bolt) and continuous beam/orbit are unchanged.
+- **Verify:** `[tests] 1103 passed`; boots clean. (Tooltip render + turret behavior best confirmed in-game.)
+
 ### 2026-06-17 — Session 11: fusion damage — fresh-fusion boost + amalgam per-level scaling
 - **Two requests, one mechanism.** Added `WeaponBase.fuse_pow`/`born_dmg` (both default 1.0 →
   no effect on base/standalone weapons) and 4 `fuse_*()` stat accessors; replaced all 424

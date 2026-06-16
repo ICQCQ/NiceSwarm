@@ -194,11 +194,34 @@ func _weapon_tip_text(id: String) -> String:
 	# Behavior blurb: base weapons use WEAPON_INFO; fusions use their Fusions.INFO desc.
 	if Main.WEAPON_INFO.has(id):
 		lines.append("[color=#7e8aa0]%s[/color]" % Main.WEAPON_INFO[id].level)
+	elif w is WeaponFused:
+		# Amalgam: list every fused weapon inside it with its own level + live output.
+		lines.append("[color=#6b7488]─ fused weapons ─[/color]")
+		lines.append_array(_fusion_parts_block(w))
 	else:
 		var desc := _fusion_desc(w)
 		if desc != "":
 			lines.append("[color=#7e8aa0]%s[/color]" % desc)
 	return "[right]" + "\n".join(lines) + "[/right]"
+
+
+## One row per component of an amalgam (WeaponFused): name + level + live DPS + total
+## dealt, so hovering shows the stats of every weapon fused into the slot. dps/damage_dealt
+## are tracked on every WeaponBase, so this works for base-weapon and signature-fusion parts.
+func _fusion_parts_block(w) -> Array:
+	var rows := []
+	for c in w.get_children():
+		if not (c is WeaponBase):
+			continue
+		var per_hit := ""
+		if WeaponConfig.BASE.has(c.weapon_id):  # base-weapon part: show its effective per-hit DMG
+			var b: Dictionary = WeaponConfig.BASE[c.weapon_id]
+			var me: Player = main.players.get(main.local_id)
+			var pwr: float = me.damage_mult if me != null else 1.0
+			per_hit = "  [color=#ff9a8a]DMG %.1f[/color]" % (b.dmg * (1.0 + b.growth * (c.level - 1)) * pwr)
+		rows.append("[color=#cdd6e6]%s[/color] [color=#9aa4b8]Lv%d[/color]%s  [color=#ff9a8a]%s/s[/color] [color=#7e8aa0]tot %s[/color]" \
+			% [c.display_name, c.level, per_hit, _fmt_dmg(c.dps), _fmt_dmg(c.damage_dealt)])
+	return rows
 
 
 ## Behavior text for a fusion: its Fusions.INFO description (signature recipe), or a
