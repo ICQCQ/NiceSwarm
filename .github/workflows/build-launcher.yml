@@ -45,6 +45,7 @@ jobs:
         with:
           go-version: "1.24"
           cache: true # gioui.org deps are recorded in go.sum now
+          cache-dependency-path: launcher/go.sum # go.sum lives under launcher/, not repo root
       - name: Test
         run: go test ./internal/... # skip the GUI package: needs cgo+X11 on Linux
       - name: Cross-compile Windows binaries + checksums
@@ -93,6 +94,7 @@ jobs:
         with:
           go-version: "1.24"
           cache: true # gioui.org deps are recorded in go.sum now
+          cache-dependency-path: launcher/go.sum # go.sum lives under launcher/, not repo root
       - name: Test
         run: go test ./internal/... # GUI package has no tests; internals are the suite
       - name: Build universal binary, wrap in .app, ad-hoc sign, zip
