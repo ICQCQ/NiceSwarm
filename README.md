@@ -9,11 +9,30 @@ weapons, and survive **10 minutes** against an ever-growing swarm.
 
 ## Play
 
+### ▶ Download (recommended)
+
+Grab the **launcher** — it keeps the game current automatically, then launches it:
+
+### **[⬇ Download NiceSwarm-Launcher.exe](https://github.com/ICQCQ/NiceSwarm/releases/download/launcher/NiceSwarm-Launcher.exe)** &nbsp;·&nbsp; Windows x86_64
+
+Run it once: it downloads the latest build into `%LOCALAPPDATA%\NiceSwarm` and starts the
+game, and every later run auto-updates first — so you're always on the newest version
+without re-downloading by hand. Windows on ARM:
+[NiceSwarm-Launcher-arm64.exe](https://github.com/ICQCQ/NiceSwarm/releases/download/launcher/NiceSwarm-Launcher-arm64.exe)
+· all launcher builds: [releases/tag/launcher](https://github.com/ICQCQ/NiceSwarm/releases/tag/launcher)
+· how it works: [LAUNCHER.md](LAUNCHER.md).
+
+> Prefer a fixed build? Download the game `.exe` straight from the
+> [`latest` release](https://github.com/ICQCQ/NiceSwarm/releases/tag/latest) — it just won't
+> auto-update.
+
+### From source
+
 ```bash
 godot --path .            # run (Godot 4.6, on PATH via Scoop)
 ```
-Or grab a build: double-click **`build.cmd`** → `build/NiceSwarm.exe` (single
-self-contained file). One-time export-template setup: see [CLAUDE.md](CLAUDE.md).
+Or double-click **`build.cmd`** → `build/NiceSwarm.exe` (single self-contained file).
+One-time export-template setup: see [CLAUDE.md](CLAUDE.md).
 
 **Controls:** WASD/arrows move · SPACE/SHIFT dash · `1–6` pick upgrade · ESC pause ·
 `M` menu · `R` restart (on game-over).
