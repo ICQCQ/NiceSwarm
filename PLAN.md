@@ -165,7 +165,12 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
   signature fusion (Pulsar ◆T1 + its INFO desc), and `WeaponFused` (Pulsar + Glacial Edge ◆T2 +
   component list) — all rendered correctly, no empties/errors. **Not** visually hovered (no
   display in this environment); verified by-construction + runtime string output.
-- **Next:** real in-game hover check for layout/wrapping at the 584px tooltip width; consider a
+- **Overflow guard:** the new lines are longer than the tooltip ever showed (the "Your build"
+  line ~56 chars + fusion descs up to ~105, e.g. Beam Battery), and `weapon_tip` was
+  `AUTOWRAP_OFF` → long lines would run off-screen and hide stats. Flipped it to
+  `AUTOWRAP_WORD_SMART` so they wrap inside the fixed 584px box (`game_ui.gd`). Pointer to the
+  codex added to CLAUDE.md.
+- **Next:** real in-game hover check to confirm the wrapped layout looks right; consider a
   fusion `[FUSE]` pick showing the same stat block. (Stale-but-out-of-scope: `SUP` const + its
   "max level 3" comment predate `MAX_WEAPON_LEVEL = 7`; the badge clamps so Lv7 shows "³".)
 
