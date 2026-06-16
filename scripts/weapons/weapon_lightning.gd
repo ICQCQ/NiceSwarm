@@ -29,6 +29,7 @@ func _physics_process(delta: float) -> void:
 	while current != null and chains > 0:
 		visited[current.get_instance_id()] = true
 		points.append(current.global_position)
+		damage_dealt += dmg - dmgDrop
 		current.take_hit(dmg - dmgDrop, null, Enemy.DMG_ENERGY, player.peer_id)
 		ignite(current, dmg - dmgDrop)
 		chains -= 1

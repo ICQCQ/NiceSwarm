@@ -104,6 +104,7 @@ var slow_mult := 1.0
 var burn_dps := 0.0
 var burn_timer := 0.0
 var burn_tick := 0.0
+var burn_source_pid: int = -1
 
 var main_ref: Node  # set by main.gd (host); null on puppets
 var puppet := false
@@ -158,6 +159,8 @@ func _physics_process(delta: float) -> void:
 		global_position = global_position.lerp(net_target, minf(10.0 * delta, 1.0))
 		return
 	if main_ref == null:
+		return
+	if main_ref.debug_freeze_enemies:
 		return
 	var target: Node2D = main_ref.nearest_alive_player(global_position)
 	var spd := speed * (slow_mult if slow_timer > 0.0 else 1.0)
@@ -332,7 +335,10 @@ func _physics_process(delta: float) -> void:
 		burn_tick -= delta
 		if burn_tick <= 0.0:
 			burn_tick = 0.3
-			take_hit(burn_dps * 0.3, null, DMG_FIRE)  # may free self; nothing runs after
+			var bamount := burn_dps * 0.3
+			if main_ref != null and burn_source_pid >= 0:
+				main_ref.add_burn_damage(burn_source_pid, minf(bamount, maxf(hp, 0.0)))
+			take_hit(bamount, null, DMG_FIRE)  # may free self; nothing runs after
 
 
 func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, source_pid: int = -1) -> void:
@@ -357,6 +363,8 @@ func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, so
 	if source_pid >= 0 and main_ref != null:  # scoreboard: credit the dealer
 		main_ref.add_damage(source_pid, minf(amount, hp))
 	hp -= amount
+	if main_ref != null and main_ref.debug_immortal_enemies:
+		hp = max_hp
 	flash = 0.12
 	if from_pos != null and not cc_immune:  # can't be knocked back if interrupt-immune
 		apply_push(from_pos, 130.0)
@@ -460,10 +468,12 @@ func _do_slam() -> void:
 				main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0, -1.0, true)
 
 
-func apply_burn(dps: float, duration: float, stack_mult: float = 1.0) -> void:
+func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid: int = -1) -> void:
 	# stack onto an active burn — both the heat (dps) and the time left — rather
 	# than just refreshing a single value, so repeated ignites compound.
 	# stack_mult > 1 lets a source (Flame Cone's signature) pile on faster.
+	if source_pid >= 0:
+		burn_source_pid = source_pid
 	if burn_timer > 0.0:
 		burn_dps += dps * stack_mult
 		burn_timer += duration * stack_mult

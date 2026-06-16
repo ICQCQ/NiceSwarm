@@ -6,6 +6,7 @@ extends Node2D
 
 var life := 5.0
 var source_pid := -1  # scoreboard: credited to the turret's deployer
+var source_weapon: WeaponBase
 var owner_weapon_id := -1  # instance id of the deploying weapon; caps per-weapon, not global
 var damage := 1.2
 var target_range := 480.0  # Area
@@ -60,6 +61,7 @@ func _emit(target: Node2D) -> float:
 			m.velocity = dir * 320.0
 			m.position = here
 			m.source_pid = source_pid
+			m.source_weapon = source_weapon
 			get_parent().add_child(m)
 			Sfx.play("missile", here, -5.0)
 			return 0.9
@@ -72,6 +74,7 @@ func _emit(target: Node2D) -> float:
 			s.slow_dur = 1.5 * dur_mult
 			s.position = here
 			s.source_pid = source_pid
+			s.source_weapon = source_weapon
 			get_parent().add_child(s)
 			Sfx.play("frost", here, -4.0)
 			return 0.55
@@ -82,6 +85,7 @@ func _emit(target: Node2D) -> float:
 			g.hit_radius = 14.0 * area_mult
 			g.position = here
 			g.source_pid = source_pid
+			g.source_weapon = source_weapon
 			get_parent().add_child(g)
 			Sfx.play("glaive", here, -4.0)
 			return 1.1
@@ -106,6 +110,7 @@ func _emit(target: Node2D) -> float:
 				mn.life = 10.0 * dur_mult
 				mn.position = here + Vector2(randf_range(-24.0, 24.0), randf_range(-24.0, 24.0))
 				mn.source_pid = source_pid
+				mn.source_weapon = source_weapon
 				get_parent().add_child(mn)
 			return 1.4
 		"gravity":
@@ -116,6 +121,7 @@ func _emit(target: Node2D) -> float:
 			w.life = 2.5 * dur_mult
 			w.position = global_position
 			w.source_pid = source_pid
+			w.source_weapon = source_weapon
 			get_parent().add_child(w)
 			Sfx.play("gravity", global_position, -3.0)
 			return 3.0
@@ -127,6 +133,7 @@ func _emit(target: Node2D) -> float:
 			pud.life = pud.max_life
 			pud.position = here + Vector2(randf_range(-20.0, 20.0), randf_range(-20.0, 20.0))
 			pud.source_pid = source_pid
+			pud.source_weapon = source_weapon
 			get_parent().add_child(pud)
 			Sfx.play("venom", here, -4.0)
 			return 1.2
@@ -137,6 +144,7 @@ func _emit(target: Node2D) -> float:
 			p.radius = proj_radius
 			p.position = here
 			p.source_pid = source_pid
+			p.source_weapon = source_weapon
 			get_parent().add_child(p)
 			Sfx.play("turret", here, -4.0)
 			return 0.45
@@ -152,6 +160,8 @@ func _pulse(radius: float) -> void:
 	get_parent().add_child(fx)
 	for e in EnemyGrid.near(global_position, radius):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
+			if source_weapon:
+				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position, Enemy.DMG_ENERGY, source_pid)
 			e.apply_push(global_position, 50.0 * area_mult)
 
@@ -160,6 +170,8 @@ func _cone(dir: Vector2, reach: float) -> void:
 	for e in EnemyGrid.near(global_position, reach):
 		var to: Vector2 = e.global_position - global_position
 		if to.length() <= reach + e.radius and absf(dir.angle_to(to)) <= 0.6:
+			if source_weapon:
+				source_weapon.damage_dealt += damage
 			e.take_hit(damage, null, Enemy.DMG_FIRE, source_pid)
 
 
@@ -171,6 +183,8 @@ func _chain(first: Node2D) -> void:
 	while cur != null and hops > 0:
 		visited[cur.get_instance_id()] = true
 		pts.append(cur.global_position)
+		if source_weapon:
+			source_weapon.damage_dealt += damage
 		cur.take_hit(damage, null, Enemy.DMG_ENERGY, source_pid)
 		hops -= 1
 		cur = _nearest_unvisited(pts[pts.size() - 1], visited, 190.0)
@@ -191,6 +205,8 @@ func _run_beam(delta: float) -> void:
 		var rel: Vector2 = e.global_position - global_position
 		var along := clampf(rel.dot(dir), 0.0, length)
 		if (dir * along).distance_to(rel) <= 7.0 + e.radius:
+			if source_weapon:
+				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position + dir * along, Enemy.DMG_ENERGY, source_pid)
 			hit_cd[e.get_instance_id()] = 0.3 * fire_mult
 
@@ -206,6 +222,8 @@ func _run_orbit(delta: float) -> void:
 		for i in 3:
 			var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * i / 3.0) * orbit_r
 			if bp.distance_to(e.global_position) <= blade_r + e.radius:
+				if source_weapon:
+					source_weapon.damage_dealt += damage
 				e.take_hit(damage, bp, Enemy.DMG_PHYS, source_pid)
 				hit_cd[e.get_instance_id()] = 0.4 * fire_mult
 				break

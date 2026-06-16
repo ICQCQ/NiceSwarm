@@ -4,6 +4,7 @@ extends Node2D
 
 var damage := 6.0
 var source_pid := -1  # scoreboard: which player owns this
+var source_weapon: WeaponBase
 var blast_radius := 100.0
 var trigger_radius := 55.0  # Area
 var arm := 0.4  # arming delay so it doesn't pop the instant it drops
@@ -85,6 +86,8 @@ func _explode() -> void:
 	Sfx.play("boom", global_position, -4.0)
 	for e in EnemyGrid.near(global_position, blast_radius):
 		if global_position.distance_to(e.global_position) <= blast_radius + e.radius:
+			if source_weapon:
+				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if freeze_slow > 0.0:
 				e.apply_slow(freeze_slow, freeze_dur)
@@ -95,6 +98,7 @@ func _explode() -> void:
 		m.velocity = Vector2.from_angle(TAU * i / maxi(spawn_missiles, 1)) * 260.0
 		m.position = global_position
 		m.source_pid = source_pid
+		m.source_weapon = source_weapon
 		get_parent().add_child(m)
 	if fire_dps > 0.0:
 		var pud := VenomPuddle.new()
@@ -107,10 +111,12 @@ func _explode() -> void:
 		pud.burn_dur = 1.0
 		pud.position = global_position
 		pud.source_pid = source_pid
+		pud.source_weapon = source_weapon
 		get_parent().add_child(pud)
 	for i in shrapnel_count:
 		var g := GlaiveProj.new()
 		g.source_pid = source_pid
+		g.source_weapon = source_weapon
 		g.velocity = Vector2.from_angle(TAU * float(i) / shrapnel_count) * 420.0
 		g.damage = shrapnel_dmg
 		g.hit_radius = shrapnel_radius
@@ -124,6 +130,8 @@ func _explode() -> void:
 				var rel: Vector2 = e.global_position - global_position
 				var along := clampf(rel.dot(dir), 0.0, beam_len)
 				if (dir * along).distance_to(rel) <= 8.0 + e.radius:
+					if source_weapon:
+						source_weapon.damage_dealt += beam_dmg
 					e.take_hit(beam_dmg, global_position + dir * along, Enemy.DMG_ENERGY, source_pid)
 					if beam_burn_dur > 0.0:
 						e.apply_burn(beam_dmg * 0.3, beam_burn_dur)
@@ -149,6 +157,8 @@ func _explode() -> void:
 			if best == null:
 				break
 			visited[best.get_instance_id()] = true
+			if source_weapon:
+				source_weapon.damage_dealt += chain_dmg
 			best.take_hit(chain_dmg, from_pos, Enemy.DMG_ENERGY, source_pid)
 			var cfx := LightningFx.new()
 			cfx.points = [from_pos, best.global_position]
@@ -157,6 +167,8 @@ func _explode() -> void:
 	if nova_radius > 0.0:
 		for e in EnemyGrid.near(global_position, nova_radius):
 			if global_position.distance_to(e.global_position) <= nova_radius + e.radius:
+				if source_weapon:
+					source_weapon.damage_dealt += nova_dmg
 				e.take_hit(nova_dmg, global_position, Enemy.DMG_ENERGY, source_pid)
 				if nova_push > 0.0:
 					e.apply_push(global_position, nova_push)
@@ -177,6 +189,7 @@ func _explode() -> void:
 		tpud.burn_dur = venom_dur * 0.5
 		tpud.position = global_position
 		tpud.source_pid = source_pid
+		tpud.source_weapon = source_weapon
 		get_parent().add_child(tpud)
 	queue_free()
 

@@ -29,6 +29,7 @@ func _physics_process(delta: float) -> void:
 	for i in count:
 		var g := GlaiveProj.new()
 		g.source_pid = player.peer_id
+		g.source_weapon = self
 		g.player = player
 		g.velocity = base.rotated(deg_to_rad(25.0) * (i - (count - 1) / 2.0)) * 430.0
 		g.damage = WeaponConfig.BASE.glaive.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.glaive.growth * (level - 1))

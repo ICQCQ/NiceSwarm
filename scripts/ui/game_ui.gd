@@ -102,8 +102,44 @@ func build() -> void:
 	_build_countdown_panel()
 	_build_menu()
 	_build_lobby_panel()
+	_build_stats_panel()
 	if OS.is_debug_build():
 		main.debug.build()
+
+
+func _build_stats_panel() -> void:
+	# Anchor to bottom-left so content grows upward and never falls off screen.
+	main.stats_panel = Control.new()
+	main.stats_panel.anchor_left = 0.0
+	main.stats_panel.anchor_top = 1.0
+	main.stats_panel.anchor_right = 0.0
+	main.stats_panel.anchor_bottom = 1.0
+	main.stats_panel.offset_left = 16.0
+	main.stats_panel.offset_right = 330.0   # 314 px wide
+	main.stats_panel.offset_bottom = -72.0  # sits above the hint label
+	main.stats_panel.offset_top = -472.0    # 400 px tall
+	main.stats_panel.visible = false
+	main.hud_root.add_child(main.stats_panel)
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.0, 0.72)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	main.stats_panel.add_child(bg)
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 8.0
+	scroll.offset_top = 8.0
+	scroll.offset_right = -8.0
+	scroll.offset_bottom = -8.0
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	main.stats_panel.add_child(scroll)
+	main.stats_label_dmg = RichTextLabel.new()
+	main.stats_label_dmg.bbcode_enabled = true
+	main.stats_label_dmg.fit_content = true
+	main.stats_label_dmg.scroll_active = false
+	main.stats_label_dmg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	main.stats_label_dmg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main.stats_label_dmg.add_theme_font_size_override("normal_font_size", 17)
+	scroll.add_child(main.stats_label_dmg)
 
 
 func _make_label(pos: Vector2, size: int, color: Color) -> Label:

@@ -4,6 +4,7 @@ extends Node2D
 
 var damage := 3.0
 var source_pid := -1  # scoreboard: which player owns this
+var source_weapon: WeaponBase
 var splash := 70.0
 var velocity := Vector2.ZERO
 var life := 4.0
@@ -68,6 +69,8 @@ func _explode() -> void:
 	Sfx.play("boom", global_position, -10.0)
 	for e in EnemyGrid.near(global_position, splash):
 		if global_position.distance_to(e.global_position) <= splash + e.radius:
+			if source_weapon:
+				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if freeze_slow > 0.0:
 				e.apply_slow(freeze_slow, freeze_dur)
@@ -76,6 +79,7 @@ func _explode() -> void:
 	if fire_dps > 0.0:
 		var pud := VenomPuddle.new()
 		pud.source_pid = source_pid
+		pud.source_weapon = source_weapon
 		pud.radius = fire_radius
 		pud.damage = fire_dps
 		pud.max_life = fire_dur
@@ -88,6 +92,7 @@ func _explode() -> void:
 	if venom_dps > 0.0:
 		var tpud := VenomPuddle.new()
 		tpud.source_pid = source_pid
+		tpud.source_weapon = source_weapon
 		tpud.radius = venom_radius
 		tpud.damage = venom_dps
 		tpud.max_life = venom_dur
@@ -99,6 +104,7 @@ func _explode() -> void:
 	for i in shrapnel_count:
 		var g := GlaiveProj.new()
 		g.source_pid = source_pid
+		g.source_weapon = source_weapon
 		g.velocity = Vector2.from_angle(TAU * float(i) / shrapnel_count) * 420.0
 		g.damage = shrapnel_dmg
 		g.hit_radius = shrapnel_radius
@@ -123,6 +129,8 @@ func _explode() -> void:
 			if best == null:
 				break
 			visited[best.get_instance_id()] = true
+			if source_weapon:
+				source_weapon.damage_dealt += chain_dmg
 			best.take_hit(chain_dmg, from_pos, Enemy.DMG_ENERGY, source_pid)
 			var cfx := LightningFx.new()
 			cfx.points = [from_pos, best.global_position]

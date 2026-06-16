@@ -4,6 +4,7 @@ extends Area2D
 
 var velocity := Vector2.ZERO
 var source_pid := -1  # scoreboard: which player owns this
+var source_weapon: WeaponBase  # damage stats: credit dealt damage to this weapon
 var damage := 1.0
 var life := 1.6
 var radius := 5.0  # scaled by the firing weapon's Area stat
@@ -16,6 +17,7 @@ var fire_puddle_life := 0.0
 var fire_puddle_burn_dps := 0.0
 var fire_puddle_burn_dur := 0.0
 var fire_puddle_source_pid := -1
+var fire_puddle_source_weapon: WeaponBase
 var on_hit := Callable()        # optional: called(enemy, hit_pos, world) after damage
 var color := Color(1.0, 0.92, 0.4)
 var homing_turn := 0.0   # >0: fused Flak Battery curves toward the nearest enemy, rad/s
@@ -60,6 +62,8 @@ func _physics_process(delta: float) -> void:
 
 func _on_body_entered(body: Node) -> void:
 	if body is Enemy:
+		if source_weapon:
+			source_weapon.damage_dealt += damage
 		body.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 		if explode_radius > 0.0:
 			_explode()
@@ -81,6 +85,8 @@ func _explode() -> void:
 	Sfx.play("boom", global_position, -8.0)
 	for e in EnemyGrid.near(global_position, explode_radius):
 		if global_position.distance_to(e.global_position) <= explode_radius + e.radius:
+			if source_weapon:
+				source_weapon.damage_dealt += explode_damage
 			e.take_hit(explode_damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if push_strength > 0.0:
 				e.apply_push(global_position, push_strength)
@@ -89,6 +95,7 @@ func _explode() -> void:
 func _drop_fire_puddle() -> void:
 	var pud := VenomPuddle.new()
 	pud.source_pid = fire_puddle_source_pid
+	pud.source_weapon = fire_puddle_source_weapon
 	pud.radius = fire_puddle_radius
 	pud.damage = fire_puddle_damage
 	pud.max_life = fire_puddle_life

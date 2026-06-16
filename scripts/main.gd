@@ -156,8 +156,8 @@ var paused_menu := false        # client-side: a host pause froze us (remote "PA
 var ingame_menu := false        # our own in-game menu/hub is open (opening it pauses the whole run for everyone)
 var menu_open_pids := {}         # host-only: pids whose in-game menu is open — the run stays paused while non-empty
 const RESUME_COUNTDOWN := 2.0   # seconds of "get ready" before a resume actually un-freezes the run
-const HINT_COOP := "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu"
-const HINT_SOLO := "WASD move  ·  SPACE/SHIFT dash  ·  ESC pause/menu"
+const HINT_COOP := "WASD move  ·  SPACE/SHIFT dash  ·  revive a downed ally by standing near  ·  ESC pause/menu  ·  TAB damage stats"
+const HINT_SOLO := "WASD move  ·  SPACE/SHIFT dash  ·  ESC pause/menu  ·  TAB damage stats"
 
 # Threat readout tiers: a named, color-coded band the player can actually parse,
 # instead of a bare difficulty float. `at` = difficulty at which the tier begins
@@ -226,6 +226,17 @@ var weapons_label: RichTextLabel
 var stats_label: RichTextLabel    # current stat upgrades, shown under the weapon slots
 var weapon_tip: RichTextLabel     # hover tooltip: the hovered weapon slot's current stats
 var _tip_weapon_id := ""          # weapon_id currently shown in weapon_tip (refreshed while hovered)
+var stats_panel: Control          # Tab-toggled per-weapon damage panel (0=off 1=dmg 2=dps)
+var stats_label_dmg: RichTextLabel
+var stats_mode: int = 0
+var debug_no_levelup: bool = false
+var debug_freeze_enemies: bool = false
+var debug_immortal_enemies: bool = false
+var debug_no_spawn: bool = false
+var _burn_total: float = 0.0
+var _burn_bucket: float = 0.0
+var burn_dps_val: float = 0.0
+var _burn_dps_timer: float = 1.0
 var hint_label: Label
 var xp_bar: ProgressBar
 var arrows: Control
@@ -356,6 +367,9 @@ func _show_menu(message: String) -> void:
 	level_panel.visible = false
 	end_panel.visible = false
 	pause_panel.visible = false
+	if stats_panel != null:
+		stats_panel.visible = false
+	stats_mode = 0
 	paused_menu = false
 	leveling = false
 	_force_close_ingame_menu()
@@ -1208,6 +1222,10 @@ func _reset_run_state() -> void:
 	_score = {}
 	net_scores = []
 	elapsed = 0.0
+	_burn_total = 0.0
+	_burn_bucket = 0.0
+	burn_dps_val = 0.0
+	_burn_dps_timer = 1.0
 	kills = 0
 	level = 1
 	xp = 0
@@ -1380,6 +1398,11 @@ func _grant_starters() -> void:
 func _process(delta: float) -> void:
 	if not playing:
 		return
+	_burn_dps_timer -= delta
+	if _burn_dps_timer <= 0.0:
+		burn_dps_val = _burn_bucket
+		_burn_bucket = 0.0
+		_burn_dps_timer = 1.0
 	if countdown_time > 0.0:  # resume countdown holds the world until it reaches zero
 		_tick_countdown(delta)
 		return
@@ -1704,6 +1727,9 @@ func _current_needed() -> int:
 func _maybe_open_picks() -> void:
 	if leveling or game_over or not is_host():
 		return
+	if debug_no_levelup:
+		xp = 0
+		return
 	if pending_chests > 0:
 		pending_chests -= 1
 		_trigger_picks(true)
@@ -1961,6 +1987,13 @@ func add_damage(pid: int, amount: float) -> void:
 	if _score.has(pid):
 		_score[pid].damage += amount
 	spawner.add_damage_sample(amount)  # feed the rolling party-DPS window (boss hp sizing)
+
+
+func add_burn_damage(pid: int, amount: float) -> void:
+	if pid != local_id:
+		return
+	_burn_total += amount
+	_burn_bucket += amount
 
 
 func _check_all_downed() -> void:
@@ -2384,6 +2417,10 @@ func _input(event: InputEvent) -> void:
 			_open_ingame_menu()  # open my own menu while the run is already paused
 		elif key == KEY_M:
 			_to_menu()
+	elif key == KEY_TAB:
+		if stats_panel != null:
+			stats_mode = (stats_mode + 1) % 3
+			stats_panel.visible = stats_mode != 0
 	elif key == KEY_ESCAPE:
 		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 

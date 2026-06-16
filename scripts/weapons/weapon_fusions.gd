@@ -216,6 +216,7 @@ class PlasmaBurst extends WeaponBase:
 		for i in n:
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = dir.rotated(deg_to_rad(8.0) * (i - (n - 1) / 2.0)) * 480.0
 			p.damage = dmg
 			p.radius = 7.0 * player.area_mult
@@ -255,6 +256,7 @@ class Cryoshock extends WeaponBase:
 		while cur != null and chains > 0:
 			visited[cur.get_instance_id()] = true
 			pts.append(cur.global_position)
+			damage_dealt += dmg
 			cur.take_hit(dmg, null, Enemy.DMG_PHYS, player.peer_id)
 			cur.apply_slow(0.45, 1.6 * player.duration_mult)
 			ignite(cur, dmg)
@@ -293,6 +295,7 @@ class ToxicPyre extends WeaponBase:
 		drop = 0.3 * player.rate_mult
 		var p := VenomPuddle.new()
 		p.source_pid = player.peer_id
+		p.source_weapon = self
 		p.radius = (55.0 + 6.0 * (level - 1)) * player.area_mult
 		p.damage = 1.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		p.max_life = 3.0 * player.duration_mult
@@ -323,6 +326,7 @@ class Singularity extends WeaponBase:
 			return
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = (170.0 + 15.0 * (level - 1)) * player.area_mult
 		w.damage = 1.2 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		w.pull = 210.0
@@ -352,6 +356,7 @@ class ClusterBomb extends WeaponBase:
 			return
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
+		m.source_weapon = self
 		m.damage = 6.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		m.blast_radius = (110.0 + 15.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 60.0 * player.area_mult
@@ -396,6 +401,7 @@ class PrismHalo extends WeaponBase:
 				var dir := Vector2.from_angle(angle + TAU * float(s) / spokes)
 				var along := clampf(rel.dot(dir), 0.0, length)
 				if (dir * along).distance_to(rel) <= 7.0 + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_PHYS, player.peer_id)
 					ignite(e, dmg)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
@@ -435,6 +441,7 @@ class GlacialEdge extends WeaponBase:
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = base.rotated(deg_to_rad(22.0) * (i - (count - 1) / 2.0)) * 430.0
 			g.damage = 0.0
@@ -472,6 +479,7 @@ class Railgun extends WeaponBase:
 			var rel: Vector2 = e.global_position - origin
 			var along := rel.dot(dir)
 			if along >= 0.0 and along <= length and (dir * along).distance_to(rel) <= width + e.radius:
+				damage_dealt += dmg
 				e.take_hit(dmg, origin, Enemy.DMG_PHYS, player.peer_id)
 				ignite(e, dmg)
 		var fx := LightningFx.new()
@@ -498,6 +506,7 @@ class Supernova extends WeaponBase:
 		var hit_any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
+				damage_dealt += dmg
 				e.take_hit(dmg, global_position, Enemy.DMG_PHYS, player.peer_id)
 				ignite(e, dmg)
 				push(e, global_position)
@@ -514,6 +523,7 @@ class Supernova extends WeaponBase:
 		player.get_parent().add_child(fx)
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = radius * 0.7
 		pud.damage = dmg * 0.2
 		pud.max_life = 2.0 * player.duration_mult
@@ -560,6 +570,7 @@ class FrostHalo extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_PHYS, player.peer_id)
 					e.apply_slow(0.5, 1.2 * player.duration_mult)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
@@ -594,6 +605,7 @@ class Glacier extends WeaponBase:
 			return
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = (200.0 + 20.0 * (level - 1)) * player.area_mult
 		w.damage = 1.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		w.pull = 120.0
@@ -627,6 +639,7 @@ class StormDisc extends WeaponBase:
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = base.rotated(deg_to_rad(24.0) * (i - (count - 1) / 2.0)) * 430.0
 			g.damage = 0.0
@@ -658,6 +671,7 @@ class NapalmMine extends WeaponBase:
 		var dmg := 6.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
+		m.source_weapon = self
 		m.damage = dmg
 		m.blast_radius = (100.0 + 15.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 55.0 * player.area_mult
@@ -692,6 +706,7 @@ class ClusterWarhead extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = 130.0 * player.area_mult  # mini-nova blast
 			m.push_strength = 50.0 * player.area_mult
@@ -724,6 +739,7 @@ class BlackBog extends WeaponBase:
 		var dmg := player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = r
 		w.damage = 0.8 * dmg
 		w.pull = 160.0
@@ -732,6 +748,7 @@ class BlackBog extends WeaponBase:
 		player.get_parent().add_child(w)
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = r * 0.9
 		pud.damage = 1.0 * dmg
 		pud.max_life = life
@@ -776,8 +793,9 @@ class ToxicHalo extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_PHYS, player.peer_id)
-					e.apply_burn(dmg * 0.35, 1.5 * player.duration_mult)  # poison
+					e.apply_burn(dmg * 0.35, 1.5 * player.duration_mult, 1.0, player.peer_id)  # poison
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					break
 		# every blade continuously paints a toxic ring along its orbit path
@@ -786,6 +804,7 @@ class ToxicHalo extends WeaponBase:
 			trail_cd = (0.16 / n) * player.rate_mult
 			var pud := VenomPuddle.new()
 			pud.source_pid = player.peer_id
+			pud.source_weapon = self
 			pud.radius = (16.0 + 2.0 * (level - 1)) * player.area_mult
 			pud.damage = 0.5 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 			pud.max_life = 1.4 * player.duration_mult
@@ -844,6 +863,7 @@ class Pulsar extends WeaponBase:
 			# contact damage from the spinning blade itself
 			for e in Main.instance.enemies_in_radius(bp, blade_r + 64.0):
 				if not hit_cd.has(e.get_instance_id()) and bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_PHYS, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 			# each blade "breathes": independently pulses a small nova at its own position
@@ -853,6 +873,7 @@ class Pulsar extends WeaponBase:
 				var any := false
 				for e in Main.instance.enemies_in_radius(bp, pulse_radius + 64.0):
 					if bp.distance_to(e.global_position) <= pulse_radius + e.radius:
+						damage_dealt += pulse_dmg
 						e.take_hit(pulse_dmg, bp, Enemy.DMG_ENERGY, player.peer_id)
 						ignite(e, pulse_dmg)
 						push(e, bp)
@@ -904,6 +925,7 @@ class FrostLance extends WeaponBase:
 		for i in count:
 			var s := FrostShard.new()
 			s.source_pid = player.peer_id
+			s.source_weapon = self
 			s.velocity = base.rotated(deg_to_rad(6.0 * (i - (count - 1) / 2.0))) * 620.0
 			s.damage = 2.2 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 			s.hit_radius = 8.0 * player.area_mult
@@ -942,8 +964,9 @@ class PlagueArc extends WeaponBase:
 		while cur != null and chains > 0:
 			visited[cur.get_instance_id()] = true
 			pts.append(cur.global_position)
+			damage_dealt += dmg
 			cur.take_hit(dmg, null, Enemy.DMG_ENERGY, player.peer_id)
-			cur.apply_burn(dmg * 0.4, 2.0 * player.duration_mult)  # virulent poison
+			cur.apply_burn(dmg * 0.4, 2.0 * player.duration_mult, 1.0, player.peer_id)  # virulent poison
 			chains -= 1
 			cur = _next(pts[pts.size() - 1], visited)
 		var fx := LightningFx.new()
@@ -997,6 +1020,7 @@ class TeslaHalo extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_ENERGY, player.peer_id)
 					ignite(e, dmg)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
@@ -1014,6 +1038,7 @@ class TeslaHalo extends WeaponBase:
 				best = e
 		if best == null:
 			return
+		damage_dealt += dmg * 0.7
 		best.take_hit(dmg * 0.7, src.global_position, Enemy.DMG_ENERGY, player.peer_id)
 		var fx := LightningFx.new()
 		fx.points = [src.global_position, best.global_position]
@@ -1051,6 +1076,7 @@ class PlasmaStorm extends WeaponBase:
 			for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
 				var to: Vector2 = e.global_position - player.global_position
 				if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF:
+					damage_dealt += dmg
 					e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
 					ignite(e, dmg)
 			Sfx.play("flame", player.global_position)
@@ -1066,6 +1092,7 @@ class PlasmaStorm extends WeaponBase:
 				while cur != null and chains > 0:
 					visited[cur.get_instance_id()] = true
 					pts.append(cur.global_position)
+					damage_dealt += bdmg
 					cur.take_hit(bdmg, null, Enemy.DMG_ENERGY, player.peer_id)
 					chains -= 1
 					cur = _next(pts[pts.size() - 1], visited)
@@ -1118,6 +1145,7 @@ class Cyclone extends WeaponBase:
 				for i in count:
 					var g := GlaiveProj.new()
 					g.source_pid = player.peer_id
+					g.source_weapon = self
 					g.player = player
 					g.velocity = base.rotated(TAU * float(i) / count) * 380.0
 					g.damage = 0.0
@@ -1136,6 +1164,7 @@ class Cyclone extends WeaponBase:
 			var any := false
 			for e in Main.instance.enemies_in_radius(player.global_position, radius + 64.0):
 				if player.global_position.distance_to(e.global_position) <= radius + e.radius:
+					damage_dealt += ndmg
 					e.take_hit(ndmg, player.global_position, Enemy.DMG_ENERGY, player.peer_id)
 					ignite(e, ndmg)
 					push(e, player.global_position)
@@ -1160,6 +1189,7 @@ class Cyclone extends WeaponBase:
 		var dmg := 1.0 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		for en in EnemyGrid.near(pos, radius):
 			if pos.distance_to(en.global_position) <= radius + en.radius:
+				damage_dealt += dmg
 				en.take_hit(dmg, pos, Enemy.DMG_ENERGY, player.peer_id)
 				ignite(en, dmg)
 		var fx := RingFx.new()
@@ -1196,6 +1226,7 @@ class _Sentry extends WeaponBase:
 		var t := TurretNode.new()
 		t.owner_weapon_id = get_instance_id()
 		t.source_pid = player.peer_id
+		t.source_weapon = self
 		t.mode = mode
 		t.life = (6.0 + 0.5 * level) * player.duration_mult * life_scale
 		t.damage = dmg_base * player.damage_mult * (1.0 + WeaponConfig.BASE.sentry.growth * (level - 1))
@@ -1265,6 +1296,7 @@ class NovaBeam extends WeaponBase:
 				var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 				var along := clampf(rel.dot(dir), 0.0, length)
 				if (dir * along).distance_to(rel) <= 6.0 + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
 					ignite(e, dmg)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
@@ -1276,6 +1308,7 @@ class NovaBeam extends WeaponBase:
 			var any := false
 			for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 				if global_position.distance_to(e.global_position) <= radius + e.radius:
+					damage_dealt += ndmg
 					e.take_hit(ndmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 					push(e, global_position)
 					any = true
@@ -1325,6 +1358,7 @@ class Barrage extends WeaponBase:
 		for i in count:
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = base.rotated(deg_to_rad(14.0) * (i - (count - 1) / 2.0)) * 480.0
 			p.damage = dmg * 0.4
 			p.radius = 4.0 * player.area_mult
@@ -1357,8 +1391,9 @@ class ToxicNova extends WeaponBase:
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
+				damage_dealt += dmg
 				e.take_hit(dmg, global_position, Enemy.DMG_PHYS, player.peer_id)
-				e.apply_burn(dmg * 0.3, 1.5 * player.duration_mult)
+				e.apply_burn(dmg * 0.3, 1.5 * player.duration_mult, 1.0, player.peer_id)
 				push(e, global_position)
 				any = true
 		if not any:
@@ -1373,6 +1408,7 @@ class ToxicNova extends WeaponBase:
 		player.get_parent().add_child(fx)
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = radius * 0.7
 		pud.damage = dmg * 0.25
 		pud.max_life = 2.5 * player.duration_mult
@@ -1471,6 +1507,7 @@ class AbsoluteZero extends WeaponBase:
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
+				damage_dealt += dmg
 				e.take_hit(dmg, global_position, Enemy.DMG_ICE, player.peer_id)
 				e.apply_slow(0.3, 2.0 * player.duration_mult)
 				push(e, global_position)
@@ -1511,6 +1548,7 @@ class ThermalShock extends WeaponBase:
 		for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
 			var to: Vector2 = e.global_position - player.global_position
 			if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF:
+				damage_dealt += dmg
 				e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
 				ignite(e, dmg)
 				e.apply_slow(0.6, 0.8 * player.duration_mult)
@@ -1571,6 +1609,7 @@ class EventHorizon extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_ENERGY, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					break
@@ -1608,6 +1647,7 @@ class VortexBlade extends WeaponBase:
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = base.rotated(deg_to_rad(22.0) * (i - (count - 1) / 2.0)) * 430.0
 			g.damage = 0.0
@@ -1623,6 +1663,7 @@ class VortexBlade extends WeaponBase:
 	func _on_glaive_hit(_e: Node2D, pos: Vector2) -> void:
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = (50.0 + 6.0 * (level - 1)) * player.area_mult
 		w.damage = 0.35 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		w.pull = 120.0
@@ -1648,6 +1689,7 @@ class Thunderclap extends WeaponBase:
 		var hits: Array = []
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
+				damage_dealt += dmg
 				e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 				push(e, global_position)
 				hits.append(e)
@@ -1665,6 +1707,7 @@ class Thunderclap extends WeaponBase:
 		for h in hits.slice(0, 3 + level):
 			var nb := _nearest_beyond(h.global_position, radius * 1.6)
 			if nb != null:
+				damage_dealt += dmg * 0.6
 				nb.take_hit(dmg * 0.6, null, Enemy.DMG_ENERGY, player.peer_id)
 				var lf := LightningFx.new()
 				lf.points = [h.global_position, nb.global_position]
@@ -1718,6 +1761,7 @@ class MineHalo extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_PHYS, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					break
@@ -1726,6 +1770,7 @@ class MineHalo extends WeaponBase:
 			var bp := global_position + Vector2.from_angle(angle) * orbit_r * 1.4
 			var m := MineNode.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = 5.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			m.blast_radius = 90.0 * player.area_mult
 			m.trigger_radius = 50.0 * player.area_mult
@@ -1771,6 +1816,7 @@ class IncendiaryRounds extends WeaponBase:
 			var spread := deg_to_rad(9.0) * (i - (count - 1) / 2.0)
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = base_dir.rotated(spread) * 500.0
 			p.damage = dmg
 			p.radius = 6.0 * player.area_mult
@@ -1782,6 +1828,7 @@ class IncendiaryRounds extends WeaponBase:
 			p.fire_puddle_burn_dps = 0.9 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 			p.fire_puddle_burn_dur = 1.5 * player.duration_mult
 			p.fire_puddle_source_pid = player.peer_id
+			p.fire_puddle_source_weapon = self
 			p.position = player.global_position
 			player.get_parent().add_child(p)
 		Sfx.play("bolt", player.global_position)
@@ -1806,6 +1853,7 @@ class ScatterShot extends WeaponBase:
 			var dir := Vector2.from_angle(TAU * float(i) / count)
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = dir * 480.0
 			p.damage = dmg
 			p.radius = 5.5 * player.area_mult
@@ -1841,6 +1889,7 @@ class Ricochet extends WeaponBase:
 		var dir := (toward.global_position - from).normalized()
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
+		p.source_weapon = self
 		p.velocity = dir * 540.0
 		p.damage = 2.8 * player.damage_mult * (1.0 + 0.35 * (level - 1)) * dmg_scale
 		p.radius = 6.0 * player.area_mult
@@ -1895,6 +1944,7 @@ class GravityRound extends WeaponBase:
 			var spread := deg_to_rad(9.0) * (i - (level - 1) / 2.0)
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = dir.rotated(spread) * 500.0
 			p.damage = dmg
 			p.radius = 5.5 * player.area_mult
@@ -1910,6 +1960,7 @@ class GravityRound extends WeaponBase:
 			return
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = (80.0 + 10.0 * (level - 1)) * player.area_mult
 		w.damage = 0.5 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		w.pull = 220.0
@@ -1939,6 +1990,7 @@ class Chaingun extends WeaponBase:
 		dir = dir.rotated(randf_range(-0.07, 0.07))
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
+		p.source_weapon = self
 		p.velocity = dir * 600.0
 		p.damage = 0.75 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		p.radius = 4.0 * player.area_mult
@@ -1972,6 +2024,7 @@ class SapperRound extends WeaponBase:
 			var spread := deg_to_rad(10.0) * (i - (level - 1) / 2.0)
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = dir.rotated(spread) * 500.0
 			p.damage = dmg
 			p.radius = 5.0 * player.area_mult
@@ -1987,6 +2040,7 @@ class SapperRound extends WeaponBase:
 			return
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
+		m.source_weapon = self
 		m.damage = 5.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		m.blast_radius = (90.0 + 12.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 50.0 * player.area_mult
@@ -2018,6 +2072,7 @@ class CorrosiveRound extends WeaponBase:
 			var spread := deg_to_rad(9.0) * (i - (level - 1) / 2.0)
 			var p := Projectile.new()
 			p.source_pid = player.peer_id
+			p.source_weapon = self
 			p.velocity = dir.rotated(spread) * 510.0
 			p.damage = dmg
 			p.radius = 5.5 * player.area_mult
@@ -2031,9 +2086,10 @@ class CorrosiveRound extends WeaponBase:
 	func _corrode(enemy: Node2D, hit_pos: Vector2, world: Node) -> void:
 		if player == null:
 			return
-		enemy.apply_burn(1.2 * player.damage_mult * (1.0 + 0.3 * (level - 1)), 2.5 * player.duration_mult)
+		enemy.apply_burn(1.2 * player.damage_mult * (1.0 + 0.3 * (level - 1)), 2.5 * player.duration_mult, 1.0, player.peer_id)
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = (45.0 + 7.0 * (level - 1)) * player.area_mult
 		pud.damage = 0.5 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		pud.max_life = 2.0 * player.duration_mult
@@ -2075,6 +2131,7 @@ class CryoBeam extends WeaponBase:
 				var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 				var along := clampf(rel.dot(dir), 0.0, length)
 				if (dir * along).distance_to(rel) <= 9.0 + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ICE, player.peer_id)
 					e.apply_slow(0.5, dmg * 0.4 * player.duration_mult)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
@@ -2110,6 +2167,7 @@ class GlacialMine extends WeaponBase:
 		var dmg := 5.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
+		m.source_weapon = self
 		m.damage = dmg
 		m.blast_radius = (100.0 + 15.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 55.0 * player.area_mult
@@ -2143,6 +2201,7 @@ class CryoMissile extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = (80.0 + 12.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult
@@ -2174,6 +2233,7 @@ class Frostbite extends WeaponBase:
 		var dmg := 0.8 * player.damage_mult * (1.0 + 0.35 * (level - 1))
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = (60.0 + 8.0 * (level - 1)) * player.area_mult
 		pud.damage = dmg
 		pud.max_life = 3.5 * player.duration_mult
@@ -2208,6 +2268,7 @@ class CinderVortex extends WeaponBase:
 		var dmg := player.damage_mult * (1.0 + 0.5 * (level - 1))
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = r
 		w.damage = 0.9 * dmg
 		w.pull = 180.0
@@ -2216,6 +2277,7 @@ class CinderVortex extends WeaponBase:
 		player.get_parent().add_child(w)
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = r * 0.85
 		pud.damage = 0.6 * dmg
 		pud.max_life = life
@@ -2248,6 +2310,7 @@ class AccretionBeam extends WeaponBase:
 		var r := (150.0 + 14.0 * (level - 1)) * player.area_mult
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = r
 		w.damage = 0.7 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		w.pull = 190.0
@@ -2281,6 +2344,7 @@ class StormVortex extends WeaponBase:
 		var r := (160.0 + 15.0 * (level - 1)) * player.area_mult
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = r
 		w.damage = 0.7 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		w.pull = 190.0
@@ -2311,6 +2375,7 @@ class ImplosionMine extends WeaponBase:
 		var r := (150.0 + 14.0 * (level - 1)) * player.area_mult
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = r
 		w.damage = 0.6 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		w.pull = 200.0
@@ -2322,6 +2387,7 @@ class ImplosionMine extends WeaponBase:
 		for i in count:
 			var m := MineNode.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.blast_radius = (90.0 + 12.0 * (level - 1)) * player.area_mult
 			m.trigger_radius = 45.0 * player.area_mult
@@ -2352,6 +2418,7 @@ class ImplosionSalvo extends WeaponBase:
 		var r := (160.0 + 15.0 * (level - 1)) * player.area_mult
 		var w := GravityWell.new()
 		w.source_pid = player.peer_id
+		w.source_weapon = self
 		w.radius = r
 		w.damage = 0.5 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		w.pull = 210.0
@@ -2363,6 +2430,7 @@ class ImplosionSalvo extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = (70.0 + 10.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult
@@ -2387,6 +2455,7 @@ class _MineFusion extends WeaponBase:
 			return
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
+		m.source_weapon = self
 		m.damage = 6.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 		m.blast_radius = (95.0 + 12.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 50.0 * player.area_mult
@@ -2481,6 +2550,7 @@ class InfernoBlade extends WeaponBase:
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = base.rotated(deg_to_rad(20.0) * (i - (count - 1) / 2.0)) * 430.0
 			g.damage = dmg
@@ -2496,6 +2566,7 @@ class InfernoBlade extends WeaponBase:
 	func _on_hit(_e: Node2D, pos: Vector2) -> void:
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = (28.0 + 4.0 * (level - 1)) * player.area_mult
 		pud.damage = 0.4 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		pud.max_life = 1.5 * player.duration_mult
@@ -2530,8 +2601,9 @@ class SolarLance extends WeaponBase:
 			var rel: Vector2 = e.global_position - global_position
 			var along := rel.dot(dir)
 			if along >= 0.0 and along <= length and (dir * along).distance_to(rel) <= width + e.radius:
+				damage_dealt += dmg
 				e.take_hit(dmg, global_position, Enemy.DMG_FIRE, player.peer_id)
-				e.apply_burn(dmg * 0.6, 1.2 * player.duration_mult)
+				e.apply_burn(dmg * 0.6, 1.2 * player.duration_mult, 1.0, player.peer_id)
 		Sfx.play("laser", global_position, -10.0)
 	func _draw() -> void:
 		if player == null or player.downed:
@@ -2562,6 +2634,7 @@ class PhoenixRocket extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = (75.0 + 10.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult
@@ -2609,6 +2682,7 @@ class BlazeHalo extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_FIRE, player.peer_id)
 					ignite(e, dmg)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
@@ -2620,6 +2694,7 @@ class BlazeHalo extends WeaponBase:
 			var any := false
 			for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 				if global_position.distance_to(e.global_position) <= radius + e.radius:
+					damage_dealt += pdmg
 					e.take_hit(pdmg, global_position, Enemy.DMG_FIRE, player.peer_id)
 					ignite(e, pdmg)
 					any = true
@@ -2669,6 +2744,7 @@ class PhotonDisc extends WeaponBase:
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = base.rotated(deg_to_rad(20.0) * (i - (count - 1) / 2.0)) * 430.0
 			g.damage = dmg
@@ -2688,6 +2764,7 @@ class PhotonDisc extends WeaponBase:
 			var rel: Vector2 = en.global_position - pos
 			var along := rel.dot(dir)
 			if along >= 0.0 and along <= length and (dir * along).distance_to(rel) <= 8.0 + en.radius:
+				damage_dealt += dmg
 				en.take_hit(dmg, pos, Enemy.DMG_ENERGY, player.peer_id)
 				ignite(en, dmg)
 		var fx := LightningFx.new()
@@ -2715,6 +2792,7 @@ class RotorMissile extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = (60.0 + 8.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult
@@ -2765,6 +2843,7 @@ class BladeTempest extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_PHYS, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					break
@@ -2777,6 +2856,7 @@ class BladeTempest extends WeaponBase:
 			detached += 1
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = (target.global_position - player.global_position).normalized() * 460.0
 			g.damage = 2.8 * player.damage_mult * (1.0 + 0.4 * (level - 1))
@@ -2821,6 +2901,7 @@ class PlagueBlade extends WeaponBase:
 		for i in count:
 			var g := GlaiveProj.new()
 			g.source_pid = player.peer_id
+			g.source_weapon = self
 			g.player = player
 			g.velocity = base.rotated(deg_to_rad(20.0) * (i - (count - 1) / 2.0)) * 430.0
 			g.damage = dmg
@@ -2836,6 +2917,7 @@ class PlagueBlade extends WeaponBase:
 	func _on_hit(_e: Node2D, pos: Vector2) -> void:
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
+		pud.source_weapon = self
 		pud.radius = (26.0 + 4.0 * (level - 1)) * player.area_mult
 		pud.damage = 0.5 * player.damage_mult * (1.0 + 0.3 * (level - 1))
 		pud.max_life = 1.6 * player.duration_mult
@@ -2876,6 +2958,7 @@ class IonStorm extends WeaponBase:
 				var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 				var along := clampf(rel.dot(dir), 0.0, length)
 				if (dir * along).distance_to(rel) <= 9.0 + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					_zap(e, dmg)
@@ -2893,6 +2976,7 @@ class IonStorm extends WeaponBase:
 				best = e
 		if best == null:
 			return
+		damage_dealt += dmg * 0.7
 		best.take_hit(dmg * 0.7, src.global_position, Enemy.DMG_ENERGY, player.peer_id)
 		hit_cd[best.get_instance_id()] = HIT_CD * player.rate_mult
 		var fx := LightningFx.new()
@@ -2958,6 +3042,7 @@ class BeamBattery extends WeaponBase:
 			for lock in locks:
 				var m := MissileProj.new()
 				m.source_pid = player.peer_id
+				m.source_weapon = self
 				m.target = lock
 				m.damage = dmg
 				m.splash = (65.0 + 8.0 * (level - 1)) * player.area_mult
@@ -3016,8 +3101,9 @@ class AcidRay extends WeaponBase:
 				var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 				var along := clampf(rel.dot(dir), 0.0, length)
 				if (dir * along).distance_to(rel) <= 9.0 + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
-					e.apply_burn(dmg * 0.5, 1.5 * player.duration_mult)
+					e.apply_burn(dmg * 0.5, 1.5 * player.duration_mult, 1.0, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					break
 		pool_cd -= delta
@@ -3025,6 +3111,7 @@ class AcidRay extends WeaponBase:
 			var dir := Vector2.from_angle(angle)
 			var pud := VenomPuddle.new()
 			pud.source_pid = player.peer_id
+			pud.source_weapon = self
 			pud.radius = (45.0 + 6.0 * (level - 1)) * player.area_mult
 			pud.damage = 0.7 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			pud.max_life = 2.0 * player.duration_mult
@@ -3065,6 +3152,7 @@ class EMPMissile extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = (65.0 + 8.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult
@@ -3122,6 +3210,7 @@ class RocketHalo extends WeaponBase:
 			for i in n:
 				var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 				if bp.distance_to(e.global_position) <= blade_r + e.radius:
+					damage_dealt += dmg
 					e.take_hit(dmg, bp, Enemy.DMG_PHYS, player.peer_id)
 					hit_cd[e.get_instance_id()] = HIT_CD * player.rate_mult
 					tagged[e.get_instance_id()] = TAG_DUR * player.duration_mult
@@ -3138,6 +3227,7 @@ class RocketHalo extends WeaponBase:
 				return
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.target = lock
 			m.damage = 3.0 * player.damage_mult * (1.0 + 0.4 * (level - 1))
 			m.splash = (75.0 + 10.0 * (level - 1)) * player.area_mult
@@ -3179,6 +3269,7 @@ class PlagueRocket extends WeaponBase:
 		for i in count:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
+			m.source_weapon = self
 			m.damage = dmg
 			m.splash = (70.0 + 10.0 * (level - 1)) * player.area_mult
 			m.life = 4.0 * player.duration_mult

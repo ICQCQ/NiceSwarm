@@ -23,6 +23,7 @@ func _physics_process(delta: float) -> void:
 	# so a grazing hit at radius+e.radius is never dropped. The precise test is unchanged.
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
+			damage_dealt += dmg
 			e.take_hit(dmg, global_position, Enemy.DMG_ENERGY, player.peer_id)
 			ignite(e, dmg)
 			push(e, global_position)

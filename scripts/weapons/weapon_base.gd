@@ -7,6 +7,15 @@ extends Node2D
 var weapon_id := ""
 var display_name := ""
 var level := 1
+var _damage_dealt: float = 0.0
+var damage_dealt: float:
+	get: return _damage_dealt
+	set(value):
+		_dps_bucket += value - _damage_dealt
+		_damage_dealt = value
+var dps: float = 0.0
+var _dps_bucket: float = 0.0
+var _dps_timer: float = 1.0
 var tier := 0   # fusion depth: 0 = base weapon, 1 = base+base fusion, 2 = deep (final). See GameConfig.MAX_FUSION_TIER.
 var player: Player
 
@@ -25,6 +34,14 @@ func _ready() -> void:
 	player = n as Player
 
 
+func _process(delta: float) -> void:
+	_dps_timer -= delta
+	if _dps_timer <= 0.0:
+		dps = _dps_bucket
+		_dps_bucket = 0.0
+		_dps_timer = 1.0
+
+
 ## Universal Duration hook for instant/continuous weapons: leave a burn whose
 ## length scales with the player's Duration stat and dps with the hit damage
 ## (which already includes Power). Lets every weapon benefit from Duration.
@@ -32,7 +49,7 @@ func _ready() -> void:
 ## compound into a hotter, longer-lasting burn. `stack_mult` > 1 makes those
 ## repeat stacks pile on faster -- Flame Cone's signature.
 func ignite(e: Node, dmg: float, stack_mult: float = 1.0) -> void:
-	e.apply_burn(dmg * 0.3, 1.2 * player.duration_mult, stack_mult)
+	e.apply_burn(dmg * 0.3, 1.2 * player.duration_mult, stack_mult, player.peer_id)
 
 
 ## Nova-family "shockwave" push: a mild extra knockback impulse on top of

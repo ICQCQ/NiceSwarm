@@ -213,6 +213,8 @@ func wave_pop_mult() -> float:   # scales desired_pop; valleys thin the field fo
 
 
 func run_spawning(delta: float) -> void:
+	if main.debug_no_spawn:
+		return
 	var heat_v := heat()
 	var t := clampf(main.elapsed / 540.0, 0.0, 1.0)
 	var interval: float = lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + GameConfig.PARTY_RATE_PER * (main.peer_ids.size() - 1))

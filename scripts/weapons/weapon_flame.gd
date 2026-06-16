@@ -30,6 +30,7 @@ func _physics_process(delta: float) -> void:
 	for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
 		var to: Vector2 = e.global_position - player.global_position
 		if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF_ANGLE:
+			damage_dealt += dmg
 			e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
 			ignite(e, dmg, BURN_STACK_MULT)
 			hit_any = true

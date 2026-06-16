@@ -8,6 +8,7 @@ const RETURN_SPEED := 540.0
 
 var player: Player
 var source_pid := -1  # scoreboard: which player owns this
+var source_weapon: WeaponBase
 var velocity := Vector2.ZERO
 var damage := 2.0
 var burn_dps := 0.0     # bleed/burn applied on hit, independent of direct damage
@@ -46,6 +47,8 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to(e.global_position) <= hit_radius + e.radius:
 			hit_ids[e.get_instance_id()] = true
 			if damage > 0.0:
+				if source_weapon:
+					source_weapon.damage_dealt += damage
 				e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if burn_dps > 0.0:  # Duration: glaive leaves a bleed/burn
 				e.apply_burn(burn_dps, 1.2 * (player.duration_mult if player else 1.0))
@@ -69,6 +72,8 @@ func _arc_from(src: Node2D) -> void:
 			best = e
 	if best == null:
 		return
+	if source_weapon:
+		source_weapon.damage_dealt += arc_damage
 	best.take_hit(arc_damage, src.global_position, Enemy.DMG_PHYS, source_pid)
 	var fx := LightningFx.new()
 	fx.points = [src.global_position, best.global_position]

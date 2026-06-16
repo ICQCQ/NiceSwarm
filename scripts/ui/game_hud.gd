@@ -80,6 +80,8 @@ func update() -> void:
 	main.stats_label.text = ("[right][color=#6b7488]STATS[/color]   %s[/right]" % "  ".join(sparts)) if not sparts.is_empty() else ""
 	if main.weapon_tip.visible and main._tip_weapon_id != "":
 		main.weapon_tip.text = _weapon_tip_text(main._tip_weapon_id)  # keep stats live while hovered
+	if main.stats_panel != null and main.stats_panel.visible:
+		_update_stats_panel(me)
 	var lines := []
 	for pid in main.peer_ids:
 		if pid == main.local_id:
@@ -210,3 +212,53 @@ func show_banner(text: String, is_boss: bool) -> void:
 func announce_boss(text: String, is_boss: bool) -> void:
 	show_banner(text, is_boss)
 	main.net.send_announce(text, is_boss)
+
+
+func _update_stats_panel(me: Player) -> void:
+	if me == null or me.weapons.is_empty():
+		main.stats_label_dmg.text = "[color=#6b7488]No weapons[/color]"
+		return
+	var show_dps: bool = main.stats_mode == 2
+	var total := 0.0
+	for w in me.weapons:
+		total += _weapon_dmg(w)
+	var title := "[b][color=#cdd6e6]%s[/color][/b]  [color=#39414f][TAB][/color]\n" \
+		% ("DPS (1s)" if show_dps else "DAMAGE STATS")
+	var lines := title
+	for w in me.weapons:
+		var dmg := _weapon_dmg(w)
+		var pct := int(dmg / maxf(total, 1.0) * 100.0)
+		var bar := "▮".repeat(pct / 10) + "▯".repeat(10 - pct / 10)
+		var value := _fmt_dmg(_weapon_dps(w)) + "/s" if show_dps else _fmt_dmg(dmg)
+		lines += "[color=#cdd6e6]%s[/color]  [color=#ff9a8a]%s[/color]  [color=#6b7488]%s %d%%[/color]\n" \
+			% [w.display_name, value, bar, pct]
+	if main._burn_total > 0.0 or main.burn_dps_val > 0.0:
+		var burn_value := _fmt_dmg(main.burn_dps_val) + "/s" if show_dps else _fmt_dmg(main._burn_total)
+		lines += "[color=#ff7755]Burn[/color]  [color=#ff9a8a]%s[/color]\n" % burn_value
+	main.stats_label_dmg.text = lines
+
+
+func _weapon_dmg(w: WeaponBase) -> float:
+	if w is WeaponFused:
+		var s := 0.0
+		for c in w.get_children():
+			if c is WeaponBase:
+				s += c.damage_dealt
+		return s
+	return w.damage_dealt
+
+
+func _weapon_dps(w: WeaponBase) -> float:
+	if w is WeaponFused:
+		var s := 0.0
+		for c in w.get_children():
+			if c is WeaponBase:
+				s += c.dps
+		return s
+	return w.dps
+
+
+func _fmt_dmg(d: float) -> String:
+	if d >= 1000.0:
+		return "%.1fk" % (d / 1000.0)
+	return str(int(d))

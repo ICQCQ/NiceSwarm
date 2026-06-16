@@ -9,6 +9,10 @@ var main: Node
 
 var panel: Control
 var god_btn: Button
+var no_levelup_btn: Button
+var freeze_btn: Button
+var immortal_btn: Button
+var no_spawn_btn: Button
 var fuse_a: OptionButton
 var fuse_b: OptionButton
 var spawn_select: OptionButton
@@ -22,11 +26,14 @@ func toggle() -> void:
 
 func build() -> void:
 	panel = Control.new()
-	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -260.0
+	panel.anchor_left = 1.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 1.0
+	panel.offset_left = -276.0
 	panel.offset_right = -16.0
-	panel.offset_top = 100.0
-	panel.offset_bottom = 700.0
+	panel.offset_top = 16.0
+	panel.offset_bottom = -16.0
 	panel.visible = false
 	main.ui.add_child(panel)
 
@@ -35,9 +42,18 @@ func build() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(bg)
 
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 8.0
+	scroll.offset_top = 8.0
+	scroll.offset_right = -8.0
+	scroll.offset_bottom = -8.0
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+
 	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(8, 8)
-	panel.add_child(vbox)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "DEBUG (F1)"
@@ -49,6 +65,26 @@ func build() -> void:
 	god_btn.text = "God Mode: OFF"
 	god_btn.pressed.connect(_toggle_god)
 	vbox.add_child(god_btn)
+
+	no_levelup_btn = Button.new()
+	no_levelup_btn.text = "No Levelup: OFF"
+	no_levelup_btn.pressed.connect(_toggle_no_levelup)
+	vbox.add_child(no_levelup_btn)
+
+	freeze_btn = Button.new()
+	freeze_btn.text = "Freeze Enemies: OFF"
+	freeze_btn.pressed.connect(_toggle_freeze_enemies)
+	vbox.add_child(freeze_btn)
+
+	immortal_btn = Button.new()
+	immortal_btn.text = "Immortal Enemies: OFF"
+	immortal_btn.pressed.connect(_toggle_immortal_enemies)
+	vbox.add_child(immortal_btn)
+
+	no_spawn_btn = Button.new()
+	no_spawn_btn.text = "Stop Spawning: OFF"
+	no_spawn_btn.pressed.connect(_toggle_no_spawn)
+	vbox.add_child(no_spawn_btn)
 
 	var levelup_btn := Button.new()
 	levelup_btn.text = "Instant Level Up"
@@ -141,6 +177,26 @@ func _toggle_god() -> void:
 		return
 	p.debug_god = not p.debug_god
 	god_btn.text = "God Mode: ON" if p.debug_god else "God Mode: OFF"
+
+
+func _toggle_no_levelup() -> void:
+	main.debug_no_levelup = not main.debug_no_levelup
+	no_levelup_btn.text = "No Levelup: ON" if main.debug_no_levelup else "No Levelup: OFF"
+
+
+func _toggle_freeze_enemies() -> void:
+	main.debug_freeze_enemies = not main.debug_freeze_enemies
+	freeze_btn.text = "Freeze Enemies: ON" if main.debug_freeze_enemies else "Freeze Enemies: OFF"
+
+
+func _toggle_immortal_enemies() -> void:
+	main.debug_immortal_enemies = not main.debug_immortal_enemies
+	immortal_btn.text = "Immortal Enemies: ON" if main.debug_immortal_enemies else "Immortal Enemies: OFF"
+
+
+func _toggle_no_spawn() -> void:
+	main.debug_no_spawn = not main.debug_no_spawn
+	no_spawn_btn.text = "Stop Spawning: ON" if main.debug_no_spawn else "Stop Spawning: OFF"
 
 
 ## Grants the weapon if the local player doesn't have it yet, otherwise

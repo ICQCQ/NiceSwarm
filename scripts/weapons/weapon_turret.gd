@@ -28,6 +28,7 @@ func _physics_process(delta: float) -> void:
 	var t := TurretNode.new()
 	t.owner_weapon_id = get_instance_id()
 	t.source_pid = player.peer_id
+	t.source_weapon = self
 	t.life = (5.0 + 0.5 * level) * player.duration_mult
 	t.damage = WeaponConfig.BASE.turret.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.turret.growth * (level - 1))
 	t.target_range = 480.0 * player.area_mult
