@@ -4,7 +4,7 @@ extends RefCounted
 ## GameConfig.WIN_TIME`), so this is the one place to tweak the knobs below.
 
 # --- core run ---
-const ARENA := Rect2(-1200, -1200, 2400, 2400)
+const ARENA := Rect2(-1500, -1500, 3000, 3000)
 const WIN_TIME := 600.0          # survive this long (s) to win
 const MAX_WEAPONS := 5           # weapon slots per player per run
 const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3 — longer grind to fusion)

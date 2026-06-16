@@ -29,7 +29,7 @@ const STATE_PICKUPS := 2
 const STATE_TELEGRAPHS := 3
 # World-state wire format: each entity is a compact 10-byte record
 #   u32 id | s16 x*POS_SCALE | s16 y*POS_SCALE | u16 f   (vs the old 16-byte 4×float32).
-# Positions are fixed-point ×16 (1/16 px) — well within the ±1200 px arena (s16 holds ±32767
+# Positions are fixed-point ×16 (1/16 px) — well within the ±1500 px arena (s16 holds ±32767
 # → ±2047 px) and far finer than the screen, so it's lossless to the eye and halves the x,y bytes.
 const POS_SCALE := 16.0
 const ENT_BYTES := 10
@@ -2386,9 +2386,14 @@ func _apply_state(kind: int, data: PackedByteArray) -> void:
 					tz = TelegraphZone.new()
 					tz.puppet = true
 					tz.net_id = id
-					tz.effect = int(f) / 10000     # effect packed as radius + effect*10000
-					tz.radius = f - tz.effect * 10000.0
-					tz.warn = TELEGRAPH_WARN
+					# f bit-packs the zone: radius (bits 0-8), effect (9-10), warn in
+					# 0.25s units (11-15). Syncing warn keeps the puppet's red circle on
+					# screen for the true countdown — boss slams (e.g. Harbinger, warn 3.0)
+					# used to vanish at the default 1.5s and detonate later, hitting players
+					# after the warning was already gone.
+					tz.radius = float(f & 0x1FF)
+					tz.effect = (f >> 9) & 0x3
+					tz.warn = float((f >> 11) & 0x1F) * 0.25
 					tz.position = pos
 					telegraphs_by_id[id] = tz
 					world.add_child(tz)
@@ -2458,8 +2463,13 @@ func _send_state(kind: int) -> void:
 				if not is_instance_valid(tz) or tz.is_queued_for_deletion():
 					telegraphs_by_id.erase(id)
 					continue
+				# Pack radius (bits 0-8), effect (9-10), warn in 0.25s units (11-15)
+				# into the u16 f field. Syncing warn fixes boss-slam telegraphs whose
+				# puppets used to disappear before the host detonated (see _apply_state).
 				_put_entity(buf, id, tz.global_position,
-					int(round(tz.radius + tz.effect * 10000.0)))
+					clampi(int(round(tz.radius)), 0, 511) \
+					| (tz.effect << 9) \
+					| (clampi(int(round(tz.warn / 0.25)), 0, 31) << 11))
 	tick_counter += 1
 	var data := buf.data_array
 	var per := 80 * ENT_BYTES  # 80 entries per chunk keeps packets under typical MTU

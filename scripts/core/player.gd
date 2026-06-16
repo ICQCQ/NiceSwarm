@@ -37,7 +37,7 @@ var color_idx := 0
 var shape_idx := 0
 var player_name := "Player"
 var is_local := true
-var arena := Rect2(-1200, -1200, 2400, 2400)
+var arena := Rect2(-1500, -1500, 3000, 3000)
 
 # Stats (modified by upgrades)
 var max_hp := 5
