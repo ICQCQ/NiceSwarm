@@ -2,13 +2,19 @@ name: Build launcher
 
 # Builds and publishes the cross-platform NiceSwarm auto-update launcher.
 #
-# The launcher is DECOUPLED from the game release: it ships to its own rolling
-# `launcher` tag (and to pinned `launcher-v*` tags) — NOT the game's `latest` tag —
-# and only rebuilds when launcher/** changes, on a launcher-v* tag, or on demand.
-# So a normal game commit to `publish` does not republish the launcher.
+# The launcher is DECOUPLED from the game release: the Windows build ships to its own
+# rolling `launcher` tag — NOT the game's `latest` tag — and only rebuilds when
+# launcher/** changes or on demand. So a normal game commit to `publish` does not
+# republish the launcher.
 #
 # The launcher downloads the GAME from the `latest` tag at runtime (see launcher/);
 # this workflow only distributes the launcher itself.
+#
+# Pinned `launcher-v*` tag releases are deliberately NOT wired here: combining a
+# `tags:` trigger with the `paths:` filter below is a known footgun (the path filter
+# also applies to tag pushes, which usually don't touch launcher/**, so the build
+# silently skips). Add a dedicated tag workflow when pinned launcher releases are
+# wanted — see LAUNCHER.md Phase 3.
 on:
   push:
     branches:
@@ -16,8 +22,6 @@ on:
     paths:
       - "launcher/**"
       - ".github/workflows/build-launcher.yml"
-    tags:
-      - "launcher-v*"
   workflow_dispatch:
 
 permissions:
@@ -29,7 +33,8 @@ defaults:
 
 jobs:
   # Windows binaries cross-compiled from Linux — pure-Go (stdlib + os/exec only), no
-  # cgo, so GOOS/GOARCH is all it takes. Fast and runner-cheap.
+  # cgo, so GOOS/GOARCH is all it takes. Fast and runner-cheap. This is the verified
+  # path and the one published to users.
   launcher-windows:
     runs-on: ubuntu-latest
     steps:
@@ -57,24 +62,18 @@ jobs:
         with:
           tag_name: launcher
           name: NiceSwarm Launcher (latest)
-          body: Auto-built cross-platform launcher from `publish` (${{ github.sha }}).
+          body: Auto-built launcher from `publish` (${{ github.sha }}).
           prerelease: true
           files: launcher/dist/*
-      - name: Publish to launcher-v* tag
-        if: startsWith(github.ref, 'refs/tags/launcher-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: launcher/dist/*
-          generate_release_notes: true
 
-  # macOS universal launcher, wrapped in a minimal ad-hoc-signed .app so it is
-  # double-clickable and clears Gatekeeper. `needs: launcher-windows` serializes
-  # release creation so the two jobs don't race the `launcher` tag.
-  # NOTE: the launcher is a console program; inside a .app, double-click shows no
-  # terminal, so progress output isn't visible on macOS yet — Phase 2 polish.
+  # macOS universal launcher, wrapped in a minimal ad-hoc-signed .app. This path is
+  # IMPLEMENTED BUT UNVERIFIED (no Mac host was available during development), so the
+  # job builds + tests + uploads an ARTIFACT only — it does NOT publish to the
+  # `launcher` release. Promote it to a publish step once validated on a real Mac
+  # (LAUNCHER.md Phase 2). Also: the launcher is a console program, so inside a .app
+  # double-click shows no terminal/progress yet — Phase 2 polish.
   launcher-macos:
     runs-on: macos-latest
-    needs: launcher-windows
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -103,15 +102,3 @@ jobs:
           name: NiceSwarm-Launcher-macos
           path: launcher/dist/*
           if-no-files-found: error
-      - name: Publish to rolling 'launcher' tag (publish branch)
-        if: github.ref == 'refs/heads/publish'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: launcher
-          prerelease: true
-          files: launcher/dist/*
-      - name: Publish to launcher-v* tag
-        if: startsWith(github.ref, 'refs/tags/launcher-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: launcher/dist/*

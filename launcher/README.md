@@ -35,7 +35,7 @@ LAUNCHER_LIVE_TEST=1 go test ./internal/download/   # + live sidecar contract ch
 
 ## Build / publish
 
-CI (`.github/workflows/build-launcher.yml`) cross-compiles Windows x86_64/arm64 and a
-macOS universal `.app`, publishing to the **`launcher`** release tag (decoupled from the
-game's `latest` tag). Trigger: changes under `launcher/**`, a `launcher-v*` tag, or manual
-dispatch.
+CI (`.github/workflows/build-launcher.yml`) cross-compiles Windows x86_64/arm64 and
+publishes them to the **`launcher`** release tag (decoupled from the game's `latest`
+tag). The macOS universal `.app` is built and uploaded as a CI artifact only, until it's
+validated on a real Mac. Trigger: changes under `launcher/**` or manual dispatch.

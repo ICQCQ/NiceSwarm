@@ -75,17 +75,19 @@ The choice is **persisted** to `launcher.json` in the data dir, so it sticks acr
 ## Distribution: the launcher ships to its own `launcher` tag
 
 The game ships to the rolling `latest` tag (every `publish` push). The launcher is
-**decoupled** — it publishes to a separate **`launcher`** rolling tag and to pinned
-`launcher-v*` tags:
+**decoupled** — the **Windows** build publishes to a separate **`launcher`** rolling
+tag (the macOS build is artifact-only until validated on a real Mac — see Phasing):
 
 ```
 …/releases/download/latest/NiceSwarm.exe            <- game (downloaded BY the launcher)
 …/releases/download/launcher/NiceSwarm-Launcher.exe <- the launcher itself
 ```
 
-The launcher build job is **path-filtered** (`launcher/**`) + `workflow_dispatch` +
-`launcher-v*` tags, so it does **not** rebuild on every game commit. One Go job
-cross-compiles all targets:
+The launcher build is **path-filtered** (`launcher/**`) + `workflow_dispatch`, so it
+does **not** rebuild on every game commit. A Linux job cross-compiles the Windows
+binaries; a separate macOS job builds the universal `.app`. (Pinned `launcher-v*` tag
+releases are deferred — combining a `tags:` trigger with the `paths:` filter is a known
+footgun, so it needs its own workflow; see Phasing.)
 
 | Artifact | GOOS/GOARCH |
 |----------|-------------|
@@ -109,10 +111,12 @@ cross-compiles all targets:
 
 - **Phase 1 — Windows (core):** asset resolution, download + verify + atomic replace into
   `%LOCALAPPDATA%`, launch, progress UI, offline fallback, `--debug`. CI → `launcher` tag.
-- **Phase 2 — macOS:** zip handling, inner-Mach-O hash compare, `.app` replace, quarantine
-  clear, signed launcher wrapper.
-- **Phase 3 — polish:** Windows arm64; launcher **self-update** (it is now the locked file —
-  rename-running-exe-to-`.old`, write new, re-exec, clean up next run); arm64-debug asset.
+- **Phase 2 — macOS:** validate the zip handling, inner-Mach-O hash compare, `.app` replace,
+  quarantine clear, and signed wrapper on a real Mac, then flip the CI macOS job from
+  artifact-only to publishing the `launcher` tag. Address the no-terminal progress UX.
+- **Phase 3 — polish:** pinned `launcher-v*` release workflow (separate file, no `paths:`
+  filter); launcher **self-update** (it is now the locked file — rename-running-exe-to-`.old`,
+  write new, re-exec, clean up next run); Windows arm64-debug asset.
 
 ## Build / run locally
 
