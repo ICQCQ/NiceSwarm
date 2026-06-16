@@ -41,8 +41,8 @@ func _physics_process(delta: float) -> void:
 				break
 	nova_cd -= delta
 	if nova_cd <= 0.0:
-		var radius := (110.0 + 22.0 * (level - 1)) * fuse_area()
-		var ndmg := 2.5 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		var radius := (130.0 + 26.0 * (level - 1)) * fuse_area()  # nova back to good area
+		var ndmg := 2.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:

@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	w.pull = 210.0
 	w.life = 2.5 * fuse_duration()
 	w.detonate_damage = 7.2 * fuse_damage() * (1.0 + 0.5 * (level - 1))  # +20% (see above)
-	w.push_strength = 50.0 * fuse_area()
+	w.push_strength = 70.0 * fuse_area()  # meatier collapse shockwave
 	w.position = target.global_position
 	player.get_parent().add_child(w)
 	Sfx.play("gravity", target.global_position)

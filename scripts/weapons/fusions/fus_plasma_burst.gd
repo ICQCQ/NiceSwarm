@@ -27,9 +27,9 @@ func _physics_process(delta: float) -> void:
 		p.damage = dmg
 		p.radius = 7.0 * fuse_area()
 		p.life = 1.6 * fuse_duration()
-		p.explode_radius = 70.0 * fuse_area()
+		p.explode_radius = 100.0 * fuse_area()  # the bolt blooms a real nova ring, not a pop
 		p.explode_damage = dmg * 0.8
-		p.push_strength = 50.0 * fuse_area()
+		p.push_strength = 70.0 * fuse_area()
 		p.color = Color(1.0, 0.5, 0.9)
 		p.position = player.global_position
 		player.get_parent().add_child(p)

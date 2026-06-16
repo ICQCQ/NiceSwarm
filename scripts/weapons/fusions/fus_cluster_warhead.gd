@@ -22,8 +22,8 @@ func _physics_process(delta: float) -> void:
 		m.source_pid = player.peer_id
 		m.source_weapon = self
 		m.damage = dmg
-		m.splash = 130.0 * fuse_area()  # mini-nova blast
-		m.push_strength = 50.0 * fuse_area()
+		m.splash = 165.0 * fuse_area()  # bigger mini-nova blast (good area, not a pop)
+		m.push_strength = 65.0 * fuse_area()
 		m.life = 4.0 * fuse_duration()
 		m.velocity = Vector2.from_angle(randf() * TAU) * 300.0
 		m.position = player.global_position

@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var radius := (140.0 + 28.0 * (level - 1)) * fuse_area()
+	var radius := (150.0 + 30.0 * (level - 1)) * fuse_area()  # bigger freezing nova
 	var dmg := 3.0 * fuse_damage() * (1.0 + 0.5 * (level - 1))
 	var any := false
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):

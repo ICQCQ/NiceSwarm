@@ -117,7 +117,7 @@ func _emit(target: Node2D) -> float:
 			Sfx.play("lightning", here, -4.0)
 			return 1.0
 		"nova":
-			_pulse(110.0 * area_mult)
+			_pulse(140.0 * area_mult)
 			Sfx.play("nova", here, -4.0)
 			return 1.6
 		"flame":

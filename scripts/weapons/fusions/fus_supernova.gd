@@ -45,4 +45,4 @@ func _physics_process(delta: float) -> void:
 	pud.position = global_position
 	player.get_parent().add_child(pud)
 	Sfx.play("nova", global_position)
-	cooldown = 3.2 * fuse_rate()
+	cooldown = 2.8 * fuse_rate()
