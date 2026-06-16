@@ -26,7 +26,7 @@ func _physics_process(delta: float) -> void:
 	w.life = 3.0 * fuse_duration()
 	w.position = target.global_position
 	player.get_parent().add_child(w)
-	var dmg := 2.6 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 3.0 * fuse_damage() * (1.0 + 0.35 * (level - 1))
 	var count := 1 + count_level()
 	for i in count:
 		var m := MissileProj.new()
@@ -39,4 +39,4 @@ func _physics_process(delta: float) -> void:
 		m.position = player.global_position
 		player.get_parent().add_child(m)
 	Sfx.play("missile", player.global_position)
-	cooldown = 5.8 * fuse_rate()
+	cooldown = 4.5 * fuse_rate()

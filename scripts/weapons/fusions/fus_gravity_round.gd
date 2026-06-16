@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.1
 		return
 	var dir := (target.global_position - player.global_position).normalized()
-	var dmg := 2.2 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 2.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	for i in level:
 		var spread := deg_to_rad(9.0) * (i - (level - 1) / 2.0)
 		var p := Projectile.new()
@@ -32,7 +32,7 @@ func _physics_process(delta: float) -> void:
 		p.position = player.global_position
 		player.get_parent().add_child(p)
 	Sfx.play("bolt", player.global_position)
-	cooldown = 1.4 * fuse_rate()
+	cooldown = 1.1 * fuse_rate()
 func _spawn_well(_enemy: Node2D, hit_pos: Vector2, world: Node) -> void:
 	if player == null:
 		return

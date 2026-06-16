@@ -30,7 +30,7 @@ direct DPS if it brings strong AoE/CC/DoT.
 | **Absolute Zero** | ~1.0 | Weak 30% slow, low direct. |
 | **Ion Storm / Acid Ray** | ~1.3 / ~1.4 | Rotating-beam sweep too slow to re-hit. |
 | **Cinder Vortex / Thunderclap** | ~1.1 | Low CC/AoE payoff for the cost. |
-| minor: Cryo Beam, Ricochet, Gravity Round, Implosion Salvo, Flak Battery | floor | Below-floor at Lv1 / scaling weapons that feel weak early. |
+| minor: Cryo Beam, Ricochet, Gravity Round, Implosion Salvo, Flak Battery | floor | **[Applied 2026-06-17]** Cryo Beam spin 1.6→2.4 + slow 1.0s; Ricochet cd 1.0→0.8; Gravity Round dmg 2.2→2.8 cd 1.4→1.1; Implosion Salvo dmg 2.6→3.0 cd 5.8→4.5; Flak Battery dmg 1.0→1.2 splash 36→44. |
 
 ## Patterns
 - **"0-direct-damage" weapons** (Vortex Blade, Glacial Edge, Storm Disc) all

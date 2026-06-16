@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + 1.6 / fuse_rate() * delta, TAU)
+	angle = fmod(angle + 2.4 / fuse_rate() * delta, TAU)
 	queue_redraw()
 	var expired := []
 	for k in hit_cd:
@@ -34,7 +34,7 @@ func _physics_process(delta: float) -> void:
 			if (dir * along).distance_to(rel) <= 9.0 + e.radius:
 				damage_dealt += dmg
 				e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ICE, player.peer_id)
-				e.apply_slow(0.5, dmg * 0.4 * fuse_duration())
+				e.apply_slow(0.5, 1.0 * fuse_duration())
 				hit_cd[e.get_instance_id()] = HIT_CD * fuse_rate()
 				Sfx.play("frost", e.global_position, -5.0)
 				break
