@@ -1,8 +1,9 @@
 # NiceSwarm (Godot 4 arena survival roguelike, online co-op)
 
-**Start every session by reading [PLAN.md](PLAN.md)** — it holds current status, the
-milestone checklist, and the session log. Before ending a session: update the
-checkboxes, append a session-log entry with what changed and what's next, and commit.
+**Start every session by reading [PLAN.md](PLAN.md)** — it holds current status and the
+milestone checklist (the full historical dev log lives in [docs/SESSION_LOG.md](docs/SESSION_LOG.md)).
+Before ending a session: update the checkboxes, append a session-log entry to
+docs/SESSION_LOG.md with what changed and what's next, and commit.
 
 **Working mode:** this repo runs the orchestrator + sub-agent model — see
 [ORCHESTRATION.md](ORCHESTRATION.md). Act as orchestrator with up to 3 concurrent Sonnet
