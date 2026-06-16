@@ -30,6 +30,7 @@ const GUN_RETAINING_MODES := {
 	"nova": true, "lightning": true, "flame": true,
 }
 const BOLT_CD := 0.45  # normal turret bolt cadence (matches the default fire mode)
+const GUN_RETAIN_SCALE := 0.5  # retained bolt gun on AoE/deploy modes is a bonus, not a 2nd full weapon
 
 
 func _ready() -> void:
@@ -64,7 +65,7 @@ func _physics_process(delta: float) -> void:
 		return
 	aim_angle = (target.global_position - global_position).angle()
 	if keeps_gun and gun_cd <= 0.0:
-		_fire_bolt()
+		_fire_bolt(GUN_RETAIN_SCALE)
 		gun_cd = BOLT_CD * fire_mult
 	if fire_cd <= 0.0:
 		fire_cd = _emit(target) * fire_mult
@@ -122,7 +123,7 @@ func _emit(target: Node2D) -> float:
 		"flame":
 			_cone(dir, (140.0 + 0.0) * area_mult)
 			Sfx.play("flame", here, -6.0)
-			return 0.18
+			return 0.28
 		"mines":
 			var own_mines := 0
 			for m2 in get_tree().get_nodes_in_group("mines"):
@@ -171,10 +172,10 @@ func _emit(target: Node2D) -> float:
 
 ## Fire one normal turret bolt toward aim_angle. Shared by the default bolt mode and the
 ## gun-retaining fusion modes (deploys/AoE that keep shooting — see GUN_RETAINING_MODES).
-func _fire_bolt() -> void:
+func _fire_bolt(scale := 1.0) -> void:
 	var p := Projectile.new()
 	p.velocity = Vector2.from_angle(aim_angle) * 520.0
-	p.damage = damage
+	p.damage = damage * scale
 	p.radius = proj_radius
 	p.position = global_position
 	p.source_pid = source_pid

@@ -12,4 +12,4 @@ func _init() -> void:
 	life_scale = 0.4
 	cooldown_scale = 0.3
 func _deploy_cap() -> int:
-	return count_level() + 5
+	return count_level() + 4

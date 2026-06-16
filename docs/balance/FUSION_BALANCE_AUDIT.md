@@ -61,6 +61,8 @@ bolt every `BOLT_CD` 0.45s **on top of** their special — a free second weapon.
 | Toxic | venom + bolt | 1.0 | ~9 | bolt 2.2 ×3 + DoT |
 | Glaive | glaive ×3 | 2.5 | ~6.8 | 2.3 ×3 + pierce |
 
+**Status — surgical nerf applied 2026-06-17:** retained bolt gun ×0.5 (turret_node `GUN_RETAIN_SCALE`); Flame cone tick 0.18→0.28s; Gatling cap 6→5. Top cluster ~19–21 → ~13–16; honest single-effect turrets untouched.
+
 **Mitigant:** turrets are stationary (480 range, ~6.5s life). For a mobile/kiting player real
 uptime-on-target is well below these "always-on-target" figures, so trim the outliers — don't
 gut the archetype to the non-turret average.
