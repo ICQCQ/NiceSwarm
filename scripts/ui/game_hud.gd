@@ -148,10 +148,13 @@ func _on_weapon_unhover(_meta) -> void:
 	main.weapon_tip.visible = false
 
 
-## Current effective stats of one owned weapon, for the hover tooltip. Effective damage
-## and cadence come from WeaponConfig.BASE scaled by level + the local player's Power/Haste
-## (cd = recurring cooldown/tick/re-hit per BASE's contract). Fusions have no BASE row, so
-## they show a qualitative line instead of fabricated numbers.
+## Full live stat block for one owned weapon, for the hover tooltip — shown for EVERY
+## weapon, base or fusion. Base weapons expose effective per-hit DMG + cadence from
+## WeaponConfig.BASE (scaled by level + the player's Power/Haste). Fusions have no BASE
+## row (tier-1 are monolithic classes, tier-2+ are WeaponFused), so instead of fabricating
+## per-hit numbers they show their real live DPS + total dealt — tracked universally on
+## every WeaponBase. Every weapon also shows live DPS/total and the four build-wide stat
+## axes, so the player can read any slot's contribution at a glance.
 func _weapon_tip_text(id: String) -> String:
 	var me: Player = main.players.get(main.local_id)
 	if me == null:
@@ -159,17 +162,49 @@ func _weapon_tip_text(id: String) -> String:
 	var w = me.get_weapon(id)
 	if w == null:
 		return ""
-	var lines := ["[color=#cdd6e6]%s[/color]  [color=#9aa4b8]Lv %d[/color]" % [w.display_name, w.level]]
+	# Header: name + level + fusion-tier badge.
+	var head := "[color=#cdd6e6]%s[/color]  [color=#9aa4b8]Lv %d[/color]" % [w.display_name, w.level]
+	if w.tier > 0:
+		head += "  [color=#ffd479]◆T%d[/color]" % w.tier
+	var lines := [head]
+	# Per-hit DMG + cadence: only base weapons carry a BASE row to derive these from.
 	if WeaponConfig.BASE.has(id):
 		var b: Dictionary = WeaponConfig.BASE[id]
 		var dmg: float = b.dmg * (1.0 + b.growth * (w.level - 1)) * me.damage_mult
 		var cd: float = b.cd * me.rate_mult
 		lines.append("[color=#ff9a8a]DMG %.1f[/color]   [color=#9fd0ff]every %.2fs[/color]" % [dmg, cd])
 	else:
-		lines.append("[color=#ffd479]fusion[/color] [color=#9aa4b8]— scales with your stats[/color]")
+		lines.append("[color=#ffd479]fusion[/color] [color=#9aa4b8]— combined attack[/color]")
+	# Live output — universal, works for base weapons AND fusions (sums components).
+	lines.append("[color=#ff9a8a]DPS %s/s[/color]   [color=#7e8aa0]total %s[/color]" \
+		% [_fmt_dmg(_weapon_dps(w)), _fmt_dmg(_weapon_dmg(w))])
+	# Build-wide stat axes (global to the player, the same for every weapon you own).
+	lines.append("[color=#6b7488]Your build:[/color]  [color=#ff6f6a]Pwr ×%.2f[/color]  [color=#ffd966]Spd ×%.2f[/color]  [color=#8cb4ff]Area ×%.2f[/color]  [color=#9be09b]Dur ×%.2f[/color]" \
+		% [me.damage_mult, 1.0 / maxf(me.rate_mult, 0.01), me.area_mult, me.duration_mult])
+	# Behavior blurb: base weapons use WEAPON_INFO; fusions use their Fusions.INFO desc.
 	if Main.WEAPON_INFO.has(id):
 		lines.append("[color=#7e8aa0]%s[/color]" % Main.WEAPON_INFO[id].level)
+	else:
+		var desc := _fusion_desc(w)
+		if desc != "":
+			lines.append("[color=#7e8aa0]%s[/color]" % desc)
 	return "[right]" + "\n".join(lines) + "[/right]"
+
+
+## Behavior text for a fusion: its Fusions.INFO description (signature recipe), or a
+## component list for a generic/deep WeaponFused that has no signature entry.
+func _fusion_desc(w) -> String:
+	if w is WeaponFused:
+		var parts := []
+		for c in w.get_children():
+			if c is WeaponBase:
+				parts.append("%s Lv%d" % [c.display_name, c.level])
+		return "combines " + " + ".join(parts) if not parts.is_empty() else ""
+	# Signature fusion: recover its INFO desc by matching display_name.
+	for k in Fusions.INFO:
+		if Fusions.INFO[k].name == w.display_name:
+			return Fusions.INFO[k].desc
+	return ""
 
 
 ## Compact on-screen badge for an owned weapon: a colored ◆ + 3-char code + superscript level.

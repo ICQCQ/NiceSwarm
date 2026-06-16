@@ -71,7 +71,10 @@ func build() -> void:
 	main.weapon_tip.bbcode_enabled = true
 	main.weapon_tip.scroll_active = false
 	main.weapon_tip.fit_content = true
-	main.weapon_tip.autowrap_mode = TextServer.AUTOWRAP_OFF
+	# Wrap within the fixed 584px box (offsets below): the stat block now includes long
+	# fusion behavior lines (Fusions.INFO, up to ~105 chars) that would overflow off-screen
+	# with autowrap off — wrapping keeps every stat visible. See game_hud._weapon_tip_text.
+	main.weapon_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	main.weapon_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	main.weapon_tip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	main.weapon_tip.offset_left = -600.0

@@ -140,6 +140,40 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-16 — Session 7: weapon codex + full hover stat tooltip (branch `feat/weapon-codex`, worktree)
+- **Goal:** write down a weapon/skill codex + all fusions, and make the in-game weapon-icon
+  hover tooltip always show **all** weapon stats, including for fusion weapons.
+- **Codex:** new [WEAPON_CODEX.md](WEAPON_CODEX.md) — the player-facing catalogue: per-weapon
+  base stat table (dmg/growth/cd/type + behavior, pulled from `WeaponConfig.BASE` +
+  `WEAPON_INFO`), run rules (5 slots, Lv7 cap, fusion tiers), the 4-stat axis summary, and all
+  **78 fusions** (name + behavior, generated from `Fusions.INFO` so it can't drift). Linked it
+  from WEAPON_DESIGN.md (which stays the *design contract*; the codex is the catalogue).
+- **Hover tooltip (`scripts/ui/game_hud.gd:_weapon_tip_text`):** was DMG+cadence for base
+  weapons and only "scales with your stats" (no numbers) for fusions. Now every weapon — base
+  **and** fusion — shows: name + Lv + fusion-tier badge (◆T1/◆T2/◆T3); per-hit DMG + cadence
+  for base weapons (fusions have no `BASE` row); universal live **DPS + total damage** (reuses
+  the fusion-aware `_weapon_dps`/`_weapon_dmg` aggregation — sums components for `WeaponFused`,
+  reads `damage_dealt`/`dps` for monolithic signature fusions); the four build-wide axes
+  (Pwr/Spd/Area/Dur, labeled "Your build" since they're global); and a behavior line (WEAPON_INFO
+  for base, `Fusions.INFO` desc for signature fusions, component list for generic `WeaponFused`).
+  Added helper `_fusion_desc(w)`.
+- **Verified:** fresh-worktree `--import` clean; 300-frame headless smoke clean; unit suite
+  **1068 passed, 0 failed**. The hover path isn't reachable from headless smoke, so wrote a
+  throwaway `--script` harness (since deleted) that load()s Player/HUD/Fusions at runtime
+  (static refs fail to compile — `Sfx` is autoload-only, not a `class_name`) and actually
+  called `_weapon_tip_text` for all three branches: base (Bolt → `DMG 3.0 / every 0.69s`),
+  signature fusion (Pulsar ◆T1 + its INFO desc), and `WeaponFused` (Pulsar + Glacial Edge ◆T2 +
+  component list) — all rendered correctly, no empties/errors. **Not** visually hovered (no
+  display in this environment); verified by-construction + runtime string output.
+- **Overflow guard:** the new lines are longer than the tooltip ever showed (the "Your build"
+  line ~56 chars + fusion descs up to ~105, e.g. Beam Battery), and `weapon_tip` was
+  `AUTOWRAP_OFF` → long lines would run off-screen and hide stats. Flipped it to
+  `AUTOWRAP_WORD_SMART` so they wrap inside the fixed 584px box (`game_ui.gd`). Pointer to the
+  codex added to CLAUDE.md.
+- **Next:** real in-game hover check to confirm the wrapped layout looks right; consider a
+  fusion `[FUSE]` pick showing the same stat block. (Stale-but-out-of-scope: `SUP` const + its
+  "max level 3" comment predate `MAX_WEAPON_LEVEL = 7`; the badge clamps so Lv7 shows "³".)
+
 ### 2026-06-16 — Session 6: auto-updating launcher (branch `feat/launcher`, worktree)
 - **Goal:** a small, cross-platform launcher that checks for updates and downloads the
   game automatically, then launches it. Design + rationale in [LAUNCHER.md](LAUNCHER.md).
