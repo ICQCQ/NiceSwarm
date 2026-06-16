@@ -32,7 +32,7 @@ func _physics_process(delta: float) -> void:
 		g.source_pid = player.peer_id
 		g.source_weapon = self
 		g.player = player
-		g.velocity = base.rotated(deg_to_rad(25.0) * (i - (count - 1) / 2.0)) * 430.0
+		g.velocity = base.rotated(deg_to_rad(25.0) * (i - (count - 1) / 2.0)) * (430.0 * (1.0 + 0.10 * (level - 1)))  # speed grows with level (range = v^2/2decel grows too)
 		g.damage = WeaponConfig.BASE.glaive.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.glaive.growth * (level - 1))
 		g.burn_dps = g.damage * 0.3
 		g.hit_radius = 14.0 * player.area_mult

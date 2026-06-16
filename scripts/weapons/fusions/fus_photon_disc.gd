@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 		g.source_pid = player.peer_id
 		g.source_weapon = self
 		g.player = player
-		g.velocity = base.rotated(deg_to_rad(20.0) * (i - (count - 1) / 2.0)) * 430.0
+		g.velocity = base.rotated(deg_to_rad(20.0) * (i - (count - 1) / 2.0)) * (430.0 * (1.0 + 0.10 * (level - 1)))  # speed + range grow with level
 		g.damage = dmg
 		g.hit_radius = 13.0 * fuse_area()
 		g.on_hit = Callable(self, "_on_hit")
@@ -36,8 +36,8 @@ func _physics_process(delta: float) -> void:
 ## Each glaive hit fires a short piercing beam along its travel direction.
 func _on_hit(e: Node2D, pos: Vector2) -> void:
 	var dir: Vector2 = (e.global_position - player.global_position).normalized()
-	var length := 220.0 * fuse_area()
-	var dmg := 1.4 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var length := (300.0 + 40.0 * (level - 1)) * fuse_area()   # laser range buffed + grows with level
+	var dmg := 2.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))  # laser damage buffed
 	for en in Main.instance.enemies_in_radius(pos, length + 64.0):
 		var rel: Vector2 = en.global_position - pos
 		var along := rel.dot(dir)
