@@ -1,5 +1,8 @@
 # NiceSwarm — Weapon Design Guide
 
+> For the player-facing catalogue (per-weapon base stats + all 78 fusions in one table),
+> see [WEAPON_CODEX.md](WEAPON_CODEX.md). This file is the *design contract* behind it.
+
 This is the contract every weapon (base **and** fusion) must follow. It exists so the
 stat system stays *general*: a player who invests in any stat should feel it on **every**
 weapon they own. If a stat does nothing for a weapon, the weapon is wrong — fix the

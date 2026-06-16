@@ -1533,9 +1533,19 @@ func nearest_enemy_to(pos: Vector2, max_range: float) -> Node2D:
 ## in full (a multi-strike pattern split by the cap would leave silent gaps).
 func cast_telegraph(pos: Vector2, radius: float, damage: int, effect: int = 0, warn: float = -1.0, ignore_cap: bool = false) -> void:
 	if not ignore_cap:
-		var caster_count := telegraphs_by_id.values().filter(func(t): return not t.is_boss).size()
-		if caster_count >= GameConfig.MAX_TELEGRAPHS:
-			return  # arena already saturated with caster danger zones — don't blanket it
+		# Two independent pools share the same cap: damage strikes (EFFECT_DAMAGE)
+		# and debuff zones (EFFECT_DISRUPT/FIELD). Intercept fields and boss slams
+		# are excluded from both counts so they never block regular casters.
+		var is_debuff := effect == TelegraphZone.EFFECT_DISRUPT or effect == TelegraphZone.EFFECT_FIELD
+		var pool_count := 0
+		for _t in telegraphs_by_id.values():
+			if _t.is_boss or _t.effect == TelegraphZone.EFFECT_INTERCEPT:
+				continue
+			var t_debuff: bool = _t.effect == TelegraphZone.EFFECT_DISRUPT or _t.effect == TelegraphZone.EFFECT_FIELD
+			if t_debuff == is_debuff:
+				pool_count += 1
+		if pool_count >= GameConfig.MAX_TELEGRAPHS:
+			return  # this pool is already saturated — don't blanket the arena
 	var tz := TelegraphZone.new()
 	tz.radius = radius
 	tz.warn = TELEGRAPH_WARN if warn < 0.0 else warn
@@ -1583,6 +1593,8 @@ func _on_enemy_killed(enemy: Enemy) -> void:
 	if sim.active:
 		sim.age_sum += enemy.age
 	spawner.add_kill()
+	if enemy.boss:
+		spawner.on_boss_killed()
 	# bursters spit a ring of shard bullets on death (deferred — see EnemySpawner.spawn_burst)
 	if enemy.burst_count > 0 and enemies_by_id.size() + enemy.burst_count <= ENEMY_CAP:
 		spawner.spawn_burst.call_deferred(enemy.global_position, enemy.burst_count)

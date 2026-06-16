@@ -375,6 +375,14 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 	var sig := Fusions.make(id_a, id_b)
 	if sig != null:
 		sig.tier = new_tier
+		# A signature fusion is a single fresh weapon with no growing components,
+		# so it must inherit the maxed level of the two weapons it consumes — born
+		# at level 1 its damage growth term collapses to x1.0, a brutal DPS cliff
+		# vs the two Lv7 inputs (each ~3-4x base). Born at MAX it's "maxed" like a
+		# Lv7 base weapon and merge-only (the [LEVEL] pool gates at < MAX_WEAPON_LEVEL).
+		# NOTE: the generic WeaponFused path below intentionally stays at level 1 —
+		# its shell level drives level_up() which grows the retained components past 7.
+		sig.level = maxi(a.level, b.level)
 		weapons.erase(a)
 		weapons.erase(b)
 		a.queue_free()

@@ -328,10 +328,10 @@ class Singularity extends WeaponBase:
 		w.source_pid = player.peer_id
 		w.source_weapon = self
 		w.radius = (170.0 + 15.0 * (level - 1)) * player.area_mult
-		w.damage = 1.2 * player.damage_mult * (1.0 + 0.5 * (level - 1))
+		w.damage = 1.45 * player.damage_mult * (1.0 + 0.5 * (level - 1))  # +20%: single-well fusion, 75%-of-combined floor
 		w.pull = 210.0
 		w.life = 2.5 * player.duration_mult
-		w.detonate_damage = 6.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
+		w.detonate_damage = 7.2 * player.damage_mult * (1.0 + 0.5 * (level - 1))  # +20% (see above)
 		w.push_strength = 50.0 * player.area_mult
 		w.position = target.global_position
 		player.get_parent().add_child(w)
@@ -607,7 +607,7 @@ class Glacier extends WeaponBase:
 		w.source_pid = player.peer_id
 		w.source_weapon = self
 		w.radius = (200.0 + 20.0 * (level - 1)) * player.area_mult
-		w.damage = 1.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
+		w.damage = 1.2 * player.damage_mult * (1.0 + 0.5 * (level - 1))  # +20%: single-well fusion, 75%-of-combined floor
 		w.pull = 120.0
 		w.life = 3.0 * player.duration_mult
 		w.freeze = true
@@ -741,7 +741,7 @@ class BlackBog extends WeaponBase:
 		w.source_pid = player.peer_id
 		w.source_weapon = self
 		w.radius = r
-		w.damage = 0.8 * dmg
+		w.damage = 0.96 * dmg  # +20%: single-well fusion, 75%-of-combined floor
 		w.pull = 160.0
 		w.life = life
 		w.position = target.global_position
@@ -750,7 +750,7 @@ class BlackBog extends WeaponBase:
 		pud.source_pid = player.peer_id
 		pud.source_weapon = self
 		pud.radius = r * 0.9
-		pud.damage = 1.0 * dmg
+		pud.damage = 1.2 * dmg  # +20%: single-well fusion, 75%-of-combined floor
 		pud.max_life = life
 		pud.life = life
 		pud.position = target.global_position
@@ -1238,7 +1238,9 @@ class _Sentry extends WeaponBase:
 		t.position = player.global_position
 		player.get_parent().add_child(t)
 		Sfx.play("turret_deploy", player.global_position)
-		cooldown = WeaponConfig.BASE.sentry.cd * player.rate_mult * cooldown_scale
+		# Spread deploys over cd / cap so the field fills to _deploy_cap(); a flat cd
+		# was slower than a turret's life, so only ~2 ever coexisted of the cap's many.
+		cooldown = WeaponConfig.BASE.sentry.cd * player.rate_mult * cooldown_scale / _deploy_cap()
 
 class MissileBattery extends _Sentry:
 	func _init() -> void:

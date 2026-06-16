@@ -41,16 +41,15 @@ const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd ti
 const DIFF_HEAT := 3.12          # how much clear-rate heat accelerates the climb (was 2.4, +30%)
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
-const DIFF_WARMUP_FLOOR := 0.25  # early-game climb fraction at t=0
-const DIFF_WARMUP_SECS := 130.0  # seconds to ramp warmup to full (was 80 — longer ramp softens the
-                                 # difficulty/spawn-rate cliff now that the late game floods to 300)
+const DIFF_WARMUP_FLOOR := 0.25    # early-game climb fraction at run_progress=0
+const DIFF_WARMUP_PROGRESS := 21.7 # run_progress at which warmup reaches full (≈130 s / WIN_TIME)
 
 # --- spawning ---
 const SPAWN_RING_MIN := 300.0         # enemies spawn this far from the anchor player... (was 700; note SPAWN_SAFE_RADIUS still clamps the effective min)
 const SPAWN_RING_MAX := 1200.0        # ...up to this far (random within the ring; was 900 — wider band)
 const SPAWN_SAFE_RADIUS := 250.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
-const SPAWN_DESIRED_BASE := 8.0       # target live-enemy count at difficulty 0 (was 6.0 — denser swarm)
-const SPAWN_DESIRED_PER_DIFF := 3.5   # +this many target enemies per difficulty point (was 2.5 — denser late game)
+const SPAWN_DESIRED_BASE := 8.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
+const SPAWN_DESIRED_PER_PROGRESS := 0.38 # +this many target enemies per run_progress point (≈3.5/pace at old scale)
 const SPAWN_INTERVAL_START := 0.2     # seconds between spawns early (5x faster than the prior 1.0)
 const SPAWN_INTERVAL_END := 0.024     # seconds between spawns late (5x faster than the prior 0.12)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
@@ -65,10 +64,10 @@ const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired 
 const PARTY_HP_PER := 0.3             # enemy hp ×(1 + this·(N-1))
 const PARTY_RATE_PER := 0.4           # spawn density ×(1 + this·(N-1))
 
-# --- time-based wave rhythm (layered on top of pace/heat in EnemySpawner.run_spawning) ---
-# Per-game-minute [intensity, pop_mult], lerped between minutes for a smooth peaks/valleys
-# curve. intensity divides the spawn interval (peak = faster); pop_mult scales desired_pop
-# (valley = a real breather, below the normal floor). Bosses own the hard DPS-checks.
+# --- wave rhythm (layered on top of run_progress/heat in EnemySpawner.run_spawning) ---
+# Per-10-progress-units [intensity, pop_mult] (≈ per game-minute), lerped for a smooth
+# peaks/valleys curve. intensity divides the spawn interval (peak = faster);
+# pop_mult scales desired_pop (valley = a real breather). Bosses own the hard DPS-checks.
 const WAVES := [
 	[0.8, 0.8],   # 0 intro
 	[1.0, 1.0],   # 1 build
@@ -121,7 +120,7 @@ static func xp_gain(value: int, lvl: int) -> int:
 	return value * EARLY_XP_BONUS_MULT if lvl <= EARLY_XP_BONUS_LEVELS else value
 
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
-const MID_GAME_TIME := 300.0     # heat_spike can only arm after this many seconds
+const MID_GAME_PROGRESS := 50.0  # heat_spike can only arm after this run_progress (≈300 s / WIN_TIME)
 const HEAT_SPIKE_POP_FRAC := 0.2 # live pop below this fraction of desired_pop arms the spike
 const HEAT_SPIKE_GROWTH := 1.8   # exponential growth rate (/s) while armed
 const HEAT_SPIKE_DECAY := 2.0    # linear decay rate (/s) once the map refills
@@ -129,15 +128,16 @@ const HEAT_SPIKE_MAX := 5.0      # cap on the spike term
 const DIFF_SPIKE := 1.0          # weight of heat_spike in the difficulty climb
 
 # --- boss spawns: a tough "boss" class enemy after enough kills ---
-const BOSS_KILL_BASE := 60       # total kills before the first boss
-const BOSS_KILL_INTERVAL := 90   # extra kills required for each subsequent boss
+const BOSS_KILL_BASE := 100              # total kills before the first boss
+const BOSS_KILL_INTERVAL := 100          # kills required for the second boss
+const BOSS_KILL_INTERVAL_GROWTH := 30   # added to the interval each time a boss dies
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
 const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
 const BOSS_FIGHT_SECONDS := 8.0  # boss hp ~= recent_dps * this (target single-boss fight length)
 const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
-const BOSS_HP_PER_PACE := 0.02   # boss hp x(1 + this*run_progress): 1× at pace 0, 3× at pace 100
+const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end
 
 
 ## Boss HP from the three factors the design calls for: the party's recent DPS (so the
@@ -146,10 +146,10 @@ const BOSS_HP_PER_PACE := 0.02   # boss hp x(1 + this*run_progress): 1× at pace
 ## recent DPS is momentarily low. Pure + static, so it's unit-testable without a Main.
 static func boss_hp(tier_floor: float, recent_dps: float, level: int, players: int, run_progress: float = 0.0) -> float:
 	var base := maxf(tier_floor, recent_dps * BOSS_FIGHT_SECONDS)
-	return base * (1.0 + BOSS_HP_PER_LEVEL * (level - 1)) * (1.0 + BOSS_HP_PER_PLAYER * (players - 1)) * (1.0 + BOSS_HP_PER_PACE * run_progress)
+	return base * (1.0 + BOSS_HP_PER_LEVEL * (level - 1)) * (1.0 + BOSS_HP_PER_PLAYER * (players - 1)) * (1.0 + BOSS_HP_PER_PROGRESS * run_progress)
 
 # --- bouncer: special population, separate from the normal pool/desired_pop ---
-const BOUNCER_UNLOCK := 165.0       # bouncers start appearing at this elapsed time
-const BOUNCER_CAP_BASE := 2.0       # bouncer population cap at pace 0
-const BOUNCER_CAP_PER_PACE := 1.0   # +this many cap per pace point (keeps growing)
+const BOUNCER_UNLOCK_PROGRESS := 27.5  # bouncers start appearing at this run_progress (≈165 s / WIN_TIME)
+const BOUNCER_CAP_BASE := 2.0            # bouncer population cap at run_progress 0
+const BOUNCER_CAP_PER_PROGRESS := 0.31  # +this many cap per run_progress point (≈1.0/pace at old scale)
 const BOUNCER_SPAWN_INTERVAL := 2.0 # seconds between bouncer population top-ups

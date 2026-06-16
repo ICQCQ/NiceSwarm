@@ -447,24 +447,28 @@ func _do_slam() -> void:
 						continue
 					var pp := global_position + Vector2(gx, gy) * cell
 					main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0, -1.0, true)
-		4:  # one massive, slow-telegraphed strike at the target — a long wind-up
-			# (slam_warn) forces a real reposition instead of a snap dodge.
+		4:  # one massive, slow-telegraphed strike near the target — a long wind-up
+			# (slam_warn) forces a real reposition. Jitter within slam_radius keeps
+			# the exact landing spot uncertain so perfect pre-positioning doesn't work.
 			var target: Node2D = main_ref.nearest_alive_player(global_position)
 			if target == null:
 				return
-			main_ref.cast_telegraph(target.global_position, slam_radius, slam_damage, 0, slam_warn, true)
-		5:  # ring of small explosions centered on the boss, with radius equal to
-			# the target's current distance — escape by stepping toward or away
-			# from the boss before it lands. ignore_cap=true: the ring is many
-			# small telegraphs and must always land in full.
+			var jitter := Vector2.from_angle(randf() * TAU) * randf_range(0.0, slam_radius * 0.8)
+			main_ref.cast_telegraph(target.global_position + jitter, slam_radius, slam_damage, 0, slam_warn, true)
+		5:  # ring of small explosions centered on the boss — escape by stepping toward
+			# or away from the boss before it lands. Ring radius and phase are randomised
+			# so the safe gap isn't always at the same spot relative to the player.
 			var ring_target: Node2D = main_ref.nearest_alive_player(global_position)
 			if ring_target == null:
 				return
 			var ring_r := global_position.distance_to(ring_target.global_position)
+			ring_r += randf_range(-slam_radius * 0.5, slam_radius * 0.9)  # variance: safe zone shifts
+			ring_r = maxf(ring_r, slam_radius * 2.0)  # never collapse the ring onto the boss
 			var step := slam_radius * 1.5
 			var count := clampi(int(TAU * ring_r / step), 8, 20)
+			var phase := randf() * TAU  # random rotation so gaps don't repeat at the same angles
 			for k in count:
-				var pp := global_position + Vector2.from_angle(TAU * k / count) * ring_r
+				var pp := global_position + Vector2.from_angle(phase + TAU * k / count) * ring_r
 				main_ref.cast_telegraph(pp, slam_radius, slam_damage, 0, -1.0, true)
 
 

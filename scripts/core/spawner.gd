@@ -13,14 +13,12 @@ var type_id := {}
 
 # --- dynamic difficulty (host-authoritative; clients read net_* via HUD sync) ---
 # Split into two independent tracks:
-#  - `pace`: enemy VARIETY (class_tier ceiling) + desired population. Climbs at a
-#    flat rate from elapsed time alone — never accelerates, so a fast/skilled
-#    party doesn't get buried under more enemy *types* than the run "should" have yet.
+#  - enemy VARIETY (class_tier ceiling) + desired population scales with `run_progress`
+#    (0–100, pure elapsed time) — never heat-accelerated, so a fast/skilled party
+#    doesn't get buried under more enemy *types* than the run "should" have yet.
 #  - `difficulty`: how tough each enemy is to CLEAR (hp/speed/dmg in make_enemy).
-#    Climbs at the same base rate as `pace` but is accelerated by heat (clear-rate)
-#    and party level — a party that's ahead of the curve fights harder monsters,
-#    without the spawn variety/population also exploding.
-var pace := 0.0               # host-only: time-based, never accelerated
+#    Climbs at a base rate but is accelerated by heat (clear-rate) and party level —
+#    a party ahead of par fights harder monsters without variety/population exploding.
 var difficulty := 0.0
 var net_difficulty := 0.0
 var heat_cur := 0.0          # smoothed heat (rises fast, decays slowly)
@@ -30,17 +28,19 @@ var clear_kills := 0         # kills counted in the current 1 s window
 var clear_t := 0.0
 var clear_ema := 0.0         # smoothed kills/sec
 var spawn_rate := 1.0        # current steady spawns/sec (from run_spawning)
-var desired_pop := 18        # target alive-enemy count (grows with pace)
+var desired_pop := 18        # target alive-enemy count (grows with run_progress)
 
 # --- spawn cadence state ---
 var spawn_accum := 0.0
 var special_accum := {}      # SPAWN_SPECIALS key -> seconds accumulated
 var enemy_seq := 0
 
-# --- boss spawns: a tough "boss" class enemy after enough total kills ---
+# --- boss spawns: kill-based + progress-based (every 10 run_progress) ---
 var total_kills := 0
-var boss_count := 0
+var boss_count := 0            # total bosses spawned so far (drives tier escalation)
 var boss_next_kill := 0
+var boss_kill_interval := 0    # kills required between kill-triggered bosses; grows on each boss death
+var boss_progress_checkpoint := 10.0  # next run_progress threshold for a progress-based boss
 
 # --- party DPS tracker (host-only): a ring of per-second damage buckets over the
 # last BOSS_DPS_WINDOW seconds, so a spawning boss can size its HP to the party's
@@ -68,7 +68,6 @@ func build_type_registry() -> void:
 
 
 func reset() -> void:
-	pace = 0.0
 	difficulty = 0.0
 	net_difficulty = 0.0
 	heat_cur = 0.0
@@ -85,6 +84,8 @@ func reset() -> void:
 	total_kills = 0
 	boss_count = 0
 	boss_next_kill = GameConfig.BOSS_KILL_BASE
+	boss_kill_interval = GameConfig.BOSS_KILL_INTERVAL
+	boss_progress_checkpoint = 10.0
 	bouncer_live = 0
 	bouncer_accum = 0.0
 	dps_buckets = PackedFloat32Array()
@@ -109,7 +110,7 @@ func diff() -> float:
 ## Early-game brake: difficulty climbs (and level-up steps land) at a fraction
 ## of full speed for the first ~80 s, then ramps to full. Keeps the opening gentle.
 func warmup() -> float:
-	return clampf(GameConfig.DIFF_WARMUP_FLOOR + main.elapsed / GameConfig.DIFF_WARMUP_SECS, GameConfig.DIFF_WARMUP_FLOOR, 1.0)
+	return clampf(GameConfig.DIFF_WARMUP_FLOOR + main.run_progress / GameConfig.DIFF_WARMUP_PROGRESS, GameConfig.DIFF_WARMUP_FLOOR, 1.0)
 
 
 ## Boss spawn trigger: a tough "boss"-class enemy after enough total kills,
@@ -117,16 +118,40 @@ func warmup() -> float:
 func add_kill() -> void:
 	clear_kills += 1
 	total_kills += 1
-	if total_kills >= boss_next_kill and main.enemies_by_id.size() < GameConfig.ENEMY_CAP:
+	if total_kills >= boss_next_kill:
 		spawn_boss()
 		boss_count += 1
-		boss_next_kill += GameConfig.BOSS_KILL_INTERVAL
+		boss_next_kill += boss_kill_interval
+
+
+## Called when a boss enemy dies. Grows boss_kill_interval so each subsequent
+## kill-triggered boss takes more kills to earn.
+func on_boss_killed() -> void:
+	boss_kill_interval += GameConfig.BOSS_KILL_INTERVAL_GROWTH
+
+
+## Pick a boss tier that isn't currently alive. Falls back to uniform random
+## if every tier is in the field, or uses the escalating boss_count index when
+## no boss is present at all.
+func _pick_boss_tier() -> int:
+	var n: int = EnemyConfig.CLASSES["boss"].size()
+	var alive_tiers := {}
+	for e in main.enemies_by_id.values():
+		if e.boss:
+			alive_tiers[e.tier] = true
+	if alive_tiers.is_empty():
+		return clampi(boss_count, 0, n - 1)  # no boss present — escalating tier
+	var absent: Array = []
+	for t in n:
+		if not alive_tiers.has(t):
+			absent.append(t)
+	if absent.is_empty():
+		return randi() % n  # all tiers live — uniform random
+	return absent[randi() % absent.size()]  # pick a tier not yet in the field
 
 
 func spawn_boss() -> void:
-	var n: int = EnemyConfig.CLASSES["boss"].size()
-	var tier := clampi(boss_count, 0, n - 1)
-	spawn_enemy("boss", tier)
+	spawn_enemy("boss", _pick_boss_tier())
 
 
 ## Host: feed a damage event into the rolling per-second DPS ring (current bucket).
@@ -178,12 +203,11 @@ func update_difficulty(delta: float) -> void:
 	# difficulty climb surges hard — a reward for crushing it. Gated to
 	# mid-game+ so it can't trigger from an early, naturally-empty arena.
 	var pop_frac: float = pool_count / maxf(float(desired_pop), 1.0)
-	if main.elapsed >= GameConfig.MID_GAME_TIME and pop_frac < GameConfig.HEAT_SPIKE_POP_FRAC:
+	if main.run_progress >= GameConfig.MID_GAME_PROGRESS and pop_frac < GameConfig.HEAT_SPIKE_POP_FRAC:
 		heat_spike = minf((heat_spike + delta) * (1.0 + GameConfig.HEAT_SPIKE_GROWTH * delta), GameConfig.HEAT_SPIKE_MAX)
 	else:
 		heat_spike = move_toward(heat_spike, 0.0, GameConfig.HEAT_SPIKE_DECAY * delta)
 	var base_climb := delta * GameConfig.DIFF_BASE * warmup()
-	pace += base_climb  # variety/population: flat time-based climb, no acceleration
 	difficulty += base_climb * (1.0 + heat_cur * GameConfig.DIFF_HEAT + heat_spike * GameConfig.DIFF_SPIKE + (main.level - 1) * GameConfig.DIFF_LEVEL)
 
 
@@ -193,7 +217,7 @@ func update_difficulty(delta: float) -> void:
 ## peaks/valleys rhythm. Pure function of elapsed (already synced), so host & clients agree.
 func _wave() -> Vector2:
 	var w: Array = GameConfig.WAVES
-	var tm: float = main.elapsed / 60.0
+	var tm: float = main.run_progress / 10.0
 	var i := int(floor(tm))
 	if i >= w.size() - 1:
 		var last: Array = w[w.size() - 1]
@@ -216,15 +240,15 @@ func run_spawning(delta: float) -> void:
 	if main.debug_no_spawn:
 		return
 	var heat_v := heat()
-	var t := clampf(main.elapsed / 540.0, 0.0, 1.0)
+	var t := clampf(main.run_progress / 90.0, 0.0, 1.0)
 	var interval: float = lerpf(GameConfig.SPAWN_INTERVAL_START, GameConfig.SPAWN_INTERVAL_END, t) / (1.0 + GameConfig.PARTY_RATE_PER * (main.peer_ids.size() - 1))
 	interval /= maxf(wave_intensity(), 0.1)  # wave peak = faster spawns, valley = slower
 	interval /= warmup()  # early-game brake: ramp the (5x) spawn rate in over ~80s so the opening is survivable, not an instant 300-enemy flood on a level-1 player
 	# keep the arena populated: if the player clears faster than enemies arrive,
 	# ramp spawns to refill toward a target population. The target starts small
-	# (calm opening) and grows with pace (time only — doesn't spike for a fast party).
+	# (calm opening) and grows with run_progress (time only — doesn't spike for a fast party).
 	# (Bouncers have their own population/cap below and don't count toward this.)
-	desired_pop = int(clampf((GameConfig.SPAWN_DESIRED_BASE + pace * GameConfig.SPAWN_DESIRED_PER_DIFF) * wave_pop_mult(), GameConfig.WAVE_POP_FLOOR, GameConfig.ENEMY_CAP - 20))
+	desired_pop = int(clampf((GameConfig.SPAWN_DESIRED_BASE + main.run_progress * GameConfig.SPAWN_DESIRED_PER_PROGRESS) * wave_pop_mult(), GameConfig.WAVE_POP_FLOOR, GameConfig.ENEMY_CAP - 20))
 	if _pool_count() < desired_pop:
 		interval *= GameConfig.SPAWN_REFILL_MULT
 	spawn_rate = 1.0 / interval
@@ -236,7 +260,7 @@ func run_spawning(delta: float) -> void:
 		spawn_enemy(_pick_pool_class())  # tier escalates with time/level/heat
 	for id in EnemyConfig.SPAWN_SPECIALS:
 		var s: Dictionary = EnemyConfig.SPAWN_SPECIALS[id]
-		if main.elapsed <= s.unlock:
+		if main.run_progress <= s.unlock:
 			continue
 		var acc: float = special_accum.get(id, 0.0) + delta
 		var int_hi: float = s.get("interval_hi", s.get("interval", 0.0))
@@ -245,16 +269,22 @@ func run_spawning(delta: float) -> void:
 			acc = 0.0
 			spawn_enemy(s.cls)
 		special_accum[id] = acc
+	# Progress-based boss: one every 10 run_progress (~60 s), independent of kills.
+	# Uses the same smart tier picker as kill-based bosses.
+	while main.run_progress >= boss_progress_checkpoint:
+		boss_progress_checkpoint += 10.0
+		spawn_boss()
+		boss_count += 1
 	# Bouncer: a special population, separate from the normal pool above. Once
 	# unlocked it maintains its own (growing) cap independently — never counted
 	# toward desired_pop/overwhelmed and never crowded out by the normal pool.
-	if main.elapsed >= GameConfig.BOUNCER_UNLOCK:
-		var bouncer_cap := int(GameConfig.BOUNCER_CAP_BASE + pace * GameConfig.BOUNCER_CAP_PER_PACE)
+	if main.run_progress >= GameConfig.BOUNCER_UNLOCK_PROGRESS:
+		var bouncer_cap := int(GameConfig.BOUNCER_CAP_BASE + main.run_progress * GameConfig.BOUNCER_CAP_PER_PROGRESS)
 		bouncer_accum += delta
 		if bouncer_accum >= GameConfig.BOUNCER_SPAWN_INTERVAL:
 			bouncer_accum -= GameConfig.BOUNCER_SPAWN_INTERVAL
 			if bouncer_live < bouncer_cap and main.enemies_by_id.size() < GameConfig.ENEMY_CAP:
-				spawn_enemy("bouncer")  # tier escalates with pace like any other class
+				spawn_enemy("bouncer")  # tier escalates with run_progress like any other class
 
 
 ## Weighted random pick over every SPAWN_POOL row unlocked at the current time.
@@ -262,7 +292,7 @@ func _pick_pool_class() -> String:
 	var total := 0.0
 	var unlocked := []
 	for row in EnemyConfig.SPAWN_POOL:
-		if main.elapsed >= row.unlock:
+		if main.run_progress >= row.unlock:
 			unlocked.append(row)
 			total += row.weight
 	var r := randf() * total
@@ -273,16 +303,16 @@ func _pick_pool_class() -> String:
 	return unlocked[-1].cls
 
 
-## Which tier of a class to spawn now: rises with elapsed time only (`pace`), so
+## Which tier of a class to spawn now: rises with run_progress (time only), so
 ## harder variants (Diviner, Behemoth, Champion…) show up on a fixed schedule —
 ## a party that's ahead of par doesn't get flooded with rarer variants too.
 func class_tier(cls: String) -> int:
 	var n: int = EnemyConfig.CLASSES[cls].size()
 	if n <= 1:
 		return 0
-	# Pace raises the tier *ceiling*; the actual tier is sampled below it so
+	# run_progress raises the tier *ceiling*; the actual tier is sampled below it so
 	# higher ranks just get MORE common while lower ranks keep spawning.
-	var ceiling := clampi(int(pace / 3.0), 0, n - 1)
+	var ceiling := clampi(int(main.run_progress / 20.0), 0, n - 1)
 	if EnemyConfig.CLASSES[cls][0].get("uniform_tier", false):
 		# Marked classes (casters): every unlocked tier is equally likely,
 		# instead of skewing toward the ceiling — Bomber/Diviner/Oracle stay
@@ -307,7 +337,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 		# count terms — the three factors asked for — drive it, not the time/difficulty curve.
 		e.hp = GameConfig.boss_hp(d.hp0, recent_dps(), main.level, main.peer_ids.size(), main.run_progress)
 		if Engine.time_scale > 1.0:  # sim/FF: log the boss sizing for balance verification
-			print("[boss] %s tier=%d hp=%d (rdps=%.0f lvl=%d N=%d pace=%.0f)" % [d.name, tier, int(e.hp), recent_dps(), main.level, main.peer_ids.size(), main.run_progress])
+			print("[boss] %s tier=%d hp=%d (rdps=%.0f lvl=%d N=%d prog=%.0f)" % [d.name, tier, int(e.hp), recent_dps(), main.level, main.peer_ids.size(), main.run_progress])
 	else:
 		# Base enemies also get tankier as the party levels (ENEMY_HP_PER_LEVEL), on top of
 		# party-size scaling and the difficulty hp curve.

@@ -51,7 +51,7 @@ const CLASSES := {
 	],
 	"bouncer": [  # ricochets around the arena, phases through everything, can't be interrupted
 		# special population: NOT in SPAWN_POOL — EnemySpawner.run_spawning tops
-		# bouncers up to their own (growing) cap once BOUNCER_UNLOCK passes,
+		# bouncers up to their own (growing) cap once BOUNCER_UNLOCK_PROGRESS passes,
 		# independent of the normal pool's desired_pop.
 		{"name": "Caroms", "hp0": 14.0, "hpk": 3.0, "spd": 190.0, "spdk": 2.0, "r": 14.0, "dmg": 2, "xp": 4, "col": Color(1.0, 0.35, 0.5), "shape": "diamond", "move": 2, "phase": true, "cc_imm": true, "pull_imm": true},
 		{"name": "Pinball", "hp0": 28.0, "hpk": 5.0, "spd": 220.0, "spdk": 2.0, "r": 16.0, "dmg": 2, "xp": 7, "col": Color(1.0, 0.4, 0.55), "shape": "diamond", "move": 2, "phase": true, "cc_imm": true, "pull_imm": true},
@@ -70,9 +70,9 @@ const CLASSES := {
 		# Scrambler: casts a field at a random spot nearby (not on itself); sized by current THREAT.
 		{"name": "Scrambler", "hp0": 18.0, "hpk": 5.0, "spd": 75.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 8, "col": Color(0.7, 0.2, 0.32), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 1, "icast_radius": 90.0, "icast_life": 3.0, "icast_cooldown": 5.0},
 		# Disperser: drops lingering fields on several nearby enemies at once.
-		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.8, 0.25, 0.35), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 100.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
+		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.8, 0.25, 0.35), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 130.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
 		# Overseer: rare — casts a single very long line of fields across the arena at a random angle.
-		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.9, 0.3, 0.4), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 20.0},
+		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.9, 0.3, 0.4), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 10.0},
 	],
 	"elite": [  # tanky specials that always drop a chest
 		{"name": "Elite", "hp0": 40.0, "hpk": 18.0, "spd": 100.0, "spdk": 0.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.95, 0.35, 0.5), "shape": "circle", "elite": true, "pull_imm": true},
@@ -98,28 +98,28 @@ const CLASSES := {
 	],
 }
 
-# Weighted regular spawn pool. Each row becomes available once `elapsed >=
+# Weighted regular spawn pool. Each row becomes available once `run_progress >=
 # unlock`; EnemySpawner.run_spawning picks a class via weighted random over
 # every currently-unlocked row. "bouncer" is NOT in this pool — it's a special
 # population maintained separately (its own growing cap; see run_spawning).
-const SPAWN_POOL := [
-	{"cls": "brawler",   "weight": 3, "unlock": 0.0},
-	{"cls": "rusher",    "weight": 2, "unlock": 45.0},
-	{"cls": "wisp",      "weight": 1, "unlock": 90.0},
-	{"cls": "warden",    "weight": 1, "unlock": 120.0},
-	{"cls": "sentinel",  "weight": 1, "unlock": 150.0},
-	{"cls": "burster",   "weight": 1, "unlock": 180.0},
-	{"cls": "disruptor", "weight": 1, "unlock": 210.0},
-	{"cls": "defiler",   "weight": 1, "unlock": 280.0},
-	{"cls": "interceptor", "weight": 1, "unlock": 300.0},
+const SPAWN_POOL := [  # unlock values are run_progress (0-100); ≈ seconds / 6
+	{"cls": "brawler",     "weight": 8, "unlock": 0.0},
+	{"cls": "rusher",      "weight": 2, "unlock": 9.0},
+	{"cls": "wisp",        "weight": 3, "unlock": 15.0},
+	{"cls": "warden",      "weight": 2, "unlock": 20.0},
+	{"cls": "sentinel",    "weight": 2, "unlock": 25.0},
+	{"cls": "burster",     "weight": 1, "unlock": 30.0},
+	{"cls": "disruptor",   "weight": 1, "unlock": 40.0},
+	{"cls": "defiler",     "weight": 1, "unlock": 45.0},
+	{"cls": "interceptor", "weight": 1, "unlock": 50.0},
 ]
 
 # Periodic "special" spawns (tanks/elites/casters), one per key. Each fires on
 # its own accumulator once `elapsed >= unlock`. `interval` is a flat cooldown;
 # `interval_hi`/`interval_lo` instead lerp the cooldown by current heat
 # (0 = interval_hi, 1 = interval_lo) so these ramp up when the party is ahead.
-const SPAWN_SPECIALS := {
-	"tank":   {"cls": "tank",   "unlock": 90.0,  "interval": 45.0},
-	"elite":  {"cls": "elite",  "unlock": 120.0, "interval_hi": 75.0, "interval_lo": 32.0},
-	"caster": {"cls": "caster", "unlock": 150.0, "interval_hi": 20.0, "interval_lo": 11.0},
+const SPAWN_SPECIALS := {  # unlock values are run_progress (0-100); intervals still in seconds
+	"tank":   {"cls": "tank",   "unlock": 15.0, "interval": 45.0},
+	"elite":  {"cls": "elite",  "unlock": 20.0, "interval_hi": 75.0, "interval_lo": 32.0},
+	"interceptor": {"cls": "interceptor", "unlock": 50.0, "interval_hi": 20.0, "interval_lo": 11.0},
 }

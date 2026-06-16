@@ -140,6 +140,40 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-16 — Session 7: weapon codex + full hover stat tooltip (branch `feat/weapon-codex`, worktree)
+- **Goal:** write down a weapon/skill codex + all fusions, and make the in-game weapon-icon
+  hover tooltip always show **all** weapon stats, including for fusion weapons.
+- **Codex:** new [WEAPON_CODEX.md](WEAPON_CODEX.md) — the player-facing catalogue: per-weapon
+  base stat table (dmg/growth/cd/type + behavior, pulled from `WeaponConfig.BASE` +
+  `WEAPON_INFO`), run rules (5 slots, Lv7 cap, fusion tiers), the 4-stat axis summary, and all
+  **78 fusions** (name + behavior, generated from `Fusions.INFO` so it can't drift). Linked it
+  from WEAPON_DESIGN.md (which stays the *design contract*; the codex is the catalogue).
+- **Hover tooltip (`scripts/ui/game_hud.gd:_weapon_tip_text`):** was DMG+cadence for base
+  weapons and only "scales with your stats" (no numbers) for fusions. Now every weapon — base
+  **and** fusion — shows: name + Lv + fusion-tier badge (◆T1/◆T2/◆T3); per-hit DMG + cadence
+  for base weapons (fusions have no `BASE` row); universal live **DPS + total damage** (reuses
+  the fusion-aware `_weapon_dps`/`_weapon_dmg` aggregation — sums components for `WeaponFused`,
+  reads `damage_dealt`/`dps` for monolithic signature fusions); the four build-wide axes
+  (Pwr/Spd/Area/Dur, labeled "Your build" since they're global); and a behavior line (WEAPON_INFO
+  for base, `Fusions.INFO` desc for signature fusions, component list for generic `WeaponFused`).
+  Added helper `_fusion_desc(w)`.
+- **Verified:** fresh-worktree `--import` clean; 300-frame headless smoke clean; unit suite
+  **1068 passed, 0 failed**. The hover path isn't reachable from headless smoke, so wrote a
+  throwaway `--script` harness (since deleted) that load()s Player/HUD/Fusions at runtime
+  (static refs fail to compile — `Sfx` is autoload-only, not a `class_name`) and actually
+  called `_weapon_tip_text` for all three branches: base (Bolt → `DMG 3.0 / every 0.69s`),
+  signature fusion (Pulsar ◆T1 + its INFO desc), and `WeaponFused` (Pulsar + Glacial Edge ◆T2 +
+  component list) — all rendered correctly, no empties/errors. **Not** visually hovered (no
+  display in this environment); verified by-construction + runtime string output.
+- **Overflow guard:** the new lines are longer than the tooltip ever showed (the "Your build"
+  line ~56 chars + fusion descs up to ~105, e.g. Beam Battery), and `weapon_tip` was
+  `AUTOWRAP_OFF` → long lines would run off-screen and hide stats. Flipped it to
+  `AUTOWRAP_WORD_SMART` so they wrap inside the fixed 584px box (`game_ui.gd`). Pointer to the
+  codex added to CLAUDE.md.
+- **Next:** real in-game hover check to confirm the wrapped layout looks right; consider a
+  fusion `[FUSE]` pick showing the same stat block. (Stale-but-out-of-scope: `SUP` const + its
+  "max level 3" comment predate `MAX_WEAPON_LEVEL = 7`; the badge clamps so Lv7 shows "³".)
+
 ### 2026-06-16 — Session 6: auto-updating launcher (branch `feat/launcher`, worktree)
 - **Goal:** a small, cross-platform launcher that checks for updates and downloads the
   game automatically, then launches it. Design + rationale in [LAUNCHER.md](LAUNCHER.md).
@@ -930,3 +964,44 @@ On `feat/boss-dps-hp` the boss-HP work grew into a 16-commit pass (all on PR #26
 - **Next:** **2-PC playtest** the co-op menu/pause UX, same-name rejoin reclaim, and HUD
   names/colours/ping/glyph (headless can't render the HUD or orchestrate disconnects). Then
   merge PR #26 → `publish`.
+
+### 2026-06-16 — Session 7: fusion DPS cliff + above-Lv3 fairness pass (on `publish`)
+Two reported balance bugs, both rooted in the 3→7 weapon-cap rise not being followed through:
+- **Fusion DPS cliff (FIXED):** `player.merge_weapons` created a **signature** fusion via
+  `Fusions.make()` but never set its `level` — it was born at the `WeaponBase` default `1`, so its
+  `BASE × dm × (1 + growth×(level−1))` growth term collapsed to ×1.0. Fusing two Lv7 weapons
+  (~3–4× base each) yielded one ~1× weapon → the "dps decreases significantly, can't keep up"
+  cliff. Fix: `sig.level = maxi(a.level, b.level)` → born at Lv7, ~a maxed weapon's damage **plus**
+  the fusion's richer multi-hit/AoE. **Signature-path only** — the generic `WeaponFused`/Amalgam
+  path stays level 1 on purpose (its shell level drives `level_up()` which grows the retained
+  components past 7). Side effect (intended): signature fusions are now **merge-only** (the
+  `[LEVEL]` pool gates at `< MAX_WEAPON_LEVEL`), i.e. instantly maxed → fuse again.
+- **Above-Lv3 fairness (FIXED 5 weapons):** the cap rise feeds `count_level()` to 7, so weapons
+  using it (bolt/orbit/glaive/lightning/mines/missiles/frost/turret) auto-scale counts to Lv7 —
+  but five weapons stalled above Lv3 (only flat damage+size). Per user's picks: **Laser** — beams
+  were dead-computed (`count_level()` beams all offset by `PI*b` → collapse onto 2 opposite lines);
+  now **1→4 evenly-spread beams** (`TAU*b/beams`). **Nova** — echo shockwaves at Lv5/6/7 (1/2/3
+  extra pulses). **Gravity** — +1 simultaneous well at Lv4 & Lv6 (up to 3, on distinct foes).
+  **Flame** — cone half-angle widens past Lv3. **Venom** — wider toxic carpet (2nd puddle Lv3, 3rd
+  Lv6, spread perpendicular to travel). All honor the 4-stat contract.
+- **Turret deploy never filled its cap (FIXED):** base turret's `max_turrets` (`count_level()-1`)
+  and the fused `_Sentry`'s `_deploy_cap()` (`count_level()+2`) allowed many turrets, but the flat
+  deploy cooldown (`base.cd`≈6.5s) ≈ a turret's life, so each expired right as the next deployed —
+  **only ~1 alive even at Lv3+** (user report). Fix: deploy cooldown now `cd / cap`, so the field
+  fills within one turret lifetime. Verified: forced Lv7 fills **6/6** (was ~1). Same fix on
+  `_Sentry`. ⚠ `_Sentry` cap is `count_level()+2` (=9 at a Lv7 fusion) — now reachable; may want a
+  lower cap after playtest.
+- **75% rule (target met structurally; wells are the margin):** user wants a fused weapon ≥75% of
+  its two materials' combined DPS. Born-at-Lv7 makes multi-hit archetypes (bursts/halos/mines/
+  sentries/chains/glaive-fans/cones) land comfortably above; the single-instance **well** fusions
+  (Singularity/Glacier/BlackBog) sit ~at the margin in the swarm-throughput model. **Proposed
+  (not yet applied):** a ~15–20% base-damage bump on those 3, or a sustained-crowd measurement
+  harness for exact per-fusion ratios.
+- **Stale-doc cleanup:** `weapon_base.count_level()` comment said "Lv3" (now MAX_WEAPON_LEVEL=7);
+  glaive docstring "Lv3/Lv5" (grows every level). WEAPON_CODEX.md: new behaviors + signature-vs-
+  Amalgam fusion birth-level section.
+- **Verified:** `[tests] 1068 passed, 0 failed`; all_weapons at **forced Lv7** (temp scaffold,
+  reverted) ran 900 frames exercising every kicker branch with zero errors; merge + plain smoke
+  clean.
+- **Next:** decide on the well-fusion 75% bump (or measurement harness); playtest the Lv4–7 feel
+  of laser/nova/gravity/flame/venom and the born-at-max fusion power.
