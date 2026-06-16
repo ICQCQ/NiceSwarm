@@ -39,19 +39,21 @@ func _physics_process(delta: float) -> void:
 				e.apply_burn(dmg * 0.35, 1.5 * fuse_duration(), 1.0, player.peer_id)  # poison
 				hit_cd[e.get_instance_id()] = HIT_CD * fuse_rate()
 				break
-	# every blade continuously paints a toxic ring along its orbit path
+	# every blade continuously paints a toxic ring along its orbit path — one puddle per
+	# blade each tick (rate kept constant: n drops per 0.16s == the old 1 drop per 0.16/n s)
 	trail_cd -= delta
 	if trail_cd <= 0.0:
-		trail_cd = (0.16 / n) * fuse_rate()
-		var pud := VenomPuddle.new()
-		pud.source_pid = player.peer_id
-		pud.source_weapon = self
-		pud.radius = (16.0 + 2.0 * (level - 1)) * fuse_area()
-		pud.damage = 0.5 * fuse_damage() * (1.0 + 0.3 * (level - 1))
-		pud.max_life = 1.4 * fuse_duration()
-		pud.life = pud.max_life
-		pud.position = global_position + Vector2.from_angle(angle) * orbit_r
-		player.get_parent().add_child(pud)
+		trail_cd = 0.16 * fuse_rate()
+		for i in n:
+			var pud := VenomPuddle.new()
+			pud.source_pid = player.peer_id
+			pud.source_weapon = self
+			pud.radius = (16.0 + 2.0 * (level - 1)) * fuse_area()
+			pud.damage = 0.5 * fuse_damage() * (1.0 + 0.3 * (level - 1))
+			pud.max_life = 1.4 * fuse_duration()
+			pud.life = pud.max_life
+			pud.position = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
+			player.get_parent().add_child(pud)
 func _draw() -> void:
 	if player == null or player.downed:
 		return
