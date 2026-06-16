@@ -132,6 +132,7 @@ var cfg_win_time := WIN_TIME_DEFAULT
 var cfg_boss_kill_base := GameConfig.BOSS_KILL_BASE
 var cfg_boss_interval := GameConfig.BOSS_KILL_INTERVAL
 var cfg_boss_growth := GameConfig.BOSS_KILL_INTERVAL_GROWTH
+var cfg_random_power := false
 # menu cycler option lists
 const CHOICES_OPTS := [2, 3, 4, 5, 6]
 const XP_OPTS := [0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
@@ -479,13 +480,14 @@ func _on_start_pressed() -> void:
 	# Connections stay open after start (unlike a session lock) so a disconnected
 	# player can reconnect and rejoin via handle_rejoin_request.
 	_apply_menu_config()
-	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth)
+	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power)
 	net.send_start(PackedInt32Array(ids))
 	start_game(ids)
 
 
 func apply_config(choices: int, xp_rate: float, enemy_scale: float,
-		win_time: float, boss_base: int, boss_interval: int, boss_growth: int) -> void:
+		win_time: float, boss_base: int, boss_interval: int, boss_growth: int,
+		random_power: bool = false) -> void:
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
@@ -493,6 +495,7 @@ func apply_config(choices: int, xp_rate: float, enemy_scale: float,
 	cfg_boss_kill_base = boss_base
 	cfg_boss_interval = boss_interval
 	cfg_boss_growth = boss_growth
+	cfg_random_power = random_power
 	if lobby_panel != null and lobby_panel.visible:
 		_refresh_lobby_config_display()
 
@@ -676,7 +679,7 @@ func _take_over_slot(new_id: int, old_pid: int) -> void:
 		net.send_set_paused(true)
 	net.send_rejoin_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
 		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
-		get_tree().paused, leveling, free_choice, picks_starter, resuming)
+		get_tree().paused, leveling, free_choice, picks_starter, resuming, cfg_random_power)
 	if resuming:
 		net.send_resume_countdown()
 		_begin_resume_countdown(func() -> void:
@@ -789,7 +792,7 @@ func handle_session_check(new_id: int, player_name: String, color_idx: int, shap
 
 	net.send_late_join_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
 		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
-		get_tree().paused, leveling, free_choice, picks_starter)
+		get_tree().paused, leveling, free_choice, picks_starter, cfg_random_power)
 	net.send_player_joined(new_id, p.player_name, p.color_idx, p.shape_idx,
 		spawn_pos.x, spawn_pos.y, p.hp, p.max_hp)
 	if OS.get_environment("NICESWARM_NET") != "":
@@ -822,13 +825,15 @@ func _late_join_spawn_pos() -> Vector2:
 ## starting Bolt weapon since we missed the run's starter pick.
 func late_join_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
-		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool) -> void:
+		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool,
+		random_power: bool = false) -> void:
 	peer_ids = Array(ids)
 	peer_ids.sort()
 	lobby_players = roster
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
+	cfg_random_power = random_power
 	local_id = multiplayer.get_unique_id()
 	_reset_run_state()
 	_build_world(false)
@@ -980,13 +985,14 @@ func _load_profile() -> void:
 func rejoin_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool,
-		resuming: bool) -> void:
+		resuming: bool, random_power: bool = false) -> void:
 	peer_ids = Array(ids)
 	peer_ids.sort()
 	lobby_players = roster
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
+	cfg_random_power = random_power
 	local_id = multiplayer.get_unique_id()
 	_reset_run_state()
 	_build_world(false)
@@ -1158,10 +1164,14 @@ func _refresh_lobby_config_display() -> void:
 		c.queue_free()
 	_make_config_label(lobby_config_box, "Port", str(lobby_port))
 	if is_host():
-		var _send := func(): net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth)
+		var _send := func(): net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power)
 		_make_lobby_cycler(lobby_config_box, "Options / level-up", str(CHOICES_OPTS[cfg_choices_i]), func():
 			cfg_choices_i = (cfg_choices_i + 1) % CHOICES_OPTS.size()
 			_apply_menu_config(); _send.call()
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Random power", "On" if cfg_random_power else "Off", func():
+			cfg_random_power = not cfg_random_power
+			_send.call()
 			_refresh_lobby_config_display())
 		_make_lobby_cycler(lobby_config_box, "XP rate", str(XP_OPTS[cfg_xp_i]) + "x", func():
 			cfg_xp_i = (cfg_xp_i + 1) % XP_OPTS.size()
@@ -1189,6 +1199,7 @@ func _refresh_lobby_config_display() -> void:
 			_refresh_lobby_config_display())
 	else:
 		_make_config_label(lobby_config_box, "Options / level-up", str(cfg_choices))
+		_make_config_label(lobby_config_box, "Random power", "On" if cfg_random_power else "Off")
 		_make_config_label(lobby_config_box, "XP rate", str(cfg_xp_rate) + "x")
 		_make_config_label(lobby_config_box, "Enemy scale", str(cfg_enemy_scale) + "x")
 		_make_config_label(lobby_config_box, "Max time (min)", "%.0f:00" % (cfg_win_time / 60.0))
@@ -1946,6 +1957,28 @@ func _roll_choices() -> void:
 			choice_buttons[i].visible = true
 		else:
 			choice_buttons[i].visible = false
+	if cfg_random_power and not picks_starter:
+		call_deferred("_auto_pick_weighted")
+
+
+func _auto_pick_weighted() -> void:
+	if not leveling or i_chose or current_choices.is_empty():
+		return
+	const WEIGHTS := {"fuse": 8, "amalgam": 8, "level": 4, "new": 1, "stat": 1}
+	var total := 0
+	var weights := []
+	for e in current_choices:
+		var w: int = WEIGHTS.get(e.get("cat", ""), 1)
+		weights.append(w)
+		total += w
+	var roll := randi() % total
+	var idx := 0
+	for w in weights:
+		if roll < w:
+			break
+		roll -= w
+		idx += 1
+	_choose_upgrade(idx)
 
 
 func _choose_upgrade(index: int) -> void:
