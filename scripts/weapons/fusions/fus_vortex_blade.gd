@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 		g.source_weapon = self
 		g.player = player
 		g.velocity = base.rotated(deg_to_rad(22.0) * (i - (count - 1) / 2.0)) * 430.0
-		g.damage = 0.0
+		g.damage = 2.0 * fuse_damage() * (1.0 + 0.3 * (level - 1))
 		g.hit_radius = 14.0 * fuse_area()
 		g.on_hit = Callable(self, "_on_glaive_hit")
 		g.position = player.global_position
@@ -32,8 +32,8 @@ func _physics_process(delta: float) -> void:
 	Sfx.play("glaive", player.global_position)
 	cooldown = 1.8 * fuse_rate()
 
-## Each glaive hit drops a small gravity well at the hit point instead of
-## dealing direct damage.
+## Each glaive hit drops a small gravity well at the hit point, on top of
+## the glaive's own direct damage.
 func _on_glaive_hit(_e: Node2D, pos: Vector2) -> void:
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id

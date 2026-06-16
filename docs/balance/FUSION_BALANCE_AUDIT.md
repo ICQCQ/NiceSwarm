@@ -35,6 +35,7 @@ direct DPS if it brings strong AoE/CC/DoT.
 ## Patterns
 - **"0-direct-damage" weapons** (Vortex Blade, Glacial Edge, Storm Disc) all
   underperform for the same reason — give each a small direct hit.
+  **[Applied 2026-06-17: Glacial Edge & Storm Disc glaives +`dmg×0.6` direct; Vortex Blade glaives +~2.0 direct, well kept.]**
 - **Gravity/vortex fusions** (Glacier, Black Bog, Cinder Vortex) trade *all* damage
   for CC and fall below a utility floor — add a detonation/burst payoff or lower cd.
 

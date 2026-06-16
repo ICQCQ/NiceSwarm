@@ -25,7 +25,7 @@ func _physics_process(delta: float) -> void:
 		g.source_weapon = self
 		g.player = player
 		g.velocity = base.rotated(deg_to_rad(22.0) * (i - (count - 1) / 2.0)) * 430.0
-		g.damage = 0.0
+		g.damage = dmg * 0.6
 		g.burn_dps = dmg * 0.3
 		g.hit_radius = 15.0 * fuse_area()
 		g.slow_factor = 0.5
