@@ -60,7 +60,7 @@ Merging two **maxed** weapons produces a **distinct new weapon**, not the two ru
 together. Recipes live in `scripts/weapon_fusions.gd`:
 - `Fusions.INFO[key]` — name + description for the `[MERGE]` pick (key = the two base
   `weapon_id`s sorted, joined with `|`).
-- `Fusions.make(a, b)` — returns the new `WeaponBase` (an inner class in that file).
+- `Fusions.make(a, b)` — returns the new `WeaponBase`; each fusion class lives in its own file under `scripts/weapons/fusions/`.
 - Pairs without a signature recipe fall back to a generic `WeaponFused` (both run together).
 
 A fusion weapon follows the **same 4-stat contract**. Build it from existing spawned nodes

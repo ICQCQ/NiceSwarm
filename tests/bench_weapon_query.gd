@@ -61,9 +61,9 @@ func _ready() -> void:
 		{"id": "laser", "node": WeaponLaser.new(), "dtype": Enemy.DMG_ENERGY},
 		{"id": "nova", "node": WeaponNova.new(), "dtype": Enemy.DMG_ENERGY},
 		{"id": "lightning", "node": WeaponLightning.new(), "dtype": Enemy.DMG_ENERGY},
-		{"id": "fus:teslahalo", "node": Fusions.TeslaHalo.new(), "dtype": Enemy.DMG_ENERGY},
-		{"id": "fus:novabeam", "node": Fusions.NovaBeam.new(), "dtype": Enemy.DMG_ENERGY},
-		{"id": "fus:plasmastorm", "node": Fusions.PlasmaStorm.new(), "dtype": Enemy.DMG_FIRE},
+		{"id": "fus:teslahalo", "node": FusTeslaHalo.new(), "dtype": Enemy.DMG_ENERGY},
+		{"id": "fus:novabeam", "node": FusNovaBeam.new(), "dtype": Enemy.DMG_ENERGY},
+		{"id": "fus:plasmastorm", "node": FusPlasmaStorm.new(), "dtype": Enemy.DMG_FIRE},
 	]
 	for s in specs:
 		s.node.level = 3
