@@ -295,6 +295,8 @@ var settings_overlay: Control     # main-menu settings overlay (own dim, Back bu
 var settings_overlay_rows: VBoxContainer  # cycler rows inside the menu overlay
 var debug: DebugPanel            # F1 debug/testing panel (ui/debug_panel.gd)
 var hud: GameHud                 # in-run HUD logic / banners (ui/game_hud.gd)
+var rank_panel: Control          # left-side live damage ranking panel (multiplayer only)
+var net_rank_damages: Dictionary = {}  # pid -> float, received by clients from host
 var gameui: GameUI               # UI tree construction (ui/game_ui.gd)
 
 
@@ -1281,6 +1283,7 @@ func reset_game() -> void:
 func _reset_run_state() -> void:
 	_score = {}
 	net_scores = []
+	net_rank_damages.clear()
 	elapsed = 0.0
 	_burn_total = 0.0
 	_burn_bucket = 0.0
@@ -1527,6 +1530,12 @@ func _physics_process(delta: float) -> void:
 		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, spawner.heat_cur, spawner.difficulty)
 		_refresh_pings()
 		net.send_pings(net_pings)
+		if net.active:
+			var _rpids := PackedInt32Array(peer_ids)
+			var _rdmgs := PackedFloat32Array()
+			for _pid in peer_ids:
+				_rdmgs.append(_score.get(_pid, {}).get("damage", 0.0))
+			net.send_rank_state(_rpids, _rdmgs)
 
 
 # --- shared enemy spatial index ----------------------------------------------
@@ -2208,6 +2217,13 @@ func apply_player_connection(pid: int, connected: bool) -> void:
 		return
 	p.disconnected = not connected
 	p.safe = not connected
+
+
+func apply_rank_state(pids: PackedInt32Array, damages: PackedFloat32Array) -> void:
+	if is_host() or not playing:
+		return
+	for i in pids.size():
+		net_rank_damages[pids[i]] = damages[i]
 
 
 func apply_hud_state(elapsed_: float, xp_: int, needed: int, level_: int, kills_: int, heat: float, difficulty_: float) -> void:

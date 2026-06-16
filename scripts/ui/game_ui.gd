@@ -104,6 +104,7 @@ func build() -> void:
 	main.arrows.draw.connect(main.hud._draw_ally_arrows)
 	main.hud_root.add_child(main.arrows)
 
+	_build_rank_panel()
 	_build_level_panel()
 	_build_end_panel()
 	_build_pause_panel()
@@ -115,6 +116,15 @@ func build() -> void:
 	_build_stats_panel()
 	if OS.is_debug_build():
 		main.debug.build()
+
+
+func _build_rank_panel() -> void:
+	main.rank_panel = Control.new()
+	main.rank_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	main.rank_panel.position = Vector2(16, 146)
+	main.rank_panel.custom_minimum_size = Vector2(300, 0)
+	main.rank_panel.visible = false
+	main.hud_root.add_child(main.rank_panel)
 
 
 func _build_stats_panel() -> void:

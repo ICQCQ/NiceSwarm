@@ -275,6 +275,11 @@ func send_pings(pings: Dictionary) -> void:
 		rpc_pings.rpc(pings)
 
 
+func send_rank_state(pids: PackedInt32Array, damages: PackedFloat32Array) -> void:
+	if active:
+		rpc_rank_state.rpc(pids, damages)
+
+
 func send_reset() -> void:
 	if active:
 		rpc_reset.rpc()
@@ -446,6 +451,11 @@ func rpc_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFl
 @rpc("authority", "call_remote", "unreliable")
 func rpc_pings(pings: Dictionary) -> void:
 	main.apply_pings(pings)
+
+
+@rpc("authority", "call_remote", "unreliable")
+func rpc_rank_state(pids: PackedInt32Array, damages: PackedFloat32Array) -> void:
+	main.apply_rank_state(pids, damages)
 
 
 @rpc("authority", "call_remote", "reliable")

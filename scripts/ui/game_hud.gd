@@ -8,6 +8,13 @@ extends Node
 
 var main: Node
 
+# Live ranking panel state
+var _rank_rows: Dictionary = {}   # pid -> RichTextLabel
+var _rank_order: Array = []       # pids sorted by damage, current frame
+var _rank_tweens: Dictionary = {} # pid -> Tween (in-flight slide animation)
+var _crown_pid: int = -1          # who currently holds the crown
+var _poop_pid: int = -1           # who currently holds last place
+
 
 ## Per-frame HUD refresh (called from main._process).
 func update() -> void:
@@ -82,32 +89,117 @@ func update() -> void:
 		main.weapon_tip.text = _weapon_tip_text(main._tip_weapon_id)  # keep stats live while hovered
 	if main.stats_panel != null and main.stats_panel.visible:
 		_update_stats_panel(me)
-	var lines := []
+	_update_rank_panel()
+
+
+## Live damage ranking panel: shows all players sorted by damage on the left side.
+## In solo play hides itself; in multiplayer replaces the allies_label.
+## Rows animate to their new Y position when the rank order changes.
+func _update_rank_panel() -> void:
+	if main.rank_panel == null:
+		return
+	var is_multi: bool = not (main as Main).is_solo()
+	main.allies_label.visible = not is_multi
+	main.rank_panel.visible = is_multi
+	if not is_multi:
+		# In solo: still show allies_label (empty) — no-op since there are no allies.
+		return
+
+	# Collect per-player damage from host _score or received net_rank_damages.
+	var damages: Dictionary = {}
+	if (main as Main).is_multiplayer_authority():
+		for pid in main.peer_ids:
+			damages[pid] = (main as Main)._score.get(pid, {}).get("damage", 0.0)
+	else:
+		for pid in main.peer_ids:
+			damages[pid] = main.net_rank_damages.get(pid, 0.0)
+
+	# Sort pids by damage descending.
+	var sorted_pids: Array = main.peer_ids.duplicate()
+	sorted_pids.sort_custom(func(a, b): return damages.get(a, 0.0) > damages.get(b, 0.0))
+
+	# Ensure a label row exists for every current player.
+	const ROW_H := 28
 	for pid in main.peer_ids:
-		if pid == main.local_id:
+		if not _rank_rows.has(pid):
+			var lbl := RichTextLabel.new()
+			lbl.bbcode_enabled = true
+			lbl.fit_content = true
+			lbl.scroll_active = false
+			lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+			lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lbl.custom_minimum_size = Vector2(300, ROW_H)
+			lbl.add_theme_font_size_override("normal_font_size", 20)
+			main.rank_panel.add_child(lbl)
+			_rank_rows[pid] = lbl
+
+	# Remove rows for players who left.
+	for pid in _rank_rows.keys():
+		if pid not in main.peer_ids:
+			_rank_rows[pid].queue_free()
+			_rank_rows.erase(pid)
+			_rank_tweens.erase(pid)
+
+	# Detect rank-order changes and animate row slides.
+	var order_changed := sorted_pids != _rank_order
+	var new_crown: int = sorted_pids[0] if not sorted_pids.is_empty() else -1
+	var crown_changed := new_crown != _crown_pid and _crown_pid != -1
+	_rank_order = sorted_pids.duplicate()
+	var new_poop: int = sorted_pids[-1] if sorted_pids.size() > 1 else -1
+	if new_crown != _crown_pid or new_poop != _poop_pid:
+		for pid in main.peer_ids:
+			var pp: Player = main.players.get(pid)
+			if pp != null:
+				pp.has_crown = (pid == new_crown)
+				pp.has_poop = (pid == new_poop)
+		_crown_pid = new_crown
+		_poop_pid = new_poop
+
+	for rank in sorted_pids.size():
+		var pid: int = sorted_pids[rank]
+		var lbl: RichTextLabel = _rank_rows.get(pid)
+		if lbl == null:
 			continue
+		var target_y := float(rank * ROW_H)
+
+		if order_changed and abs(lbl.position.y - target_y) > 1.0:
+			if _rank_tweens.has(pid) and _rank_tweens[pid] != null and _rank_tweens[pid].is_valid():
+				_rank_tweens[pid].kill()
+			var tw := main.create_tween()
+			tw.tween_property(lbl, "position:y", target_y, 0.28).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			_rank_tweens[pid] = tw
+			# Flash new rank-1 row gold, then settle.
+			if rank == 0 and crown_changed:
+				lbl.modulate = Color(2.0, 1.8, 0.5)
+				var tw2 := main.create_tween()
+				tw2.tween_property(lbl, "modulate", Color.WHITE, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		else:
+			lbl.position.y = target_y
+
+		# Build the row text.
 		var p: Player = main.players.get(pid)
-		if p == null:
-			continue
-		var col: Color = Player.COLORS[p.color_idx % Player.COLORS.size()]
-		var glyph: String = Player.shape_glyph(p.shape_idx)  # character marker
+		var col: Color = Player.COLORS[p.color_idx % Player.COLORS.size()] if p != null else Color.WHITE
+		var glyph := Player.shape_glyph(p.shape_idx) if p != null else "●"
+		var name_str: String = p.player_name if p != null else String(main.lobby_players.get(pid, {}).get("name", "?"))
 		var ping := int(main.net_pings.get(pid, 0))
-		var ping_s := ("  %dms" % ping) if ping > 0 else ""
-		var tag := "  (away)" if p.disconnected else ""
-		var status := ("DOWN %d%%" % int(p.revive_progress * 100.0)) if p.downed else "♥%d/%d" % [p.hp, p.max_hp]
-		# colour the glyph + name in the ally's own colour; hp/ping stay neutral
-		lines.append("[color=#%s]%s %s[/color]  %s%s%s" % [col.to_html(false), glyph, p.player_name, status, ping_s, tag])
-	# Self ping at the bottom of the list (co-op only — solo has no network round-trip).
-	# net_pings[local_id] is the host-measured RTT to us on a client; on the host it's 0,
-	# so we label our own row "host" instead of "0ms".
-	if main.net != null and main.net.active:
-		var my_col: Color = Player.COLORS[me.color_idx % Player.COLORS.size()]
-		var my_glyph: String = Player.shape_glyph(me.shape_idx)
-		var my_ping := int(main.net_pings.get(main.local_id, 0))
-		var my_ping_s := "host" if main.is_host() else "%dms" % my_ping
-		var my_status := ("DOWN %d%%" % int(me.revive_progress * 100.0)) if me.downed else "♥%d/%d" % [me.hp, me.max_hp]
-		lines.append("[color=#%s]%s %s[/color]  %s  %s  (you)" % [my_col.to_html(false), my_glyph, me.player_name, my_status, my_ping_s])
-	main.allies_label.text = "\n".join(lines)
+		var ping_s := " %dms" % ping if ping > 0 else ""
+		var dmg_str := _fmt_dmg(damages.get(pid, 0.0))
+
+		var rank_badge: String
+		if rank == 0:
+			rank_badge = "[color=#ffd700]♛[/color] "
+		elif rank == sorted_pids.size() - 1 and sorted_pids.size() > 1:
+			rank_badge = "💩 "
+		else:
+			rank_badge = "[color=#6b7488]%d[/color]  " % (rank + 1)
+
+		var bold_open := "[b]" if pid == main.local_id else ""
+		var bold_close := "[/b]" if pid == main.local_id else ""
+		lbl.text = "%s[color=#%s]%s %s%s%s[/color]  [color=#ff9a8a]%s[/color][color=#39414f]%s[/color]" % [
+			rank_badge, col.to_html(false), glyph,
+			bold_open, name_str, bold_close,
+			dmg_str, ping_s
+		]
 
 
 ## Draw callback for the `arrows` Control: off-screen markers pointing at each ally.

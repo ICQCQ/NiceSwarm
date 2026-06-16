@@ -53,6 +53,8 @@ var dash_cooldown := 2.5
 var stat_levels := {}    # stat-upgrade id ("st_power"…) -> times picked, for the HUD icons
 
 var facing := Vector2.RIGHT
+var has_crown := false  # set by game_hud when this player holds rank 1 by damage
+var has_poop := false   # set by game_hud when this player holds last place by damage
 var invuln := 0.0
 var shake := 0.0
 var lethal_taken := 0.0  # FF lethality instrument: would-be damage eaten while debug_god (see take_damage)
@@ -489,6 +491,16 @@ func _draw() -> void:
 		if disrupt_timer > 0.0:  # disrupted: a jittery purple ring
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
+	if has_crown and not downed:
+		var bob := sin(Time.get_ticks_msec() * 0.004) * 2.5
+		var crown_y := -RADIUS - 22.0 + bob
+		draw_string(ThemeDB.fallback_font, Vector2(-15.0, crown_y),
+			"♛", HORIZONTAL_ALIGNMENT_CENTER, 30, 18, Color(1.0, 0.85, 0.1, 0.95))
+	if has_poop and not downed:
+		var bob := sin(Time.get_ticks_msec() * 0.003 + 1.5) * 2.5
+		var poop_y := -RADIUS - 22.0 + bob
+		draw_string(ThemeDB.fallback_font, Vector2(-15.0, poop_y),
+			"💩", HORIZONTAL_ALIGNMENT_CENTER, 30, 18, Color.WHITE)
 	if not is_local:
 		var ping := 0
 		if Main.instance != null:
