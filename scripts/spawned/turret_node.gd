@@ -19,6 +19,17 @@ var fire_cd := 0.2
 var aim_angle := 0.0
 var angle := 0.0       # orbit/beam sweep angle
 var hit_cd := {}       # beam/orbit: per-enemy re-hit cooldown
+var gun_cd := 0.0      # independent timer for the normal bolt gun (GUN_RETAINING_MODES)
+
+# Turret-fusion modes whose effect is NOT a fired bullet (ground deploys + AoE/chain).
+# These KEEP the normal turret bolt gun firing on its own timer, on top of the effect —
+# so e.g. a Mine Layer plants mines AND still shoots like a normal turret. Bullet modes
+# (missile/frost/glaive + the plain bolt) and the continuous beam/orbit are unchanged.
+const GUN_RETAINING_MODES := {
+	"mines": true, "gravity": true, "venom": true,
+	"nova": true, "lightning": true, "flame": true,
+}
+const BOLT_CD := 0.45  # normal turret bolt cadence (matches the default fire mode)
 
 
 func _ready() -> void:
@@ -37,15 +48,26 @@ func _physics_process(delta: float) -> void:
 	if mode == "orbit":
 		_run_orbit(delta)
 		return
+	# Bullet modes fire only on fire_cd; gun-retaining modes ALSO run the bolt gun on gun_cd.
+	var keeps_gun := GUN_RETAINING_MODES.has(mode)
+	if keeps_gun:
+		gun_cd -= delta
 	fire_cd -= delta
-	if fire_cd > 0.0:
-		return
+	if fire_cd > 0.0 and not (keeps_gun and gun_cd <= 0.0):
+		return  # nothing ready to fire yet
 	var target := _find_target()
 	if target == null:
-		fire_cd = 0.1
+		if fire_cd <= 0.0:
+			fire_cd = 0.1
+		if keeps_gun and gun_cd <= 0.0:
+			gun_cd = 0.1
 		return
 	aim_angle = (target.global_position - global_position).angle()
-	fire_cd = _emit(target) * fire_mult
+	if keeps_gun and gun_cd <= 0.0:
+		_fire_bolt()
+		gun_cd = BOLT_CD * fire_mult
+	if fire_cd <= 0.0:
+		fire_cd = _emit(target) * fire_mult
 
 
 ## Fire one shot in the current mode; returns the base cooldown (pre-Haste).
@@ -102,8 +124,13 @@ func _emit(target: Node2D) -> float:
 			Sfx.play("flame", here, -6.0)
 			return 0.18
 		"mines":
-			if get_tree().get_nodes_in_group("mines").size() < 6:
+			var own_mines := 0
+			for m2 in get_tree().get_nodes_in_group("mines"):
+				if m2.owner_weapon_id == owner_weapon_id:
+					own_mines += 1
+			if own_mines < 6:  # per-deploying-weapon cap, not a shared global count
 				var mn := MineNode.new()
+				mn.owner_weapon_id = owner_weapon_id
 				mn.damage = damage * 2.0
 				mn.blast_radius = 90.0 * area_mult
 				mn.trigger_radius = 50.0 * area_mult
@@ -138,16 +165,22 @@ func _emit(target: Node2D) -> float:
 			Sfx.play("venom", here, -4.0)
 			return 1.2
 		_:
-			var p := Projectile.new()
-			p.velocity = dir * 520.0
-			p.damage = damage
-			p.radius = proj_radius
-			p.position = here
-			p.source_pid = source_pid
-			p.source_weapon = source_weapon
-			get_parent().add_child(p)
-			Sfx.play("turret", here, -4.0)
-			return 0.45
+			_fire_bolt()
+			return BOLT_CD
+
+
+## Fire one normal turret bolt toward aim_angle. Shared by the default bolt mode and the
+## gun-retaining fusion modes (deploys/AoE that keep shooting — see GUN_RETAINING_MODES).
+func _fire_bolt() -> void:
+	var p := Projectile.new()
+	p.velocity = Vector2.from_angle(aim_angle) * 520.0
+	p.damage = damage
+	p.radius = proj_radius
+	p.position = global_position
+	p.source_pid = source_pid
+	p.source_weapon = source_weapon
+	get_parent().add_child(p)
+	Sfx.play("turret", global_position, -4.0)
 
 
 func _pulse(radius: float) -> void:

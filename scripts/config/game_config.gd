@@ -29,15 +29,28 @@ const NET_PORT := 24565          # default co-op port
 # on top of its own Lv1->3 growth and the player's Power picks. Lets weapons you never
 # pour level-ups into still keep pace as the run (and enemy HP) scales. Tunable via FF.
 const WEAPON_LEVEL_POWER := 0.025   # was 0.04 — dialed back to shrink the late-game DPS snowball
+# Fusion scaling (see WeaponBase.fuse_* / WeaponFused):
+#  - AMALGAM_STAT_PER_LEVEL: leveling an amalgam (WeaponFused) buffs ALL of its components'
+#    stats by this fraction per level (flat), instead of leveling each component.
+#  - FUSION_BORN_DMG: a fresh SIGNATURE fusion is born with this damage multiplier so it isn't
+#    a downgrade from the two maxed weapons it consumed (the born-at-Lv1 DPS dip).
+const AMALGAM_STAT_PER_LEVEL := 0.05   # +5% all stats per amalgam level
+const FUSION_BORN_DMG := 1.5           # fresh signature fusion deals ×this base damage
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
 const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
 # Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
-const ENEMY_SPEED_DIFF_SCALE := 0.025  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
+const ENEMY_SPEED_DIFF_SCALE := 0.020  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
 const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
-const ENEMY_HP_PER_LEVEL := 0.05       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const ENEMY_HP_PER_LEVEL := 0.02       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
+# Frost / slow potency. Every applied slow funnels through Enemy.apply_slow, which
+# deepens the incoming speed factor by SLOW_POTENCY (so frost/freeze "really" bites)
+# and clamps it to SLOW_FLOOR_MULT — a slowed enemy crawls at 20% speed (an 80% slow).
+# One central buff point for ALL slow sources; bosses/tier-3 included (still slowable).
+const SLOW_POTENCY := 1.6             # amplify each slow's speed reduction (the 0.5 base slow -> 0.2 speed)
+const SLOW_FLOOR_MULT := 0.2          # deepest slow: enemies move at 20% speed (= "slow to 0.8"), never lower
 const DIFF_HEAT := 3.12          # how much clear-rate heat accelerates the climb (was 2.4, +30%)
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
@@ -45,10 +58,10 @@ const DIFF_WARMUP_FLOOR := 0.25    # early-game climb fraction at run_progress=0
 const DIFF_WARMUP_PROGRESS := 21.7 # run_progress at which warmup reaches full (≈130 s / WIN_TIME)
 
 # --- spawning ---
-const SPAWN_RING_MIN := 300.0         # enemies spawn this far from the anchor player... (was 700; note SPAWN_SAFE_RADIUS still clamps the effective min)
+const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor player... (was 700; note SPAWN_SAFE_RADIUS still clamps the effective min)
 const SPAWN_RING_MAX := 1200.0        # ...up to this far (random within the ring; was 900 — wider band)
-const SPAWN_SAFE_RADIUS := 250.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
-const SPAWN_DESIRED_BASE := 8.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
+const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
+const SPAWN_DESIRED_BASE := 6.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
 const SPAWN_DESIRED_PER_PROGRESS := 0.38 # +this many target enemies per run_progress point (≈3.5/pace at old scale)
 const SPAWN_INTERVAL_START := 0.2     # seconds between spawns early (5x faster than the prior 1.0)
 const SPAWN_INTERVAL_END := 0.024     # seconds between spawns late (5x faster than the prior 0.12)
@@ -61,8 +74,8 @@ const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired 
 # from the original 0.5/0.6 — at those rates a 4-player field was ~2.5× hp and
 # ~2.8× spawn density, which over-punished co-op (sim 2-4p sat at ~27-33% win vs
 # the 50-60% target). See docs/balance/MULTIPLAYER_BALANCE_SIM.md.
-const PARTY_HP_PER := 0.2             # enemy hp ×(1 + this·(N-1))
-const PARTY_RATE_PER := 0.4           # spawn density ×(1 + this·(N-1))
+const PARTY_HP_PER := 0.1             # enemy hp ×(1 + this·(N-1))
+const PARTY_RATE_PER := 0.25           # spawn density ×(1 + this·(N-1))
 
 # --- wave rhythm (layered on top of run_progress/heat in EnemySpawner.run_spawning) ---
 # Per-10-progress-units [intensity, pop_mult] (≈ per game-minute), lerped for a smooth
@@ -83,7 +96,7 @@ const WAVES := [
 const WAVE_POP_FLOOR := 3.0           # valleys can thin the field to this (a genuine lull)
 
 # --- xp gems ---
-const MAX_GEMS := 500                  # hard cap on live ground gems (perf); excess XP condenses
+const MAX_GEMS := 400                  # hard cap on live ground gems (perf); excess XP condenses
 const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as a big red gem
 
 # --- xp level curve: three-band step curve (cost at level L to reach L+1), /cfg_xp_rate ---
@@ -93,7 +106,7 @@ const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as 
 # leveling speed (player is weaker for longer, killing the late-game snowball). Tunable balance knob.
 const XP_GAIN_MULT := 0.5
 const XP_BASE := 5            # cost to reach level 2
-const XP_GROWTH := 1.12       # exponential per-level growth: each level costs XP_GROWTH× the last
+const XP_GROWTH := 1.15       # exponential per-level growth: each level costs XP_GROWTH× the last
 
 # Early-game XP boost — collected XP is multiplied while at/below EARLY_XP_BONUS_LEVELS so a
 # build comes online fast (the opening minute is otherwise quiet). Applies to levels 1..N only.
@@ -134,7 +147,7 @@ const BOSS_KILL_INTERVAL_GROWTH := 100   # added to the interval each time a bos
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
 const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
-const BOSS_FIGHT_SECONDS := 8.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_FIGHT_SECONDS := 5.0  # boss hp ~= recent_dps * this (target single-boss fight length)
 const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
 const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end

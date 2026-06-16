@@ -47,5 +47,5 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, cr, Color(1.0, 0.85, 0.4))
 		draw_circle(Vector2.ZERO, cr * 0.45, Color(1.0, 1.0, 1.0))
 		return
-	var r := 5.0 if value <= 1 else 8.0
+	var r := 3.5 if value <= 1 else 5.5  # smaller gems (was 5 / 8) — less field clutter
 	draw_circle(Vector2.ZERO, r, Color(0.45, 1.0, 0.55))

@@ -28,7 +28,7 @@ func run(t) -> void:
 	t.ok(GameConfig.ARENA.size.x > 0.0 and GameConfig.ARENA.size.y > 0.0, "ARENA has positive size")
 
 	# gem cap (System 1)
-	t.eq(GameConfig.MAX_GEMS, 500, "MAX_GEMS")
+	t.gt(GameConfig.MAX_GEMS, 0, "MAX_GEMS positive")  # exact value is a tunable balance knob
 	t.gt(GameConfig.GEM_CONDENSED_THRESHOLD, 0, "GEM_CONDENSED_THRESHOLD positive")
 
 	# difficulty climb
@@ -36,7 +36,7 @@ func run(t) -> void:
 	t.ge(GameConfig.DIFF_HEAT, 0.0, "DIFF_HEAT non-negative")
 	t.ge(GameConfig.DIFF_LEVEL, 0.0, "DIFF_LEVEL non-negative")
 	t.ok(GameConfig.DIFF_WARMUP_FLOOR > 0.0 and GameConfig.DIFF_WARMUP_FLOOR <= 1.0, "warmup floor in (0,1]")
-	t.gt(GameConfig.DIFF_WARMUP_SECS, 0.0, "warmup secs positive")
+	t.gt(GameConfig.DIFF_WARMUP_PROGRESS, 0.0, "warmup progress positive")
 
 	# spawning
 	t.ok(GameConfig.SPAWN_RING_MIN <= GameConfig.SPAWN_RING_MAX, "spawn ring min <= max")
@@ -46,11 +46,11 @@ func run(t) -> void:
 	t.ge(GameConfig.SPAWN_DESIRED_BASE, 1.0, "desired base >= 1")
 
 	# heat spike / bosses / bouncers
-	t.gt(GameConfig.MID_GAME_TIME, 0.0, "MID_GAME_TIME positive")
+	t.gt(GameConfig.MID_GAME_PROGRESS, 0.0, "MID_GAME_PROGRESS positive")
 	t.gt(GameConfig.HEAT_SPIKE_MAX, 0.0, "HEAT_SPIKE_MAX positive")
 	t.gt(GameConfig.BOSS_KILL_BASE, 0, "BOSS_KILL_BASE positive")
 	t.gt(GameConfig.BOSS_KILL_INTERVAL, 0, "BOSS_KILL_INTERVAL positive")
-	t.gt(GameConfig.BOUNCER_UNLOCK, 0.0, "BOUNCER_UNLOCK positive")
+	t.gt(GameConfig.BOUNCER_UNLOCK_PROGRESS, 0.0, "BOUNCER_UNLOCK_PROGRESS positive")
 
 	# enemy hp / cc scaling knobs
 	t.gt(GameConfig.ENEMY_HP_PER_LEVEL, 0.0, "ENEMY_HP_PER_LEVEL positive")

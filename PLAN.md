@@ -140,6 +140,68 @@ godot --headless --path \path\to\folder --quit-after 300   # smoke test (should 
 
 ## Session log
 
+### 2026-06-17 — Session 12: amalgam tooltip + turret-fusion keeps its gun
+- **Amalgam hover tooltip:** hovering a fused weapon now lists every weapon inside it
+  (`game_hud._fusion_parts_block`) — each component's name, level, per-hit DMG (base parts),
+  and live DPS/total. Reuses the universal `WeaponBase.dps`/`damage_dealt`.
+- **Turret fusions keep the normal gun:** turret-fusion modes whose effect is NOT a fired
+  bullet — deploys (mines/gravity/venom) and AoE/chain (nova/lightning/flame) — now also fire
+  the normal turret bolt on an independent `gun_cd` timer (`turret_node.GUN_RETAINING_MODES` +
+  extracted `_fire_bolt()`). So e.g. a Mine Layer plants mines AND shoots like a normal turret.
+  Bullet modes (missile/frost/glaive + plain bolt) and continuous beam/orbit are unchanged.
+- **Verify:** `[tests] 1103 passed`; boots clean. (Tooltip render + turret behavior best confirmed in-game.)
+
+### 2026-06-17 — Session 11: fusion damage — fresh-fusion boost + amalgam per-level scaling
+- **Two requests, one mechanism.** Added `WeaponBase.fuse_pow`/`born_dmg` (both default 1.0 →
+  no effect on base/standalone weapons) and 4 `fuse_*()` stat accessors; replaced all 424
+  `player.{damage,area,duration,rate}_mult` reads in `weapon_fusions.gd` with them (identity at
+  the defaults, so standalone fusions are unchanged).
+- **#1 fresh fusion not weak:** a signature fusion is born with `born_dmg = GameConfig.FUSION_BORN_DMG`
+  (×1.5 damage) so it isn't a downgrade from the two maxed weapons it consumed. (Flat multiplier, a
+  tunable approximation of "≥ the 2 combined" — an exact per-fusion floor would need editing each of
+  the 78 damage constants.)
+- **#2 amalgam scaling:** `WeaponFused` leveling now buffs ALL its components' stats by
+  `GameConfig.AMALGAM_STAT_PER_LEVEL` (5%) per level via `fuse_pow`, instead of bumping each
+  component's level. Components are maxed (Lv7) at merge, so base/counts are already capped.
+- **Verify:** `[tests] 1103 passed` (incl. new `test_merge` asserts for born_dmg + amalgam fuse_pow);
+  `NICESWARM_TEST=all_fusions` smoke runs all 78 fusions clean. Made `test_config` MAX_GEMS a
+  positivity check (was a brittle exact 500) since it's a tunable knob.
+
+### 2026-06-17 — Session 10: slow buff + visual/balance tweaks
+- **Slow buff ("really slow enemy"):** every slow source funnels through `Enemy.apply_slow`,
+  so the buff is one central change there. New `GameConfig.SLOW_POTENCY` (1.6) deepens the
+  incoming speed factor and `SLOW_FLOOR_MULT` (0.2) clamps it — the 0.5 base frost slow now
+  lands at 0.2 speed (an 80% slow, "slow to 0.8"). Bosses/tier-3 included (still slowable);
+  only `cc_immune` enemies stay exempt. Test added in `test_enemies.gd` (potency + floor + cc).
+- **XP gem size −:** normal gems 5/8 → 3.5/5.5 px (`xp_gem.gd`) — less field clutter (condensed gold orbs unchanged).
+- **Gravity "veil" size −:** base Gravity Well radius `160 + 15/lv` → `120 + 10/lv` (`weapon_gravity.gd`); fusions unchanged.
+- **Venom trail opacity −:** fill `0.22→0.12`, spots `0.30→0.16` (`venom_puddle.gd`) — stops washing out everything underneath.
+- **Mine cap was global, now per-weapon (bug):** all mine-spawners shared one `get_nodes_in_group("mines")`
+  count, so multiple mine weapons (esp. one-per-player in co-op) split a single cap. Added `owner_weapon_id`
+  to `MineNode` + reusable `WeaponBase.owned_in_group()`; base Mines, ClusterBomb, NapalmMine, and the turret
+  mines-mode now cap per deploying weapon (mirrors how turrets already filter by owner). Turret caps were
+  verified already per-weapon (not the bug). Regression test: `tests/test_merge.gd` (deep-fusion structure).
+- **Unblocked the unit suite:** fixed pre-existing drift in `test_config.gd` + `test_spawner.gd`
+  (`DIFF_WARMUP_SECS`→`DIFF_WARMUP_PROGRESS`, `MID_GAME_TIME`→`MID_GAME_PROGRESS`,
+  `BOUNCER_UNLOCK`→`BOUNCER_UNLOCK_PROGRESS`, removed `sp.pace`, mock `run_progress` from elapsed).
+- **Verify:** `[tests] 1082 passed, 0 failed`; solo headless smoke boots clean.
+
+### 2026-06-17 — Session 9: fusions born at Lv1 (gate amalgam behind leveling) + icon fix
+- **Goal (2 reported issues, one root cause):** (1) only a maxed-out fusion should be
+  amalgamable; (2) a freshly-fused weapon's HUD badge always showed Lv⁷.
+- **Root cause:** `player.merge_weapons` stamped a signature fusion `sig.level = maxi(a.level, b.level)`
+  (= Lv7) — born maxed, so its badge read ⁷ *and* it was instantly eligible for the `[MERGE]` pool
+  (which gates on `level >= MAX_WEAPON_LEVEL`). Both symptoms, one line.
+- **Fix:** drop that line — a signature fusion is now born at the `WeaponBase` default Lv1, levels
+  up 1→7 like a base weapon, and only becomes amalgamable once maxed. Badge now shows ¹.
+  This **reverses the Session-7 born-at-Lv7 DPS-cliff fix** (above): per product decision the
+  cliff is **accepted** — a fresh fusion is weaker and rewards leveling it back up.
+- **Verify:** `NICESWARM_TEST=merge` smoke → `merged -> Plasma Burst … weapons=1`, `pool ok, options=22`
+  (the Lv1 fusion now appears in the `[Lv]` pool, not `[MERGE]`). Docs: WEAPON_CODEX.md updated.
+- **Note (pre-existing, unrelated):** `tests/run_tests.gd` is currently red at `test_config.gd` —
+  it references `GameConfig.DIFF_WARMUP_SECS` / `MID_GAME_TIME` / `BOUNCER_UNLOCK` which were
+  removed/renamed (`BOUNCER_UNLOCK` → `BOUNCER_UNLOCK_PROGRESS`). Not touched this session; flag for a fix.
+
 ### 2026-06-16 — Session 8: settings menu (audio / display / accessibility)
 - **Goal:** implement the long-stubbed settings menu (the in-game hub's "O settings"
   showed only "coming soon").

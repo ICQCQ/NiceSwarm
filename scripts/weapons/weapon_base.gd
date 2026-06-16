@@ -17,7 +17,24 @@ var dps: float = 0.0
 var _dps_bucket: float = 0.0
 var _dps_timer: float = 1.0
 var tier := 0   # fusion depth: 0 = base weapon, 1 = base+base fusion, 2 = deep (final). See GameConfig.MAX_FUSION_TIER.
+# Fusion stat scaling (1.0 = no effect, so standalone/base weapons are untouched):
+#  - fuse_pow: an AMALGAM (WeaponFused) sets this on its components to buff ALL stats by
+#    GameConfig.AMALGAM_STAT_PER_LEVEL per amalgam level; applied via the fuse_* helpers.
+#  - born_dmg: a fresh SIGNATURE fusion is born with a flat damage boost so it isn't a
+#    downgrade from the two maxed weapons it consumed (GameConfig.FUSION_BORN_DMG).
+var fuse_pow := 1.0
+var born_dmg := 1.0
 var player: Player
+
+
+## Fusion-aware stat accessors. Fused weapons read these instead of player.* so an
+## amalgam can scale its components (fuse_pow) and a fresh fusion can carry a base-damage
+## boost (born_dmg). Haste DIVIDES by fuse_pow (lower rate = faster). At the 1.0 defaults
+## these return the raw player stat, so behavior is unchanged for non-fused weapons.
+func fuse_damage() -> float: return player.damage_mult * fuse_pow * born_dmg
+func fuse_area() -> float: return player.area_mult * fuse_pow
+func fuse_duration() -> float: return player.duration_mult * fuse_pow
+func fuse_rate() -> float: return player.rate_mult / fuse_pow
 
 
 ## Node-count level: spawn COUNTS (projectiles/blades/turrets/chains/beams)
@@ -51,6 +68,20 @@ func _process(delta: float) -> void:
 ## repeat stacks pile on faster -- Flame Cone's signature.
 func ignite(e: Node, dmg: float, stack_mult: float = 1.0) -> void:
 	e.apply_burn(dmg * 0.3, 1.2 * player.duration_mult, stack_mult, player.peer_id)
+
+
+## Count nodes in `group_name` that THIS weapon instance deployed (their
+## `owner_weapon_id` equals our instance id). Lets deployable weapons (turrets,
+## mines) cap their spawns PER WEAPON instead of sharing one global group count —
+## so two mine/turret weapons (including one per player in co-op) don't split a
+## single cap. Each spawner must stamp `owner_weapon_id = get_instance_id()`.
+func owned_in_group(group_name: String) -> int:
+	var my_id := get_instance_id()
+	var n := 0
+	for node in get_tree().get_nodes_in_group(group_name):
+		if node.owner_weapon_id == my_id:
+			n += 1
+	return n
 
 
 ## Nova-family "shockwave" push: a mild extra knockback impulse on top of

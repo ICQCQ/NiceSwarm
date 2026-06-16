@@ -16,12 +16,13 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if get_tree().get_nodes_in_group("mines").size() >= 3 + count_level():
+	if owned_in_group("mines") >= 3 + count_level():  # per-weapon cap, not a shared global count
 		cooldown = 0.2
 		return
 	var m := MineNode.new()
 	m.source_pid = player.peer_id
 	m.source_weapon = self
+	m.owner_weapon_id = get_instance_id()
 	m.damage = WeaponConfig.BASE.mines.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.mines.growth * (level - 1))
 	m.blast_radius = (100.0 + 15.0 * (level - 1)) * player.area_mult
 	m.trigger_radius = 55.0 * player.area_mult
