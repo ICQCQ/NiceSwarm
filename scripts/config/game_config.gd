@@ -128,9 +128,9 @@ const HEAT_SPIKE_MAX := 5.0      # cap on the spike term
 const DIFF_SPIKE := 1.0          # weight of heat_spike in the difficulty climb
 
 # --- boss spawns: a tough "boss" class enemy after enough kills ---
-const BOSS_KILL_BASE := 100              # total kills before the first boss
-const BOSS_KILL_INTERVAL := 100          # kills required for the second boss
-const BOSS_KILL_INTERVAL_GROWTH := 30   # added to the interval each time a boss dies
+const BOSS_KILL_BASE := 300              # total kills before the first boss
+const BOSS_KILL_INTERVAL := 200          # kills required for the second boss
+const BOSS_KILL_INTERVAL_GROWTH := 100   # added to the interval each time a boss dies
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
 const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
