@@ -88,7 +88,7 @@ const WEAPON_ICON := {
 	"frost": ["FRS", "8fe0ff"], "gravity": ["GRV", "b58aff"], "turret": ["TRT", "c8d0e0"],
 	"venom": ["VNM", "8fdf6a"],
 }
-const SUP := ["", "¹", "²", "³"]  # superscript weapon level for the HUD badge (max level 3)
+const SUP := ["", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷"]  # superscript weapon level for the HUD badge (0..MAX_WEAPON_LEVEL)
 
 # --- session / network ---
 var net: Net
@@ -1512,7 +1512,7 @@ func _physics_process(delta: float) -> void:
 	if not is_host():
 		return
 	t_enemy += delta
-	if t_enemy >= 1.0 / 12.0:
+	if t_enemy >= 1.0 / 24.0:
 		t_enemy = 0.0
 		_send_state(STATE_ENEMIES)
 	t_items += delta
