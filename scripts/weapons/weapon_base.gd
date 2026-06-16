@@ -13,9 +13,11 @@ var damage_dealt: float:
 	set(value):
 		_dps_bucket += value - _damage_dealt
 		_damage_dealt = value
+const DPS_WINDOW := 30   # `dps` is averaged over a rolling 30-second window
 var dps: float = 0.0
 var _dps_bucket: float = 0.0
 var _dps_timer: float = 1.0
+var _dps_history: Array[float] = []   # last up-to-DPS_WINDOW one-second damage totals
 var tier := 0   # 0 = base weapon, 1 = base+base signature fusion, 2 = amalgam (terminal). See Fusions.can_merge.
 # Fusion stat scaling (1.0 = no effect, so standalone/base weapons are untouched):
 #  - fuse_pow: an AMALGAM (WeaponFused) sets this on its components to buff ALL stats by
@@ -54,10 +56,17 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_dps_timer -= delta
-	if _dps_timer <= 0.0:
-		dps = _dps_bucket
-		_dps_bucket = 0.0
-		_dps_timer = 1.0
+	if _dps_timer > 0.0:
+		return
+	_dps_timer = 1.0
+	_dps_history.append(_dps_bucket)
+	_dps_bucket = 0.0
+	if _dps_history.size() > DPS_WINDOW:
+		_dps_history.pop_front()
+	var total := 0.0
+	for v in _dps_history:
+		total += v
+	dps = total / _dps_history.size()  # rolling average over the last up-to-30 s
 
 
 ## Universal Duration hook for instant/continuous weapons: leave a burn whose

@@ -253,6 +253,7 @@ var _burn_total: float = 0.0
 var _burn_bucket: float = 0.0
 var burn_dps_val: float = 0.0
 var _burn_dps_timer: float = 1.0
+var _burn_dps_history: Array[float] = []   # rolling burn DPS over WeaponBase.DPS_WINDOW seconds
 var hint_label: Label
 var xp_bar: ProgressBar
 var arrows: Control
@@ -1289,6 +1290,7 @@ func _reset_run_state() -> void:
 	_burn_bucket = 0.0
 	burn_dps_val = 0.0
 	_burn_dps_timer = 1.0
+	_burn_dps_history.clear()
 	kills = 0
 	level = 1
 	xp = 0
@@ -1466,9 +1468,15 @@ func _process(delta: float) -> void:
 		return
 	_burn_dps_timer -= delta
 	if _burn_dps_timer <= 0.0:
-		burn_dps_val = _burn_bucket
-		_burn_bucket = 0.0
 		_burn_dps_timer = 1.0
+		_burn_dps_history.append(_burn_bucket)
+		_burn_bucket = 0.0
+		if _burn_dps_history.size() > WeaponBase.DPS_WINDOW:
+			_burn_dps_history.pop_front()
+		var bt := 0.0
+		for v in _burn_dps_history:
+			bt += v
+		burn_dps_val = bt / _burn_dps_history.size()  # rolling 30 s average
 	if countdown_time > 0.0:  # resume countdown holds the world until it reaches zero
 		_tick_countdown(delta)
 		return
