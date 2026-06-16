@@ -335,6 +335,16 @@ func _second_weapon(id: String, first: Node2D) -> Node2D:
 	return null
 
 
+## Lowest-level instance of weapon_id — so repeated [Lv] picks level duplicates evenly
+## (each copy can reach max; get_weapon alone would only ever level the first instance).
+func lowest_weapon(id: String) -> Node2D:
+	var best: Node2D = null
+	for w in weapons:
+		if w.weapon_id == id and (best == null or w.level < best.level):
+			best = w
+	return best
+
+
 func nearest_enemy(max_range: float) -> Node2D:
 	# Delegates to the shared per-tick spatial grid (Main) instead of scanning the whole
 	# "enemies" group every call — this covers most weapon/fusion targeting at one site.

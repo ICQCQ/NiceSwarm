@@ -89,6 +89,14 @@ func run(t) -> void:
 	var s2 = _fuse(p, "bolt", "nova")              # Plasma Burst #2 (tier 1)
 	t.ne(s1, s2, "two distinct same-id fusion instances")
 	t.eq(s1.weapon_id, s2.weapon_id, "...sharing one weapon_id")
+	# both duplicates are parented under the player, so at runtime each resolves `player`
+	# and fires (off-tree here so _ready hasn't run — assert the structure, like the leaf check)
+	t.eq(s1.get_parent(), p, "duplicate #1 parented under player (resolves player -> fires)")
+	t.eq(s2.get_parent(), p, "duplicate #2 parented under player (resolves player -> fires)")
+	# leveling targets the LOWEST copy so duplicates level evenly (not just the first)
+	s1.level = 3
+	s2.level = 5
+	t.eq(p.lowest_weapon("fus_plasma"), s1, "lowest_weapon picks the lower-level duplicate")
 	var same_before := p.weapons.size()
 	s1.level = GameConfig.MAX_WEAPON_LEVEL
 	s2.level = GameConfig.MAX_WEAPON_LEVEL

@@ -1871,18 +1871,26 @@ func _build_choice_pool(p: Player) -> Array:
 				var info: Dictionary = WEAPON_INFO[wid]
 				pool.append({"id": "learn_" + wid, "cat": "new",
 					"name": "[NEW]  %s" % info.name, "desc": info.learn})
-	# [Lv n] — level-ups for owned weapons (base, signature fusion, or amalgam)
+	# [Lv n] — level-ups for owned weapons. Dedup by weapon_id so two of the same weapon
+	# show ONE entry that levels the LOWEST-level copy (apply uses player.lowest_weapon),
+	# letting duplicates level evenly and each reach max.
+	var leveled := {}
 	for w in p.weapons:
-		if w.level < MAX_WEAPON_LEVEL:
-			var desc: String
-			if w is WeaponFused:
-				desc = "+%d%% to all stats of this fusion" % int(GameConfig.AMALGAM_STAT_PER_LEVEL * 100.0)
-			elif WEAPON_INFO.has(w.weapon_id):
-				desc = WEAPON_INFO[w.weapon_id].level
-			else:
-				desc = "+1 level — strengthen this fusion"  # signature fusion weapon
-			pool.append({"id": "lv_" + w.weapon_id, "cat": "level",
-				"name": "[Lv %d]  %s" % [w.level + 1, w.display_name], "desc": desc})
+		if leveled.has(w.weapon_id):
+			continue
+		var lw = p.lowest_weapon(w.weapon_id)
+		if lw.level >= MAX_WEAPON_LEVEL:
+			continue
+		leveled[w.weapon_id] = true
+		var desc: String
+		if lw is WeaponFused:
+			desc = "+%d%% to all stats of this fusion" % int(GameConfig.AMALGAM_STAT_PER_LEVEL * 100.0)
+		elif WEAPON_INFO.has(lw.weapon_id):
+			desc = WEAPON_INFO[lw.weapon_id].level
+		else:
+			desc = "+1 level — strengthen this fusion"  # signature fusion weapon
+		pool.append({"id": "lv_" + lw.weapon_id, "cat": "level",
+			"name": "[Lv %d]  %s" % [lw.level + 1, lw.display_name], "desc": desc})
 	# Merges of any two maxed attacks. A signature pair -> [FUSE] a distinct new
 	# weapon; anything else -> [AMALGAM] both running together in one slot.
 	var maxed := []
@@ -2021,7 +2029,7 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 			if not replay:
 				Sfx.play("merge")
 	elif id.begins_with("lv_"):
-		var w := p.get_weapon(id.trim_prefix("lv_"))
+		var w := p.lowest_weapon(id.trim_prefix("lv_"))  # level the lowest copy so duplicates level evenly
 		if w is WeaponFused:
 			w.level_up()
 		elif w != null:
