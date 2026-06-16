@@ -41,6 +41,10 @@ var boss_count := 0            # total bosses spawned so far (drives tier escala
 var boss_next_kill := 0
 var boss_kill_interval := 0    # kills required between kill-triggered bosses; grows on each boss death
 var boss_progress_checkpoint := 10.0  # next run_progress threshold for a progress-based boss
+# lobby-configurable boss knobs (set by main.gd before reset())
+var cfg_boss_kill_base := GameConfig.BOSS_KILL_BASE
+var cfg_boss_interval := GameConfig.BOSS_KILL_INTERVAL
+var cfg_boss_growth := GameConfig.BOSS_KILL_INTERVAL_GROWTH
 
 # --- party DPS tracker (host-only): a ring of per-second damage buckets over the
 # last BOSS_DPS_WINDOW seconds, so a spawning boss can size its HP to the party's
@@ -83,8 +87,8 @@ func reset() -> void:
 	enemy_seq = 0
 	total_kills = 0
 	boss_count = 0
-	boss_next_kill = GameConfig.BOSS_KILL_BASE
-	boss_kill_interval = GameConfig.BOSS_KILL_INTERVAL
+	boss_next_kill = cfg_boss_kill_base
+	boss_kill_interval = cfg_boss_interval
 	boss_progress_checkpoint = 10.0
 	bouncer_live = 0
 	bouncer_accum = 0.0
@@ -127,7 +131,7 @@ func add_kill() -> void:
 ## Called when a boss enemy dies. Grows boss_kill_interval so each subsequent
 ## kill-triggered boss takes more kills to earn.
 func on_boss_killed() -> void:
-	boss_kill_interval += GameConfig.BOSS_KILL_INTERVAL_GROWTH
+	boss_kill_interval += cfg_boss_growth
 
 
 ## Pick a boss tier that isn't currently alive. Falls back to uniform random

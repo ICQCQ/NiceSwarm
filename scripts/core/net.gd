@@ -71,9 +71,10 @@ func leave() -> void:
 
 # --- senders (no-ops when offline/solo) -----------------------------------
 
-func send_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
+func send_config(choices: int, xp_rate: float, enemy_scale: float,
+		win_time: float, boss_base: int, boss_interval: int, boss_growth: int) -> void:
 	if active:
-		rpc_run_config.rpc(choices, xp_rate, enemy_scale)
+		rpc_run_config.rpc(choices, xp_rate, enemy_scale, win_time, boss_base, boss_interval, boss_growth)
 
 
 # Lobby: a client tells the host its chosen name/color/shape (host relays the
@@ -279,8 +280,9 @@ func send_reset() -> void:
 # --- RPC receivers ----------------------------------------------------------
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_run_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
-	main.apply_config(choices, xp_rate, enemy_scale)
+func rpc_run_config(choices: int, xp_rate: float, enemy_scale: float,
+		win_time: float, boss_base: int, boss_interval: int, boss_growth: int) -> void:
+	main.apply_config(choices, xp_rate, enemy_scale, win_time, boss_base, boss_interval, boss_growth)
 
 
 @rpc("authority", "call_remote", "reliable")

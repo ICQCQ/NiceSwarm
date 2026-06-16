@@ -13,7 +13,7 @@ extends Node2D
 const VERSION := "0.9.0"  # shown on the menu; keep in sync with project.godot + export_presets.cfg
 # Tunables live in config/game_config.gd — aliased here so existing references work.
 const ARENA := GameConfig.ARENA
-const WIN_TIME := GameConfig.WIN_TIME
+const WIN_TIME_DEFAULT := GameConfig.WIN_TIME
 const MAX_WEAPONS := GameConfig.MAX_WEAPONS
 const MAX_WEAPON_LEVEL := GameConfig.MAX_WEAPON_LEVEL
 const ENEMY_CAP := GameConfig.ENEMY_CAP
@@ -128,20 +128,32 @@ const MAX_CHOICES := GameConfig.MAX_CHOICES
 var cfg_choices := 3            # upgrade options offered per level-up (2..4)
 var cfg_xp_rate := 1.0         # higher = level up faster
 var cfg_enemy_scale := 1.0     # higher = tougher/denser enemies
+var cfg_win_time := WIN_TIME_DEFAULT
+var cfg_boss_kill_base := GameConfig.BOSS_KILL_BASE
+var cfg_boss_interval := GameConfig.BOSS_KILL_INTERVAL
+var cfg_boss_growth := GameConfig.BOSS_KILL_INTERVAL_GROWTH
 # menu cycler option lists
 const CHOICES_OPTS := [2, 3, 4, 5, 6]
 const XP_OPTS := [0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
 const SCALE_OPTS := [0.75, 1.0, 1.25, 1.5]
+const WIN_TIME_OPTS := [300.0, 480.0, 600.0, 720.0, 900.0]
+const BOSS_BASE_OPTS := [100, 200, 300, 400, 500]
+const BOSS_INTERVAL_OPTS := [75, 150, 200, 300]
+const BOSS_GROWTH_OPTS := [0, 50, 100, 150, 200]
 var cfg_choices_i := 1
 var cfg_xp_i := 1
 var cfg_scale_i := 1
+var cfg_win_time_i := 2
+var cfg_boss_base_i := 2
+var cfg_boss_interval_i := 2
+var cfg_boss_growth_i := 2
 
 # --- shared run state (host simulates; clients receive) ---
 var world: Node2D
 var elapsed := 0.0
 ## 0-100 progress through the run; 100 = WIN_TIME (game end). Pure derived value.
 var run_progress: float:
-	get: return clampf(elapsed / WIN_TIME * 100.0, 0.0, 100.0)
+	get: return clampf(elapsed / cfg_win_time * 100.0, 0.0, 100.0)
 var kills := 0
 var level := 1
 var xp := 0
@@ -411,6 +423,10 @@ func _apply_menu_config() -> void:
 	cfg_choices = CHOICES_OPTS[cfg_choices_i]
 	cfg_xp_rate = XP_OPTS[cfg_xp_i]
 	cfg_enemy_scale = SCALE_OPTS[cfg_scale_i]
+	cfg_win_time = WIN_TIME_OPTS[cfg_win_time_i]
+	cfg_boss_kill_base = BOSS_BASE_OPTS[cfg_boss_base_i]
+	cfg_boss_interval = BOSS_INTERVAL_OPTS[cfg_boss_interval_i]
+	cfg_boss_growth = BOSS_GROWTH_OPTS[cfg_boss_growth_i]
 
 
 func _on_solo_pressed() -> void:
@@ -463,15 +479,20 @@ func _on_start_pressed() -> void:
 	# Connections stay open after start (unlike a session lock) so a disconnected
 	# player can reconnect and rejoin via handle_rejoin_request.
 	_apply_menu_config()
-	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth)
 	net.send_start(PackedInt32Array(ids))
 	start_game(ids)
 
 
-func apply_config(choices: int, xp_rate: float, enemy_scale: float) -> void:
+func apply_config(choices: int, xp_rate: float, enemy_scale: float,
+		win_time: float, boss_base: int, boss_interval: int, boss_growth: int) -> void:
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
+	cfg_win_time = win_time
+	cfg_boss_kill_base = boss_base
+	cfg_boss_interval = boss_interval
+	cfg_boss_growth = boss_growth
 	if lobby_panel != null and lobby_panel.visible:
 		_refresh_lobby_config_display()
 
@@ -1137,25 +1158,43 @@ func _refresh_lobby_config_display() -> void:
 		c.queue_free()
 	_make_config_label(lobby_config_box, "Port", str(lobby_port))
 	if is_host():
+		var _send := func(): net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth)
 		_make_lobby_cycler(lobby_config_box, "Options / level-up", str(CHOICES_OPTS[cfg_choices_i]), func():
 			cfg_choices_i = (cfg_choices_i + 1) % CHOICES_OPTS.size()
-			_apply_menu_config()
-			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_apply_menu_config(); _send.call()
 			_refresh_lobby_config_display())
 		_make_lobby_cycler(lobby_config_box, "XP rate", str(XP_OPTS[cfg_xp_i]) + "x", func():
 			cfg_xp_i = (cfg_xp_i + 1) % XP_OPTS.size()
-			_apply_menu_config()
-			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_apply_menu_config(); _send.call()
 			_refresh_lobby_config_display())
 		_make_lobby_cycler(lobby_config_box, "Enemy scale", str(SCALE_OPTS[cfg_scale_i]) + "x", func():
 			cfg_scale_i = (cfg_scale_i + 1) % SCALE_OPTS.size()
-			_apply_menu_config()
-			net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale)
+			_apply_menu_config(); _send.call()
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Max time (min)", "%.0f:00" % (WIN_TIME_OPTS[cfg_win_time_i] / 60.0), func():
+			cfg_win_time_i = (cfg_win_time_i + 1) % WIN_TIME_OPTS.size()
+			_apply_menu_config(); _send.call()
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "1st boss kills", str(BOSS_BASE_OPTS[cfg_boss_base_i]), func():
+			cfg_boss_base_i = (cfg_boss_base_i + 1) % BOSS_BASE_OPTS.size()
+			_apply_menu_config(); _send.call()
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Boss interval", str(BOSS_INTERVAL_OPTS[cfg_boss_interval_i]), func():
+			cfg_boss_interval_i = (cfg_boss_interval_i + 1) % BOSS_INTERVAL_OPTS.size()
+			_apply_menu_config(); _send.call()
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Interval growth", "+" + str(BOSS_GROWTH_OPTS[cfg_boss_growth_i]), func():
+			cfg_boss_growth_i = (cfg_boss_growth_i + 1) % BOSS_GROWTH_OPTS.size()
+			_apply_menu_config(); _send.call()
 			_refresh_lobby_config_display())
 	else:
 		_make_config_label(lobby_config_box, "Options / level-up", str(cfg_choices))
 		_make_config_label(lobby_config_box, "XP rate", str(cfg_xp_rate) + "x")
 		_make_config_label(lobby_config_box, "Enemy scale", str(cfg_enemy_scale) + "x")
+		_make_config_label(lobby_config_box, "Max time (min)", "%.0f:00" % (cfg_win_time / 60.0))
+		_make_config_label(lobby_config_box, "1st boss kills", str(cfg_boss_kill_base))
+		_make_config_label(lobby_config_box, "Boss interval", str(cfg_boss_interval))
+		_make_config_label(lobby_config_box, "Interval growth", "+" + str(cfg_boss_growth))
 
 
 func _make_lobby_cycler(parent: Node, label: String, text: String, on_press: Callable) -> void:
@@ -1251,6 +1290,9 @@ func _reset_run_state() -> void:
 	paused_menu = false
 	menu_open_pids = {}
 	_force_close_ingame_menu()
+	spawner.cfg_boss_kill_base = cfg_boss_kill_base
+	spawner.cfg_boss_interval = cfg_boss_interval
+	spawner.cfg_boss_growth = cfg_boss_growth
 	spawner.reset()
 	item_seq = 0
 	enemies_by_id = {}
@@ -1420,7 +1462,7 @@ func _process(delta: float) -> void:
 	if running:
 		elapsed += delta  # clients advance too; host HUD sync corrects drift
 	if is_host() and running:
-		if elapsed >= WIN_TIME:
+		if elapsed >= cfg_win_time:
 			_end_game(true)
 			return
 		if OS.get_environment("NICESWARM_TEST") == "score" and elapsed > 4.0 and not game_over:
