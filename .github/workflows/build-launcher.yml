@@ -80,14 +80,14 @@ jobs:
   # the `launcher` tag so the macOS self-update has a real asset to pull. Gio's macOS
   # backend REQUIRES cgo (AppKit + Metal), so each arch is built CGO_ENABLED=1; the
   # cross-arch (amd64) slice targets the universal SDK via `clang -arch`. The build is
-  # CI-COMPILED on a real Mac VM but RUNTIME-UNVERIFIED on physical hardware, so
-  # continue-on-error keeps a Gio/cgo hiccup from failing the workflow (Windows publishes
-  # in its own job regardless). `needs: launcher-windows` serializes the two publishes so
-  # they don't race creating/updating the shared `launcher` release.
+  # CI-COMPILED on a real Mac VM but RUNTIME-UNVERIFIED on physical hardware (beta).
+  # `needs: launcher-windows` serializes the two publishes so they don't race
+  # creating/updating the shared `launcher` release. No continue-on-error: now that this
+  # job PUBLISHES, a build/sign/sidecar/publish failure must fail loudly rather than ship
+  # silently — Windows already published in its own job, so a red macOS job won't block it.
   launcher-macos:
     runs-on: macos-latest
     needs: launcher-windows
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
