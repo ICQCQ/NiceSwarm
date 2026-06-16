@@ -2,7 +2,7 @@ class_name Background
 extends Node2D
 ## Draws the arena floor, grid, and border.
 
-var arena := Rect2(-1200, -1200, 2400, 2400)
+var arena := Rect2(-1500, -1500, 3000, 3000)
 
 
 func _ready() -> void:

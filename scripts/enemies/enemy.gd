@@ -24,7 +24,7 @@ const FLEE_RANGE := 220.0
 # fraction of the enemy's own move speed. NOT physics collision — this is a
 # boids-style steering force over the shared per-frame grid, so the swarm spreads
 # out instead of stacking on one point without the O(n^2) contact-solver cost.
-const SEPARATION_STRENGTH := 0.7
+const SEPARATION_STRENGTH := 0.9
 
 var age := 0.0   # seconds alive (host sim only); drives the spawn speed ramp
 var hp := 2.0
@@ -53,7 +53,7 @@ var life := -1.0        # >0: despawns after this many seconds (shards)
 var shape := "circle"   # body silhouette: circle/triangle/square/diamond/hex/star
 var heading := Vector2.RIGHT  # facing/travel direction for bounce/straight/triangle draw
 var wander_timer := 0.0
-var arena := Rect2(-1200, -1200, 2400, 2400)
+var arena := Rect2(-1500, -1500, 3000, 3000)
 var color := Color(0.85, 0.3, 0.35)
 # caster behavior — keeps distance and telegraphs ground strikes
 # cast_pattern: 0 = single strike at the target (Bombardier),
