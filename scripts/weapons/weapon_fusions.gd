@@ -100,15 +100,17 @@ static func info(a: String, b: String) -> Dictionary:
 	return INFO.get(key(a, b), {})
 
 
-## Fusion depth cap. Merging two weapons of tiers (ta, tb) yields a weapon of
-## tier max(ta, tb) + 1. can_merge is true only while that result stays within
-## GameConfig.MAX_FUSION_TIER, so a final-tier fusion can never be merged again.
+## Merging two weapons of tiers (ta, tb) yields a weapon of tier max(ta, tb) + 1
+## (base+base -> tier 1 signature fusion; signature+signature -> tier 2 amalgam).
 static func merged_tier(ta: int, tb: int) -> int:
 	return maxi(ta, tb) + 1
 
 
+## Merge eligibility: only two weapons of the SAME kind merge — base+base (tier 0+0
+## -> signature fusion) or signature+signature (tier 1+1 -> amalgam). tier >=2 is an
+## amalgam (WeaponFused), which is TERMINAL: no base+fusion mixing, no amalgam re-merge.
 static func can_merge(ta: int, tb: int) -> bool:
-	return merged_tier(ta, tb) <= GameConfig.MAX_FUSION_TIER
+	return ta == tb and ta <= 1
 
 
 static func make(a: String, b: String) -> WeaponBase:

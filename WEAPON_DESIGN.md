@@ -66,12 +66,12 @@ together. Recipes live in `scripts/weapon_fusions.gd`:
 A fusion weapon follows the **same 4-stat contract**. Build it from existing spawned nodes
 where possible (they already carry Area/Duration fields).
 
-**Fusion depth is capped** at `GameConfig.MAX_FUSION_TIER` (= 3). Every weapon carries a
-`tier`: base weapons are 0, a base+base fusion is 1, two T1s merge to a T2, and two T2s merge
-once more into a **final tier-3** fusion that can never be merged again. Merging tiers `a` and
-`b` yields tier `max(a,b)+1`; `Fusions.can_merge(a,b)` / `Fusions.merged_tier(a,b)` are the
-single source of truth, enforced in both the pick pool (`main._build_choice_pool`) and the
-model (`player.merge_weapons`).
+**Merges are same-kind only.** Every weapon carries a `tier`: base weapons are 0, a base+base
+**signature fusion** is 1, and a **signature+signature amalgam** is 2. `Fusions.can_merge(a,b)`
+allows a merge only when `a == b and tier <= 1` — so **base+base → signature fusion** and
+**signature+signature → amalgam**, while an **amalgam is terminal** (you cannot merge a base with
+a fusion, nor merge an amalgam with anything). Single source of truth, enforced in both the pick
+pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 
 ### Fusion recipe list
 

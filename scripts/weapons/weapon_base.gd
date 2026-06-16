@@ -16,7 +16,7 @@ var damage_dealt: float:
 var dps: float = 0.0
 var _dps_bucket: float = 0.0
 var _dps_timer: float = 1.0
-var tier := 0   # fusion depth: 0 = base weapon, 1 = base+base fusion, 2 = deep (final). See GameConfig.MAX_FUSION_TIER.
+var tier := 0   # 0 = base weapon, 1 = base+base signature fusion, 2 = amalgam (terminal). See Fusions.can_merge.
 # Fusion stat scaling (1.0 = no effect, so standalone/base weapons are untouched):
 #  - fuse_pow: an AMALGAM (WeaponFused) sets this on its components to buff ALL stats by
 #    GameConfig.AMALGAM_STAT_PER_LEVEL per amalgam level; applied via the fuse_* helpers.

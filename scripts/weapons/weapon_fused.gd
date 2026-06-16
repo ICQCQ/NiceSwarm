@@ -4,8 +4,9 @@ extends WeaponBase
 ## firing as child nodes. Leveling the amalgam buffs ALL of its components' stats by a
 ## flat +GameConfig.AMALGAM_STAT_PER_LEVEL per level via WeaponBase.fuse_pow — it does
 ## NOT raise each component's own level. Components were maxed (Lv7) when merged, so their
-## base damage and spawn counts are already at cap; this flat boost is the deep fusion's
-## clean scaling axis. A fusion can be merged again up to GameConfig.MAX_FUSION_TIER.
+## base damage and spawn counts are already at cap; this flat boost is the amalgam's
+## clean scaling axis. An amalgam is terminal — only base+base and signature+signature merge
+## (see Fusions.can_merge).
 
 var components: Array = []  # leaf WeaponBase nodes
 

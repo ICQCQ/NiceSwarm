@@ -1,9 +1,9 @@
 extends RefCounted
-## Reproduction/regression for DEEP fusion: build TWO tier-2 weapons and amalgamate
-## them into a tier-3, asserting the node structure (component count, tiers, ids,
-## ownership) survives. merge_weapons only restructures nodes (no Main), so a bare
-## off-tree Player exercises the real path. Covers the "2 tier-2 weapons: only one
-## works / the amalgam doesn't work" bug report.
+## Reproduction/regression for the merge system under the same-kind rule (base+base ->
+## signature fusion; signature+signature -> amalgam; amalgam is terminal). Asserts node
+## structure survives, that two amalgams can't merge, and that two of the SAME signature
+## fusion DO amalgamate (the "2 Implosion Salvo do nothing, wastes a pick" bug).
+## merge_weapons only restructures nodes (no Main), so a bare off-tree Player works.
 
 ## Every leaf component must be able to walk up to the owning Player — this is
 ## exactly how WeaponBase._ready resolves `player`, and a leaf that can't reach it
@@ -72,11 +72,30 @@ func run(t) -> void:
 	t.ok(_all_leaves_reach_player(t2a, p), "tier-2 #1 components all reach the player (fire)")
 	t.ok(_all_leaves_reach_player(t2b, p), "tier-2 #2 components all reach the player (fire)")
 
-	# --- amalgam: two tier-2 -> one tier-3 holding all 4 leaf components ---
-	t.ok(Fusions.can_merge(t2a.tier, t2b.tier), "two tier-2 weapons are mergeable")
-	var t3 = _fuse(p, t2a.weapon_id, t2b.weapon_id)
-	t.eq(t3.tier, 3, "amalgam of two tier-2 is tier 3")
-	t.eq(t3.get_child_count(), 4, "tier-3 holds all 4 leaf components")
-	t.eq(p.weapons.size(), 1, "amalgam consumes both tier-2 into one weapon")
-	t.ok(_all_leaves_reach_player(t3, p), "tier-3 components all reach the player (fire)")
+	# --- same-kind rule: two tier-2 amalgams CANNOT merge (amalgam is terminal) ---
+	t.ok(not Fusions.can_merge(t2a.tier, t2b.tier), "two tier-2 amalgams can't merge (terminal)")
+	var n_before := p.weapons.size()
+	p.merge_weapons(t2a.weapon_id, t2b.weapon_id)
+	t.eq(p.weapons.size(), n_before, "merging two amalgams is a no-op — both remain")
+
+	# --- regression: merging TWO of the SAME signature fusion must work ---
+	# (get_weapon returned the first instance for both sides -> a == b -> silent no-op,
+	#  the "2 Implosion Salvo do nothing, wastes a pick" bug.)
+	for wid in ["bolt", "nova"]:
+		p.add_weapon(wid)
+	var s1 = _fuse(p, "bolt", "nova")              # Plasma Burst #1 (tier 1)
+	for wid in ["bolt", "nova"]:
+		p.add_weapon(wid)
+	var s2 = _fuse(p, "bolt", "nova")              # Plasma Burst #2 (tier 1)
+	t.ne(s1, s2, "two distinct same-id fusion instances")
+	t.eq(s1.weapon_id, s2.weapon_id, "...sharing one weapon_id")
+	var same_before := p.weapons.size()
+	s1.level = GameConfig.MAX_WEAPON_LEVEL
+	s2.level = GameConfig.MAX_WEAPON_LEVEL
+	p.merge_weapons(s1.weapon_id, s2.weapon_id)    # same id on both sides
+	t.eq(p.weapons.size(), same_before - 1, "two same-id fusions amalgamate into one (was a no-op bug)")
+	var amal = p.weapons[p.weapons.size() - 1]
+	t.ok(amal is WeaponFused, "the same-fusion merge produced an amalgam")
+	t.eq(amal.tier, 2, "the same-fusion amalgam is tier 2")
+	t.eq(amal.get_child_count(), 2, "amalgam holds both components")
 	p.free()

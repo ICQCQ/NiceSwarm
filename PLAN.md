@@ -57,8 +57,8 @@ Collect XP, level up, pick 1 of 3 upgrades, and survive **10 minutes** to win.
   base weapons with owned-level / `fused` / `—` status.
 - **Weapon fusion:** any two **maxed** (Lv7) attacks merge into ONE slot (removes 2, adds 1 — frees a
   slot). The fused weapon's parts keep firing and **level together** (`[Lv n]` on a fusion bumps every
-  component); fusions are re-mergeable up to a depth cap (`MAX_FUSION_TIER` = 3: base+base→T1, T1+T1→T2,
-  T2+T2→final T3). `WeaponBase` + `WeaponFused` container; components are re-parented, not re-created.
+  component); merges are **same-kind only** — base+base→signature fusion (T1), signature+signature→amalgam
+  (T2, terminal). `WeaponBase` + `WeaponFused` container; components are re-parented, not re-created.
 - **Weapons** (each levels 1→7; level-ups offer learning new ones or leveling owned ones; **max 5 per run** so picks form a build):
   - *Bolt*: auto-fires at nearest enemy; level = projectile count
   - *Orbit Blades*: blades circle the player; level = blade count − 1

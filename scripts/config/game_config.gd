@@ -8,7 +8,7 @@ const ARENA := Rect2(-1500, -1500, 3000, 3000)
 const WIN_TIME := 600.0          # survive this long (s) to win
 const MAX_WEAPONS := 5           # weapon slots per player per run
 const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3 — longer grind to fusion)
-const MAX_FUSION_TIER := 3       # fusion depth cap: base+base->T1, T1+T1->T2, T2+T2->T3 (final)
+const MAX_FUSION_TIER := 3       # legacy; merge rule is same-kind only (Fusions.can_merge): base+base->signature(T1), signature+signature->amalgam(T2, terminal)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
 
 # --- player stat-upgrade caps: a pick stops being offered, and its value is clamped, here ---

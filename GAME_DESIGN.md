@@ -130,12 +130,12 @@ a single tunable knob (FF/lethality-probe calibrated).
 
 ### Weapon → fusion slot economy
 5 slots, level cap 7. Hit Lv7 on two weapons and you can **fuse** them: removes 2, adds 1
-(frees a slot). Fusion depth is **capped at `MAX_FUSION_TIER` = 3**: two base weapons fuse to
-a tier-1 fusion; two T1s fuse to a T2; two T2s fuse once more into a **final tier-3** fusion that
-can never be merged again. Fused weapons still level as a unit. Breadth (many weapons) vs
-depth (few, deeply fused) is the central build tension; the cap keeps a single slot's power
-bounded. The cap is enforced both in the pick pool and in `player.merge_weapons`
-(`Fusions.can_merge`).
+(frees a slot). Merges are **same-kind only**: two **base** weapons fuse into a **signature
+fusion** (tier 1); two **signature fusions** fuse into an **amalgam** (tier 2); an **amalgam is
+final** and can never be merged again (you also can't mix a base with a fusion). Fused weapons
+still level as a unit. Breadth (many weapons) vs depth (few, deeply fused) is the central build
+tension; the terminal amalgam keeps a single slot's power bounded. Enforced both in the pick pool
+and in `player.merge_weapons` (`Fusions.can_merge`).
 
 ### Drops & pickups
 - **XP gems** drop from every non-shard kill (value = the enemy's `xp` stat). They pull to

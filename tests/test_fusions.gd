@@ -32,18 +32,18 @@ func run(t) -> void:
 	t.eq(pairs, 78, "13 weapons -> 78 unordered pairs")
 	t.eq(covered, 78, "all 78 pairs have a signature recipe")
 
-	# Fusion depth: merging tiers a,b yields max(a,b)+1; mergeable only while that stays
-	# within MAX_FUSION_TIER (so a final-tier fusion can never merge again). Cap-relative
-	# so these hold for any MAX_FUSION_TIER.
-	t.eq(Fusions.merged_tier(0, 0), 1, "base+base merges to tier 1")
-	t.eq(Fusions.merged_tier(1, 1), 2, "T1+T1 merges to tier 2")
-	t.eq(Fusions.merged_tier(0, 1), 2, "base+T1 merges to tier 2")
-	var cap: int = GameConfig.MAX_FUSION_TIER
+	# Merge eligibility: only same-kind merges — base+base (0+0 -> signature, tier 1) or
+	# signature+signature (1+1 -> amalgam, tier 2). Amalgams (tier >=2) are TERMINAL.
+	t.eq(Fusions.merged_tier(0, 0), 1, "base+base merges to tier 1 (signature)")
+	t.eq(Fusions.merged_tier(1, 1), 2, "signature+signature merges to tier 2 (amalgam)")
 	t.ok(Fusions.can_merge(0, 0), "base+base is mergeable")
-	t.ok(Fusions.can_merge(cap - 1, cap - 1), "two next-to-final tiers merge into the final tier")
-	t.ok(not Fusions.can_merge(cap, 0), "a final-tier fusion can't be merged again")
-	t.ok(not Fusions.can_merge(cap, cap), "two final-tier fusions can't merge")
-	# general invariant: can_merge iff the result stays within the cap
-	for a in range(0, cap + 2):
-		for b in range(0, cap + 2):
-			t.eq(Fusions.can_merge(a, b), Fusions.merged_tier(a, b) <= cap, "can_merge(%d,%d) matches the cap rule" % [a, b])
+	t.ok(Fusions.can_merge(1, 1), "signature+signature is mergeable (-> amalgam)")
+	t.ok(not Fusions.can_merge(0, 1), "base+signature can't merge")
+	t.ok(not Fusions.can_merge(1, 0), "signature+base can't merge")
+	t.ok(not Fusions.can_merge(2, 1), "amalgam+signature can't merge")
+	t.ok(not Fusions.can_merge(2, 2), "amalgam+amalgam can't merge (amalgam is terminal)")
+	t.ok(not Fusions.can_merge(2, 0), "amalgam+base can't merge")
+	# general invariant: mergeable iff same tier and tier <= 1
+	for a in range(0, 4):
+		for b in range(0, 4):
+			t.eq(Fusions.can_merge(a, b), a == b and a <= 1, "can_merge(%d,%d) matches the same-kind rule" % [a, b])

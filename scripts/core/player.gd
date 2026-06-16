@@ -326,6 +326,15 @@ func get_weapon(id: String) -> Node2D:
 	return null
 
 
+## A second weapon instance sharing `id` but distinct from `first` — needed to merge
+## two of the same weapon (get_weapon alone returns the same first instance twice).
+func _second_weapon(id: String, first: Node2D) -> Node2D:
+	for w in weapons:
+		if w.weapon_id == id and w != first:
+			return w
+	return null
+
+
 func nearest_enemy(max_range: float) -> Node2D:
 	# Delegates to the shared per-tick spatial grid (Main) instead of scanning the whole
 	# "enemies" group every call — this covers most weapon/fusion targeting at one site.
@@ -370,7 +379,9 @@ func revive() -> void:
 ## a generic WeaponFused that runs both components together.
 func merge_weapons(id_a: String, id_b: String) -> void:
 	var a := get_weapon(id_a)
-	var b := get_weapon(id_b)
+	# Two of the SAME weapon (same weapon_id) merge into an amalgam — the second lookup
+	# must find a DIFFERENT instance, not re-fetch the first (else a == b -> silent no-op).
+	var b := get_weapon(id_b) if id_a != id_b else _second_weapon(id_a, a)
 	if a == null or b == null or a == b:
 		return
 	if not Fusions.can_merge(a.tier, b.tier):
