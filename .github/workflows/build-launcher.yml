@@ -1,0 +1,108 @@
+name: Build launcher
+
+# Builds and publishes the cross-platform NiceSwarm auto-update launcher.
+#
+# The launcher is DECOUPLED from the game release: the Windows build ships to its own
+# rolling `launcher` tag — NOT the game's `latest` tag — and only rebuilds when
+# launcher/** changes or on demand. So a normal game commit to `publish` does not
+# republish the launcher.
+#
+# The launcher downloads the GAME from the `latest` tag at runtime (see launcher/);
+# this workflow only distributes the launcher itself.
+#
+# Pinned `launcher-v*` tag releases are deliberately NOT wired here: combining a
+# `tags:` trigger with the `paths:` filter below is a known footgun (the path filter
+# also applies to tag pushes, which usually don't touch launcher/**, so the build
+# silently skips). Add a dedicated tag workflow when pinned launcher releases are
+# wanted — see LAUNCHER.md Phase 3.
+on:
+  push:
+    branches:
+      - publish
+    paths:
+      - "launcher/**"
+      - ".github/workflows/build-launcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # softprops/action-gh-release creates/updates the launcher release
+
+defaults:
+  run:
+    working-directory: launcher
+
+jobs:
+  # Windows binaries cross-compiled from Linux — pure-Go (stdlib + os/exec only), no
+  # cgo, so GOOS/GOARCH is all it takes. Fast and runner-cheap. This is the verified
+  # path and the one published to users.
+  launcher-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false # zero external deps -> no go.sum, nothing to cache
+      - name: Test
+        run: go test ./...
+      - name: Cross-compile Windows binaries + checksums
+        run: |
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/NiceSwarm-Launcher.exe .
+          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/NiceSwarm-Launcher-arm64.exe .
+          # SHA256 sidecars the launcher reads to detect that IT is outdated. sha256sum's
+          # "<hash>  <filename>" output is exactly the sidecar format the launcher parses.
+          ( cd dist && sha256sum NiceSwarm-Launcher.exe > NiceSwarm-Launcher.exe.sha256 )
+          ( cd dist && sha256sum NiceSwarm-Launcher-arm64.exe > NiceSwarm-Launcher-arm64.exe.sha256 )
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NiceSwarm-Launcher-windows
+          path: launcher/dist/*
+          if-no-files-found: error
+      - name: Publish to rolling 'launcher' tag (publish branch)
+        if: github.ref == 'refs/heads/publish'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: launcher
+          name: NiceSwarm Launcher (latest)
+          body: Auto-built launcher from `publish` (${{ github.sha }}).
+          prerelease: true
+          files: launcher/dist/*
+
+  # macOS universal launcher, wrapped in a minimal ad-hoc-signed .app. This path is
+  # IMPLEMENTED BUT UNVERIFIED (no Mac host was available during development), so the
+  # job builds + tests + uploads an ARTIFACT only — it does NOT publish to the
+  # `launcher` release. Promote it to a publish step once validated on a real Mac
+  # (LAUNCHER.md Phase 2). Also: the launcher is a console program, so inside a .app
+  # double-click shows no terminal/progress yet — Phase 2 polish.
+  launcher-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false # zero external deps -> no go.sum, nothing to cache
+      - name: Test
+        run: go test ./...
+      - name: Build universal binary, wrap in .app, ad-hoc sign, zip
+        run: |
+          set -euo pipefail
+          mkdir -p dist build
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o build/launcher_amd64 .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o build/launcher_arm64 .
+          lipo -create -output build/NiceSwarm-Launcher build/launcher_amd64 build/launcher_arm64
+          app="build/NiceSwarm Launcher.app"
+          mkdir -p "$app/Contents/MacOS"
+          cp macos/Info.plist "$app/Contents/Info.plist"
+          cp build/NiceSwarm-Launcher "$app/Contents/MacOS/NiceSwarm-Launcher"
+          chmod +x "$app/Contents/MacOS/NiceSwarm-Launcher"
+          codesign --force --deep --sign - "$app"
+          ( cd build && zip -qr -y "../dist/NiceSwarm-Launcher-macos.zip" "NiceSwarm Launcher.app" )
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NiceSwarm-Launcher-macos
+          path: launcher/dist/*
+          if-no-files-found: error
