@@ -50,3 +50,18 @@ func run(t) -> void:
 	t.ok(max_normal_xp < GameConfig.GEM_CONDENSED_THRESHOLD,
 		"max non-boss xp (%d) < red threshold (%d)" % [max_normal_xp, GameConfig.GEM_CONDENSED_THRESHOLD])
 	t.ge(min_boss_xp, GameConfig.GEM_CONDENSED_THRESHOLD, "boss xp >= red threshold")
+
+	# slow buff: every slow source funnels through Enemy.apply_slow, which deepens the
+	# incoming speed factor by SLOW_POTENCY and clamps it to SLOW_FLOOR_MULT (the "really
+	# slow" buff). Test the real function on a bare Enemy (apply_slow needs no tree).
+	var e := Enemy.new()
+	e.apply_slow(0.7, 1.0)  # mild slow: deepened but still above the floor
+	t.approx(e.slow_mult, 1.0 - 0.3 * GameConfig.SLOW_POTENCY, 0.001, "slow deepened by potency")
+	t.eq(e.slow_timer, 1.0, "slow timer set")
+	e.apply_slow(0.45, 0.5)  # strong slow: deepen drops below the floor -> clamps
+	t.eq(e.slow_mult, GameConfig.SLOW_FLOOR_MULT, "deep slow clamps to SLOW_FLOOR_MULT")
+	e.cc_immune = true
+	e.slow_mult = 1.0
+	e.apply_slow(0.5, 1.0)
+	t.eq(e.slow_mult, 1.0, "cc_immune enemies can't be slowed")
+	e.free()

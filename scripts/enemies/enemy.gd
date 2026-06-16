@@ -396,7 +396,12 @@ func _spawn_number(amount: float) -> void:
 func apply_slow(mult: float, duration: float) -> void:
 	if cc_immune:  # interrupt-immune enemies can't be slowed
 		return
-	slow_mult = mult
+	# Central slow buff: every slow source funnels through here, so deepen the incoming
+	# speed factor (mult, <1) by SLOW_POTENCY and clamp to SLOW_FLOOR_MULT. The 0.5 base
+	# frost slow becomes 0.2 speed (an 80% slow) — frost/freeze really bites. Bosses/tier-3
+	# are included (still slowable); only cc_immune enemies are exempt (returned above).
+	var deep := 1.0 - (1.0 - mult) * GameConfig.SLOW_POTENCY
+	slow_mult = maxf(deep, GameConfig.SLOW_FLOOR_MULT)
 	slow_timer = maxf(slow_timer, duration)
 
 

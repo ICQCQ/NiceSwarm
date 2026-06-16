@@ -5,6 +5,7 @@ extends Node2D
 var damage := 6.0
 var source_pid := -1  # scoreboard: which player owns this
 var source_weapon: WeaponBase
+var owner_weapon_id := -1  # instance id of the deploying weapon; caps per-weapon, not global
 var blast_radius := 100.0
 var trigger_radius := 55.0  # Area
 var arm := 0.4  # arming delay so it doesn't pop the instant it drops

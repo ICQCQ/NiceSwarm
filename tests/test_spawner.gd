@@ -5,6 +5,10 @@ extends RefCounted
 
 class MockMain extends Node:
 	var elapsed := 0.0
+	# run_progress is a 0..100 computed property on the real Main (elapsed / WIN_TIME).
+	# Mirror it so the spawner's progress-driven math (warmup/class_tier/waves) works.
+	var run_progress: float:
+		get: return clampf(elapsed / GameConfig.WIN_TIME * 100.0, 0.0, 100.0)
 	var level := 1
 	var peer_ids := [1]
 	var enemies_by_id := {}
@@ -37,20 +41,20 @@ func run(t) -> void:
 	# --- warmup brake ---
 	mock.elapsed = 0.0
 	t.approx(sp.warmup(), GameConfig.DIFF_WARMUP_FLOOR, 0.001, "warmup at t=0 is the floor")
-	mock.elapsed = GameConfig.DIFF_WARMUP_SECS * 2.0
+	mock.elapsed = GameConfig.WIN_TIME  # full run -> run_progress 100, well past warmup
 	t.approx(sp.warmup(), 1.0, 0.001, "warmup saturates to 1.0")
 
 	# --- class_tier always in [0, tiers-1] ---
-	sp.pace = 0.0
-	t.eq(sp.class_tier("brawler"), 0, "class_tier 0 at pace 0")
-	sp.pace = 99.0
+	mock.elapsed = 0.0
+	t.eq(sp.class_tier("brawler"), 0, "class_tier 0 at progress 0")
+	mock.elapsed = GameConfig.WIN_TIME  # run_progress 100 -> high tier ceiling
 	var n: int = EnemyConfig.CLASSES["brawler"].size()
 	var in_range := true
 	for i in 50:
 		var tier := sp.class_tier("brawler")
 		if tier < 0 or tier >= n:
 			in_range = false
-	t.ok(in_range, "class_tier stays within [0, tiers-1] at high pace")
+	t.ok(in_range, "class_tier stays within [0, tiers-1] at high progress")
 
 	# --- heat()/diff() read host values ---
 	sp.heat_cur = 0.42
@@ -60,7 +64,7 @@ func run(t) -> void:
 
 	# --- reset() restores the baseline ---
 	sp.reset()
-	t.eq(sp.pace, 0.0, "reset zeroes pace")
+	t.approx(sp.heat_cur, 0.0, 0.001, "reset zeroes heat")
 	t.eq(sp.difficulty, 0.0, "reset zeroes difficulty")
 	t.eq(sp.boss_next_kill, GameConfig.BOSS_KILL_BASE, "reset arms the first boss")
 

@@ -53,6 +53,20 @@ func ignite(e: Node, dmg: float, stack_mult: float = 1.0) -> void:
 	e.apply_burn(dmg * 0.3, 1.2 * player.duration_mult, stack_mult, player.peer_id)
 
 
+## Count nodes in `group_name` that THIS weapon instance deployed (their
+## `owner_weapon_id` equals our instance id). Lets deployable weapons (turrets,
+## mines) cap their spawns PER WEAPON instead of sharing one global group count —
+## so two mine/turret weapons (including one per player in co-op) don't split a
+## single cap. Each spawner must stamp `owner_weapon_id = get_instance_id()`.
+func owned_in_group(group_name: String) -> int:
+	var my_id := get_instance_id()
+	var n := 0
+	for node in get_tree().get_nodes_in_group(group_name):
+		if node.owner_weapon_id == my_id:
+			n += 1
+	return n
+
+
 ## Nova-family "shockwave" push: a mild extra knockback impulse on top of
 ## take_hit's normal hit knockback, so nova-style blasts visibly shove enemies
 ## outward. Push distance is spatial, so it scales with Area.

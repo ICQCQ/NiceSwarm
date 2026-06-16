@@ -107,12 +107,12 @@ Merging two **Lv7** weapons consumes both and produces **one distinct new weapon
 slot (freeing a slot). Every fusion honors the same four stat axes. Pairs are listed
 alphabetically by result name; the same data backs the `[FUSE]` upgrade pick text in-game.
 
-**A signature fusion is born at max level (Lv7).** It's a single fresh weapon — it must inherit
-the maxed level of the two weapons it consumed, or its damage growth term would collapse to ×1.0
-and the fuse would be a brutal DPS downgrade from two Lv7 inputs. Born at Lv7 it lands at roughly
-a maxed weapon's worth of damage *plus* its richer multi-hit/AoE output, so fusing is an upgrade,
-not a cliff. Because the `[LEVEL]` pool gates at `< MAX_WEAPON_LEVEL`, a signature fusion is
-**already maxed and merge-only** — its next step is fusing again into a higher tier, not leveling.
+**A signature fusion is born at Lv1 and levels up 1..Lv7 like a base weapon.** At Lv1 its
+damage growth term is ×1.0, so a fresh fusion is *weaker* than the two Lv7 weapons it consumed —
+an accepted DPS dip that rewards leveling it back up. The payoff is its richer multi-hit/AoE
+behavior plus room to grow. This also **gates the next merge**: the `[MERGE]` pool only offers
+**maxed** weapons, so a signature fusion must be leveled all the way to `MAX_WEAPON_LEVEL` before
+it can be amalgamated again into a higher tier — only a maxed-out fusion fuses on.
 
 The generic **Amalgam** fallback (uncovered pairs) is different: it keeps **both component weapons
 running and levels them together** as one slot — so it starts at full component power with no

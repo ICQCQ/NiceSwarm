@@ -102,8 +102,13 @@ func _emit(target: Node2D) -> float:
 			Sfx.play("flame", here, -6.0)
 			return 0.18
 		"mines":
-			if get_tree().get_nodes_in_group("mines").size() < 6:
+			var own_mines := 0
+			for m2 in get_tree().get_nodes_in_group("mines"):
+				if m2.owner_weapon_id == owner_weapon_id:
+					own_mines += 1
+			if own_mines < 6:  # per-deploying-weapon cap, not a shared global count
 				var mn := MineNode.new()
+				mn.owner_weapon_id = owner_weapon_id
 				mn.damage = damage * 2.0
 				mn.blast_radius = 90.0 * area_mult
 				mn.trigger_radius = 50.0 * area_mult

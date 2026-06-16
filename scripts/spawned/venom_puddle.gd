@@ -53,6 +53,7 @@ func _draw() -> void:
 	var a := clampf(life / max_life, 0.0, 1.0)
 	var base := Color(1.0, 0.5, 0.15) if fiery else (Color(0.3, 0.75, 0.9) if icy else Color(0.3, 0.85, 0.3))
 	var spot := Color(1.0, 0.75, 0.2) if fiery else (Color(0.55, 0.9, 1.0) if icy else Color(0.4, 1.0, 0.4))
-	draw_circle(Vector2.ZERO, radius, Color(base.r, base.g, base.b, 0.22 * a))
-	draw_circle(Vector2(radius * 0.3, -radius * 0.2), radius * 0.25, Color(spot.r, spot.g, spot.b, 0.3 * a))
-	draw_circle(Vector2(-radius * 0.35, radius * 0.25), radius * 0.18, Color(spot.r, spot.g, spot.b, 0.3 * a))
+	# Lowered opacity (was 0.22 fill / 0.30 spots) so the trail doesn't wash out everything underneath.
+	draw_circle(Vector2.ZERO, radius, Color(base.r, base.g, base.b, 0.12 * a))
+	draw_circle(Vector2(radius * 0.3, -radius * 0.2), radius * 0.25, Color(spot.r, spot.g, spot.b, 0.16 * a))
+	draw_circle(Vector2(-radius * 0.35, radius * 0.25), radius * 0.18, Color(spot.r, spot.g, spot.b, 0.16 * a))

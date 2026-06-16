@@ -38,7 +38,7 @@ func _spawn_well(pos: Vector2) -> void:
 	var well := GravityWell.new()
 	well.source_pid = player.peer_id
 	well.source_weapon = self
-	well.radius = (160.0 + 15.0 * (level - 1)) * player.area_mult
+	well.radius = (120.0 + 10.0 * (level - 1)) * player.area_mult  # nerfed field size (was 160 + 15/lv)
 	well.damage = WeaponConfig.BASE.gravity.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.gravity.growth * (level - 1))
 	well.pull = 170.0 + 15.0 * (level - 1)
 	well.life = 2.5 * player.duration_mult

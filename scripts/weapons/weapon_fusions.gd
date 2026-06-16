@@ -351,12 +351,13 @@ class ClusterBomb extends WeaponBase:
 		cooldown -= delta
 		if cooldown > 0.0:
 			return
-		if get_tree().get_nodes_in_group("mines").size() >= 3 + level:
+		if owned_in_group("mines") >= 3 + level:  # per-weapon cap, not a shared global count
 			cooldown = 0.2
 			return
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
+		m.owner_weapon_id = get_instance_id()
 		m.damage = 6.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		m.blast_radius = (110.0 + 15.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 60.0 * player.area_mult
@@ -665,13 +666,14 @@ class NapalmMine extends WeaponBase:
 		cooldown -= delta
 		if cooldown > 0.0:
 			return
-		if get_tree().get_nodes_in_group("mines").size() >= 3 + level:
+		if owned_in_group("mines") >= 3 + level:  # per-weapon cap, not a shared global count
 			cooldown = 0.2
 			return
 		var dmg := 6.0 * player.damage_mult * (1.0 + 0.5 * (level - 1))
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
+		m.owner_weapon_id = get_instance_id()
 		m.damage = dmg
 		m.blast_radius = (100.0 + 15.0 * (level - 1)) * player.area_mult
 		m.trigger_radius = 55.0 * player.area_mult

@@ -16,6 +16,7 @@ const MODULES := [
 	"res://tests/test_weapons.gd",
 	"res://tests/test_enemies.gd",
 	"res://tests/test_fusions.gd",
+	"res://tests/test_merge.gd",
 	"res://tests/test_spawner.gd",
 	"res://tests/test_gems.gd",
 	"res://tests/test_stats.gd",
