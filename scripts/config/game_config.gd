@@ -61,7 +61,7 @@ const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired 
 # from the original 0.5/0.6 — at those rates a 4-player field was ~2.5× hp and
 # ~2.8× spawn density, which over-punished co-op (sim 2-4p sat at ~27-33% win vs
 # the 50-60% target). See docs/balance/MULTIPLAYER_BALANCE_SIM.md.
-const PARTY_HP_PER := 0.3             # enemy hp ×(1 + this·(N-1))
+const PARTY_HP_PER := 0.2             # enemy hp ×(1 + this·(N-1))
 const PARTY_RATE_PER := 0.4           # spawn density ×(1 + this·(N-1))
 
 # --- wave rhythm (layered on top of run_progress/heat in EnemySpawner.run_spawning) ---
