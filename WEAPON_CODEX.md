@@ -18,14 +18,58 @@ this file should be regenerated — don't trust it over the code.
 - **Fusion depth cap 3** (`MAX_FUSION_TIER`): base+base → **T1**, T1+T1 → **T2**, T2+T2 → **T3**
   (final, can never merge again). Merging tiers `a`,`b` yields `max(a,b)+1`.
 
-## The four stat axes (every weapon honors all four)
+## Stat upgrades
 
-| Axis | Player field | Effect on every weapon |
-|------|--------------|------------------------|
-| **Power** | `damage_mult` | +25%/pick damage per hit (also folds in party-level scaling) |
-| **Haste** | `rate_mult` | +14%/pick cadence — cooldown, tick, spin, re-hit (lower field = faster) |
-| **Area** | `area_mult` | +20%/pick every spatial dimension — radii, reach, beams, orbit, range |
-| **Duration** | `duration_mult` | +25%/pick lifetimes; instant weapons gain a lingering **burn** instead |
+Every level-up offers a slate of choices. Beyond `[NEW]`/`[LEVEL]`/`[FUSE]` weapon picks,
+the pool always salts in `[STAT]` upgrades — global modifiers that touch your whole build.
+They split into **four weapon axes** (scale every weapon's math) and **four utility stats**
+(scale *you*). Source: `_build_choice_pool` / `apply_choice` in `scripts/main.gd`, caps in
+`scripts/config/game_config.gd`.
+
+### How a stat pick stacks
+
+**Every pick multiplies, it does not add.** "+25% Power" means your Power multiplier is
+multiplied by `×1.25` — so picks **compound**: pick 1 → ×1.25, pick 2 → ×1.5625, pick 3 →
+×1.95… The "+N%" in the upgrade card is the size of *that one* step, not a running total.
+
+Each axis has a **hard cap**. A `[STAT]` only appears in the pool while you're still below
+(for Haste, above) its cap, so each axis offers a **finite** number of picks before it stops
+being offered. The "picks to cap" column below is how many it takes to bottom/top out.
+
+### The four weapon axes (every weapon honors all four)
+
+| Axis | Player field | Per pick | Cap | Picks to cap | What it scales on every weapon |
+|------|--------------|----------|-----|--------------|--------------------------------|
+| **Power** | `damage_mult` | `×1.25` (+25% damage) | `6.0` | ~9 | damage per hit on **everything** |
+| **Haste** | `rate_mult` | `×0.88` (≈+14% attack speed) | `0.5` (2× faster) | ~6 | cooldown, tick interval, spin speed, per-target re-hit cadence (lower field = faster) |
+| **Area** | `area_mult` | `×1.2` (+20% size & reach) | `2.0` | ~4 | **every** spatial dimension — projectile/blast radius, beam length, cone reach, orbit radius, targeting & chain-jump range |
+| **Duration** | `duration_mult` | `×1.25` (+25% effect time) | `2.5` | ~5 | lifetimes — projectiles, summons (turrets), trails, fields. Instant weapons instead gain a lingering **burn** (`ignite()`) whose duration scales here |
+
+**Power is special — it folds in two things.** A Power *pick* raises `power_stat` (the field
+the cap clamps). But the number weapons actually read, `damage_mult`, is **re-derived every
+frame** as:
+
+```
+damage_mult = power_stat × (1 + WEAPON_LEVEL_POWER × (party_level − 1))
+```
+
+`WEAPON_LEVEL_POWER` is `0.025`, so each **party level** quietly adds +2.5% damage to every
+weapon *on top of* your Power picks — no weapon code needed, and bots/puppets stay current
+because it's recomputed before any early-return. The `power_stat` cap of `6.0` bounds the
+**pick** contribution only; party level keeps scaling past it.
+
+### The four utility stats (scale you, not weapons)
+
+| Stat | Card | Player field | Per pick | Cap | Picks to cap |
+|------|------|--------------|----------|-----|--------------|
+| **Swift Boots** | +12% move speed | `move_speed` | `×1.12` | `396` (1.8× base 220) | ~6 |
+| **Vitality** | +1 max HP and heal 2 | `max_hp` / `hp` | `+1 max, heal 2` | `15` (from base 5) | 10 |
+| **Magnet** | +50% pickup range | `pickup_range` | `×1.5` | `270` (3× base 90) | ~3 |
+| **Slipstream** | −20% dash cooldown | `dash_cooldown` | `×0.8` | `1.2 s` floor (from base 2.5) | ~4 |
+
+Vitality is the only additive utility stat (flat +1 HP, +2 heal); the other three compound
+multiplicatively like the weapon axes. Picks are tracked per-id in `player.stat_levels` and
+surfaced as the stacking stat icons on the HUD.
 
 Hover any weapon slot in-game to see its **live DMG, DPS, total damage dealt**, and your
 current build's Power/Haste/Area/Duration multipliers — for base weapons *and* fusions.
@@ -39,17 +83,17 @@ current build's Power/Haste/Area/Duration multipliers — for base weapons *and*
 |--------|----|-----|--------|----|------|--------------------------|
 | **Bolt** | `bolt` | 2.0 | 0.345 | 0.8 | Phys | auto-fires at the nearest enemy · +1 projectile, more damage |
 | **Orbit Blades** | `orbit` | 2.0 | 0.46 | 0.45ʳ | Phys | blades circle you, shredding nearby foes · +1 blade, more damage |
-| **Nova Pulse** | `nova` | 3.0 | 0.575 | 3.5 | Energy | periodic blast hits everything around you · bigger radius, more damage |
+| **Nova Pulse** | `nova` | 3.0 | 0.575 | 3.5 | Energy | periodic blast hits everything around you · bigger radius, more damage; **echo pulses at Lv5+** (1/2/3 extra shockwaves at Lv5/6/7) |
 | **Boomerang Glaive** | `glaive` | 2.5 | 0.345 | 1.6 | Phys | piercing glaive flies out and returns · extra glaive at Lv2/3, more damage |
 | **Chain Lightning** | `lightning` | 2.0 | 0.46 | 2.2 | Energy | zaps a foe, arcs to nearby enemies · +1 chain, more damage |
-| **Flame Cone** | `flame` | 0.6 | 0.46 | 0.15ᵗ | Fire | torches everything in front of you · longer, hotter flames |
+| **Flame Cone** | `flame` | 0.6 | 0.46 | 0.15ᵗ | Fire | torches everything in front of you · longer, hotter flames; **cone widens past Lv3** |
 | **Proximity Mines** | `mines` | 6.0 | 0.575 | 2.0 | Phys | drops mines that blast nearby enemies · +1 mine, bigger blasts |
 | **Homing Missiles** | `missiles` | 3.0 | 0.345 | 2.4 | Phys | seeking rockets with splash damage · +1 missile, more damage |
-| **Sweep Laser** | `laser` | 1.2 | 0.46 | 0.3ʳ | Energy | a beam slices circles around you · 2nd beam at Lv3, longer beam |
+| **Sweep Laser** | `laser` | 1.2 | 0.46 | 0.3ʳ | Energy | beams sweep around you · **1→4 evenly-spread beams** (2 at Lv3, 3 at Lv5, 4 at Lv7), longer beam |
 | **Frost Shards** | `frost` | 1.5 | 0.345 | 1.8 | Ice | piercing shards that chill enemies · +1 shard, more damage |
-| **Gravity Well** | `gravity` | 0.5 | 0.575 | 6.0 | Energy | vortex drags the swarm together · wider, stronger pull |
+| **Gravity Well** | `gravity` | 0.5 | 0.575 | 6.0 | Energy | vortex drags the swarm together · wider, stronger pull; **+1 simultaneous well at Lv4 & Lv6** (up to 3) |
 | **Sentry Turret** | `turret` | 1.2 | 0.46 | 6.5 | Phys | deployable turret fights for you · longer uptime; 2nd turret at Lv3 |
-| **Venom Trail** | `venom` | 0.8 | 0.46 | 0.35ᵈ | Phys | leave toxic puddles as you move · bigger, deadlier puddles |
+| **Venom Trail** | `venom` | 0.8 | 0.46 | 0.35ᵈ | Phys | leave toxic puddles as you move · bigger, deadlier puddles; **wider carpet past Lv3** (2nd puddle Lv3, 3rd Lv6) |
 
 ʳ `cd` = per-enemy re-hit interval · ᵗ `cd` = tick interval · ᵈ `cd` = puddle-drop interval.
 
@@ -60,9 +104,19 @@ downgrade).
 ## Fusions (78 — every weapon pair)
 
 Merging two **Lv7** weapons consumes both and produces **one distinct new weapon** in a single
-slot (freeing a slot). The new weapon's parts keep working and **level together**. Every fusion
-honors the same four stat axes. Pairs are listed alphabetically by result name; the same data
-backs the `[FUSE]` upgrade pick text in-game.
+slot (freeing a slot). Every fusion honors the same four stat axes. Pairs are listed
+alphabetically by result name; the same data backs the `[FUSE]` upgrade pick text in-game.
+
+**A signature fusion is born at max level (Lv7).** It's a single fresh weapon — it must inherit
+the maxed level of the two weapons it consumed, or its damage growth term would collapse to ×1.0
+and the fuse would be a brutal DPS downgrade from two Lv7 inputs. Born at Lv7 it lands at roughly
+a maxed weapon's worth of damage *plus* its richer multi-hit/AoE output, so fusing is an upgrade,
+not a cliff. Because the `[LEVEL]` pool gates at `< MAX_WEAPON_LEVEL`, a signature fusion is
+**already maxed and merge-only** — its next step is fusing again into a higher tier, not leveling.
+
+The generic **Amalgam** fallback (uncovered pairs) is different: it keeps **both component weapons
+running and levels them together** as one slot — so it starts at full component power with no
+cliff either, and *can* keep leveling (its components scale past Lv7).
 
 | Pair | Fusion | Behavior |
 |------|--------|----------|

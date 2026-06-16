@@ -1,6 +1,14 @@
 class_name WeaponLaser
 extends WeaponBase
-## Beam sweeping around the player; Lv4 adds a second, opposite beam.
+## Beams sweeping around the player. Beam count grows 1 -> 4 with level (evenly
+## spread), so high levels widen coverage instead of only adding damage/length.
+
+
+## Beams spread evenly around the player and scale with level (capped at 4).
+## A real above-Lv3 upgrade: the old code computed count_level() beams but
+## offset them by PI*b, collapsing every beam onto the same 2 opposite lines.
+func _beam_count() -> int:
+	return mini(1 + (count_level() - 1) / 2, 4)  # Lv1-2:1, Lv3-4:2, Lv5-6:3, Lv7:4
 
 const SPIN := 1.4
 const HIT_COOLDOWN := 0.3  # per enemy
@@ -29,7 +37,7 @@ func _physics_process(delta: float) -> void:
 	for k in expired:
 		hit_cd.erase(k)
 
-	var beams := count_level()
+	var beams := _beam_count()
 	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 	var dmg := WeaponConfig.BASE.laser.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.laser.growth * (level - 1))
 	# Broad-phase by beam length (grid); +64 margin covers the largest enemy radius (38) so
@@ -39,7 +47,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		var rel: Vector2 = e.global_position - global_position
 		for b in beams:
-			var dir := Vector2.from_angle(angle + PI * b)
+			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 			var along := clampf(rel.dot(dir), 0.0, length)
 			if (dir * along).distance_to(rel) <= 6.0 + e.radius:
 				damage_dealt += dmg
@@ -53,9 +61,9 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var beams := 2 if level >= 3 else 1
+	var beams := _beam_count()
 	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
 	for b in beams:
-		var dir := Vector2.from_angle(angle + PI * b)
+		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.3, 0.4, 0.25), 9.0)
 		draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.5, 0.55), 3.0)
