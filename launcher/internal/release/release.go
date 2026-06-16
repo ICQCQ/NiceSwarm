@@ -82,3 +82,13 @@ func LauncherSidecarURL() string {
 	}
 	return LauncherBase + a + ".sha256"
 }
+
+// LauncherDownloadURL is the URL of this launcher's own asset (used by the self-update
+// to fetch the replacement binary), or "" if self-update is unsupported here.
+func LauncherDownloadURL() string {
+	a := LauncherAsset()
+	if a == "" {
+		return ""
+	}
+	return LauncherBase + a
+}

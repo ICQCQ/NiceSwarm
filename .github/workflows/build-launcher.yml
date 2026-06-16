@@ -32,24 +32,29 @@ defaults:
     working-directory: launcher
 
 jobs:
-  # Windows binaries cross-compiled from Linux — pure-Go (stdlib + os/exec only), no
-  # cgo, so GOOS/GOARCH is all it takes. Fast and runner-cheap. This is the verified
-  # path and the one published to users.
+  # Windows binaries cross-compiled from Linux. The Gio (gioui.org) Windows backend is
+  # pure-Go (Direct3D/syscall via golang.org/x/sys), so CGO_ENABLED=0 cross-compiles
+  # cleanly for amd64 AND arm64 — verified locally. Tests run on internal/... only so
+  # the Linux runner never compiles the Gio GUI package (its Linux backend would demand
+  # cgo + X11/Wayland headers). This is the verified path and the one published to users.
   launcher-windows:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
-          cache: false # zero external deps -> no go.sum, nothing to cache
+          go-version: "1.24"
+          cache: true # gioui.org deps are recorded in go.sum now
       - name: Test
-        run: go test ./...
+        run: go test ./internal/... # skip the GUI package: needs cgo+X11 on Linux
       - name: Cross-compile Windows binaries + checksums
+        env:
+          CGO_ENABLED: "0" # Gio's Windows backend is pure-Go; no cgo needed
         run: |
           mkdir -p dist
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/NiceSwarm-Launcher.exe .
-          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/NiceSwarm-Launcher-arm64.exe .
+          # -H=windowsgui: GUI subsystem, so no console window flashes beside the Gio window.
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H=windowsgui" -o dist/NiceSwarm-Launcher.exe .
+          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -H=windowsgui" -o dist/NiceSwarm-Launcher-arm64.exe .
           # SHA256 sidecars the launcher reads to detect that IT is outdated. sha256sum's
           # "<hash>  <filename>" output is exactly the sidecar format the launcher parses.
           ( cd dist && sha256sum NiceSwarm-Launcher.exe > NiceSwarm-Launcher.exe.sha256 )
@@ -74,24 +79,27 @@ jobs:
   # IMPLEMENTED BUT UNVERIFIED (no Mac host was available during development), so the
   # job builds + tests + uploads an ARTIFACT only — it does NOT publish to the
   # `launcher` release. Promote it to a publish step once validated on a real Mac
-  # (LAUNCHER.md Phase 2). Also: the launcher is a console program, so inside a .app
-  # double-click shows no terminal/progress yet — Phase 2 polish.
+  # (LAUNCHER.md Phase 2). Unlike Windows, Gio's macOS backend REQUIRES cgo (AppKit +
+  # Metal), so each arch is built CGO_ENABLED=1; the cross-arch (amd64) slice targets
+  # the universal SDK via `clang -arch`. continue-on-error keeps a Gio/cgo hiccup on
+  # this unverified job from failing the published Windows release.
   launcher-macos:
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
-          cache: false # zero external deps -> no go.sum, nothing to cache
+          go-version: "1.24"
+          cache: true # gioui.org deps are recorded in go.sum now
       - name: Test
-        run: go test ./...
+        run: go test ./internal/... # GUI package has no tests; internals are the suite
       - name: Build universal binary, wrap in .app, ad-hoc sign, zip
         run: |
           set -euo pipefail
           mkdir -p dist build
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o build/launcher_amd64 .
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o build/launcher_arm64 .
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w" -o build/launcher_amd64 .
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o build/launcher_arm64 .
           lipo -create -output build/NiceSwarm-Launcher build/launcher_amd64 build/launcher_arm64
           app="build/NiceSwarm Launcher.app"
           mkdir -p "$app/Contents/MacOS"

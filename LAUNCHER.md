@@ -4,8 +4,15 @@ A small, cross-platform launcher that keeps the game binary current and starts i
 It is the **primary thing a player downloads and keeps**; the ~100 MB game binary
 itself is managed by the launcher in a per-user data directory.
 
-> Built in **Go** (single self-contained binary, no runtime dependency, cross-compiles
-> to every target from one CI runner). Lives in [`launcher/`](launcher/).
+> Built in **Go** with a **Gio ([gioui.org](https://gioui.org/)) window** — a single
+> self-contained binary, no runtime dependency. The Windows backend is pure-Go, so it
+> still cross-compiles CGO-free from one Linux CI runner; macOS needs cgo (AppKit/Metal)
+> and builds on a Mac runner. Lives in [`launcher/`](launcher/).
+>
+> The window auto-checks on open, shows a **progress bar** during downloads, then enables
+> **Play**. It also exposes a manual **Check for Updates** button, a **Debug build**
+> toggle, and — when a newer launcher is published — an **Update Launcher** button that
+> performs a real self-replace. A `--headless` flag keeps the original windowless flow.
 
 ## Why a launcher (and not in-game self-update)
 
@@ -32,27 +39,48 @@ Debug and release builds install **side-by-side** as distinct files, so toggling
 
 ## Flow (every launch)
 
-1. Resolve the target asset for this platform + arch + debug flag — mirrors
+The window **auto-checks on open** (and re-checks on demand via **Check for Updates**):
+
+1. Resolve the target asset for this platform + arch + debug toggle — mirrors
    `update_check.gd:_sidecar_url()` exactly.
 2. `GET <latest>/<asset>.sha256` — the SHA256 sidecar CI publishes next to every binary.
 3. Compare the remote hash to the locally-installed binary's hash (missing ⇒ "needs download").
-4. If different/missing → download with a visible progress bar, **verify SHA256**, then
+4. If different/missing → download (the **progress bar** fills), **verify SHA256**, then
    atomically replace the installed binary.
-5. Launch the installed game and exit.
-6. **Offline-safe:** if the network or hash check fails but an install already exists,
-   launch it anyway — a launch never blocks on the network (same philosophy as
-   `update_check.gd`, where "every failure path is silent").
+5. When a runnable build is present, **Play** is enabled; clicking it launches the game and
+   exits the launcher. (The window stays open until the player clicks Play — it no longer
+   auto-launches, so Check / Debug / Update Launcher stay reachable.)
+6. **Offline-safe:** if the network or hash check fails but an install already exists, the
+   status says so and Play is still enabled — nothing blocks on the network (same
+   philosophy as `update_check.gd`, where "every failure path is silent").
 
-## Launcher self-update check
+Background work runs in goroutines; a single mutex-guarded "busy" slot ensures only one
+operation (check / download / self-update / launch) runs at a time, and each state change
+calls `window.Invalidate()` so the next frame reflects it. `--headless` runs the original
+windowless check → update → launch → exit instead.
 
-The launcher also checks whether **it itself** is outdated: it hashes its own
-executable (`os.Executable()`) and compares it to a `.sha256` sidecar published for the
-launcher binary on the `launcher` tag (CI emits these alongside the binaries). On a
-mismatch it prints a one-line notice pointing at the launcher release page. This is
-**detection + notify only** — it does *not* self-replace yet (the launcher is the locked
-file at that point; the rename-self swap is Phase 3). Best-effort: any failure (offline,
-404, unhashable) is silent. Supported on Windows; skipped on macOS for now (the launcher
-ships as a `.app`-in-zip there — see Phase 2).
+## Launcher self-update
+
+On open the launcher hashes its own executable (`os.Executable()`) and compares it to a
+`.sha256` sidecar published for the launcher binary on the `launcher` tag (CI emits these
+alongside the binaries). On a mismatch the window surfaces an **Update Launcher** button.
+
+Clicking it performs a real self-replace (`internal/selfupdate`). On Windows a running
+`.exe` can't be overwritten but **can** be renamed, so the swap is:
+
+1. Fetch the launcher sidecar hash; download the new launcher to `<exe>.new`.
+2. **Verify SHA256 before any swap** (a mismatch aborts and leaves the launcher untouched).
+3. `Replace`: move `<exe>` → `<exe>.old` (frees the locked name), write the new bytes to
+   `<exe>`. **If the write fails, `<exe>.old` is renamed back** — a botched update never
+   leaves the user without a working launcher.
+4. Re-exec the freshly written launcher (same args) and exit.
+5. The next startup runs `CleanupOld` to delete the parked `<exe>.old`.
+
+Best-effort throughout: any failure (offline, 404, unhashable, read-only directory) is
+reported in the status line and leaves the launcher intact. The self-check + self-replace
+are **Windows-only** for now; macOS ships the launcher as a `.app`-in-zip and stays
+detect-skipped (see Phase 2). The in-game `scripts/core/update_check.gd` still shows its
+own banner notice; the launcher is what performs both the game and launcher updates.
 
 ## Asset contract (reused, not reinvented)
 
@@ -70,11 +98,13 @@ The launcher reuses that contract verbatim:
 Download URL = sidecar URL minus `.sha256`. GitHub download URLs **302-redirect** to
 `objects.githubusercontent.com`; the HTTP client follows redirects.
 
-## `--debug` option
+## Debug build option
 
-`--debug` selects the debug game build instead of release; `--release` forces release.
-The choice is **persisted** to `launcher.json` in the data dir, so it sticks across runs
-(no flag ⇒ use the stored value, default release).
+The **Debug build** checkbox in the window switches between the release and debug game
+build; toggling it persists the choice and immediately re-checks against the other asset.
+The `--debug` / `--release` flags do the same from the command line and set the initial
+state. The choice is **persisted** to `launcher.json` in the data dir, so it sticks across
+runs (no flag ⇒ use the stored value, default release).
 
 - Debug installs as `NiceSwarm-debug.exe` and verifies against its own sidecar.
 - ⚠️ **macOS has no debug build** (`update_check.gd` ignores `is_debug_build()` on mac;
@@ -120,20 +150,23 @@ footgun, so it needs its own workflow; see Phasing.)
 
 ## Phasing
 
-- **Phase 1 — Windows (core):** asset resolution, download + verify + atomic replace into
-  `%LOCALAPPDATA%`, launch, progress UI, offline fallback, `--debug`. CI → `launcher` tag.
+- **Phase 1 — Windows (core):** ✅ asset resolution, download + verify + atomic replace into
+  `%LOCALAPPDATA%`, launch, offline fallback, `--debug`, **Gio window with a progress bar,
+  Check-for-Updates button, and Debug toggle**. CI → `launcher` tag.
 - **Phase 2 — macOS:** validate the zip handling, inner-Mach-O hash compare, `.app` replace,
   quarantine clear, and signed wrapper on a real Mac, then flip the CI macOS job from
-  artifact-only to publishing the `launcher` tag. Address the no-terminal progress UX.
-- **Phase 3 — polish:** pinned `launcher-v*` release workflow (separate file, no `paths:`
-  filter); launcher **self-*replace*** (the self-update *check* already ships — this adds the
-  actual swap: it is now the locked file, so rename-running-exe-to-`.old`, write new, re-exec,
-  clean up next run); Windows arm64-debug asset.
+  artifact-only to publishing the `launcher` tag. The Gio window already solves the old
+  no-terminal-progress UX; the launcher self-replace still needs the macOS `.app`-swap path.
+- **Phase 3 — polish:** ✅ launcher **self-replace** now ships on Windows (rename-to-`.old`,
+  verify, write, re-exec, clean up next run — see `internal/selfupdate`). Remaining: pinned
+  `launcher-v*` release workflow (separate file, no `paths:` filter); the macOS self-replace
+  path; a Windows arm64-debug asset.
 
 ## Build / run locally
 
 ```sh
 cd launcher
-go build -o NiceSwarm-Launcher.exe .   # or: go vet ./...
-./NiceSwarm-Launcher.exe                # release; add --debug for the debug build
+go build -o NiceSwarm-Launcher.exe .   # or: go vet ./... ; go test ./internal/...
+./NiceSwarm-Launcher.exe                # opens the window; --debug preselects the debug build
+./NiceSwarm-Launcher.exe --headless     # legacy windowless flow (automation)
 ```
