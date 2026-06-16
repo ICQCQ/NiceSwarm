@@ -984,6 +984,13 @@ Two reported balance bugs, both rooted in the 3→7 weapon-cap rise not being fo
   extra pulses). **Gravity** — +1 simultaneous well at Lv4 & Lv6 (up to 3, on distinct foes).
   **Flame** — cone half-angle widens past Lv3. **Venom** — wider toxic carpet (2nd puddle Lv3, 3rd
   Lv6, spread perpendicular to travel). All honor the 4-stat contract.
+- **Turret deploy never filled its cap (FIXED):** base turret's `max_turrets` (`count_level()-1`)
+  and the fused `_Sentry`'s `_deploy_cap()` (`count_level()+2`) allowed many turrets, but the flat
+  deploy cooldown (`base.cd`≈6.5s) ≈ a turret's life, so each expired right as the next deployed —
+  **only ~1 alive even at Lv3+** (user report). Fix: deploy cooldown now `cd / cap`, so the field
+  fills within one turret lifetime. Verified: forced Lv7 fills **6/6** (was ~1). Same fix on
+  `_Sentry`. ⚠ `_Sentry` cap is `count_level()+2` (=9 at a Lv7 fusion) — now reachable; may want a
+  lower cap after playtest.
 - **75% rule (target met structurally; wells are the margin):** user wants a fused weapon ≥75% of
   its two materials' combined DPS. Born-at-Lv7 makes multi-hit archetypes (bursts/halos/mines/
   sentries/chains/glaive-fans/cones) land comfortably above; the single-instance **well** fusions

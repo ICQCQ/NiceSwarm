@@ -1238,7 +1238,9 @@ class _Sentry extends WeaponBase:
 		t.position = player.global_position
 		player.get_parent().add_child(t)
 		Sfx.play("turret_deploy", player.global_position)
-		cooldown = WeaponConfig.BASE.sentry.cd * player.rate_mult * cooldown_scale
+		# Spread deploys over cd / cap so the field fills to _deploy_cap(); a flat cd
+		# was slower than a turret's life, so only ~2 ever coexisted of the cap's many.
+		cooldown = WeaponConfig.BASE.sentry.cd * player.rate_mult * cooldown_scale / _deploy_cap()
 
 class MissileBattery extends _Sentry:
 	func _init() -> void:

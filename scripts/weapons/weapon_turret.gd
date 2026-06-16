@@ -37,4 +37,7 @@ func _physics_process(delta: float) -> void:
 	t.position = player.global_position
 	player.get_parent().add_child(t)
 	Sfx.play("turret_deploy", player.global_position)
-	cooldown = WeaponConfig.BASE.turret.cd * player.rate_mult
+	# Spread deploys over base.cd / cap so the field actually fills to max_turrets.
+	# base.cd (~6.5s) ~= a turret's life, so a flat cd let each turret expire right
+	# as the next deployed -- only ever ~1 alive even when the cap allows more.
+	cooldown = WeaponConfig.BASE.turret.cd * player.rate_mult / max_turrets
