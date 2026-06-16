@@ -18,6 +18,7 @@ const COLORS: Array[Color] = [
 	Color(0.45, 0.9, 1.0), Color(0.55, 1.0, 0.55),
 	Color(1.0, 0.85, 0.35), Color(0.25, 0.95, 0.8),
 	Color(0.45, 0.62, 1.0), Color(0.8, 1.0, 0.45),
+	Color(0.6, 0.95, 0.9), Color(0.9, 1.0, 0.55),
 ]
 # Player avatar silhouettes (lobby-selectable). Names match the glyphs the lobby
 # UI shows in the roster/appearance preview.

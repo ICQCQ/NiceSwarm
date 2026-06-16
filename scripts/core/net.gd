@@ -6,7 +6,7 @@ extends Node
 ## Lives at a stable path (Main/Net) on every peer so RPC routing matches.
 
 const PORT := GameConfig.NET_PORT
-const MAX_PLAYERS := 4
+const MAX_PLAYERS := 8
 
 # ENet's default peer timeout can take up to ~30s to notice a dead connection
 # (e.g. the other side's window was closed without a clean disconnect). That
