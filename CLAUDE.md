@@ -4,6 +4,11 @@
 milestone checklist, and the session log. Before ending a session: update the
 checkboxes, append a session-log entry with what changed and what's next, and commit.
 
+**Working mode:** this repo runs the orchestrator + sub-agent model — see
+[ORCHESTRATION.md](ORCHESTRATION.md). Act as orchestrator with up to 3 concurrent Sonnet
+sub-agents (each may use Opus as advisor); route every fix/feature through the task queue
+and keep it updated with sub-agent progress.
+
 ## Running
 
 - Play: `godot --path .` (Godot 4.6 installed via Scoop, on PATH)
