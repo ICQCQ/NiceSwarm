@@ -43,6 +43,17 @@ Debug and release builds install **side-by-side** as distinct files, so toggling
    launch it anyway — a launch never blocks on the network (same philosophy as
    `update_check.gd`, where "every failure path is silent").
 
+## Launcher self-update check
+
+The launcher also checks whether **it itself** is outdated: it hashes its own
+executable (`os.Executable()`) and compares it to a `.sha256` sidecar published for the
+launcher binary on the `launcher` tag (CI emits these alongside the binaries). On a
+mismatch it prints a one-line notice pointing at the launcher release page. This is
+**detection + notify only** — it does *not* self-replace yet (the launcher is the locked
+file at that point; the rename-self swap is Phase 3). Best-effort: any failure (offline,
+404, unhashable) is silent. Supported on Windows; skipped on macOS for now (the launcher
+ships as a `.app`-in-zip there — see Phase 2).
+
 ## Asset contract (reused, not reinvented)
 
 The game's build workflow already publishes, for each binary, a
@@ -115,8 +126,9 @@ footgun, so it needs its own workflow; see Phasing.)
   quarantine clear, and signed wrapper on a real Mac, then flip the CI macOS job from
   artifact-only to publishing the `launcher` tag. Address the no-terminal progress UX.
 - **Phase 3 — polish:** pinned `launcher-v*` release workflow (separate file, no `paths:`
-  filter); launcher **self-update** (it is now the locked file — rename-running-exe-to-`.old`,
-  write new, re-exec, clean up next run); Windows arm64-debug asset.
+  filter); launcher **self-*replace*** (the self-update *check* already ships — this adds the
+  actual swap: it is now the locked file, so rename-running-exe-to-`.old`, write new, re-exec,
+  clean up next run); Windows arm64-debug asset.
 
 ## Build / run locally
 

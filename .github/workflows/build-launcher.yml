@@ -45,11 +45,15 @@ jobs:
           cache: false # zero external deps -> no go.sum, nothing to cache
       - name: Test
         run: go test ./...
-      - name: Cross-compile Windows binaries
+      - name: Cross-compile Windows binaries + checksums
         run: |
           mkdir -p dist
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/NiceSwarm-Launcher.exe .
           GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/NiceSwarm-Launcher-arm64.exe .
+          # SHA256 sidecars the launcher reads to detect that IT is outdated. sha256sum's
+          # "<hash>  <filename>" output is exactly the sidecar format the launcher parses.
+          ( cd dist && sha256sum NiceSwarm-Launcher.exe > NiceSwarm-Launcher.exe.sha256 )
+          ( cd dist && sha256sum NiceSwarm-Launcher-arm64.exe > NiceSwarm-Launcher-arm64.exe.sha256 )
           ls -l dist
       - uses: actions/upload-artifact@v4
         with:

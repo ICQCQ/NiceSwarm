@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"niceswarm-launcher/internal/config"
@@ -47,6 +48,8 @@ func main() {
 	}
 	fmt.Printf("NiceSwarm launcher — %s\n", target.AssetFile)
 
+	checkLauncherUpToDate()
+
 	if err := ensureUpdated(dataDir, target); err != nil {
 		if install.Exists(dataDir, target) {
 			fmt.Printf("update check failed (%v); launching the installed build.\n", err)
@@ -76,6 +79,28 @@ func ensureUpdated(dataDir string, t release.Target) error {
 	}
 	fmt.Println("\nupdate installed.")
 	return nil
+}
+
+// checkLauncherUpToDate compares this launcher's own binary against the published
+// launcher sidecar and prints a notice if a newer one exists. Best-effort: any failure
+// (offline, unsupported platform, unhashable) is silent — it never blocks the launch,
+// and it does NOT self-replace (that is Phase 3).
+func checkLauncherUpToDate() {
+	url := release.LauncherSidecarURL()
+	if url == "" {
+		return // self-check unsupported on this platform (e.g. macOS) yet
+	}
+	want, err := download.SidecarHash(url, sidecarTimeout)
+	if err != nil {
+		return
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if local := download.HashFile(exe); local != "" && !strings.EqualFold(local, want) {
+		fmt.Printf("note: a newer launcher is available — download it from\n  %s\n", release.LauncherPage)
+	}
 }
 
 func progressBar() download.Progress {

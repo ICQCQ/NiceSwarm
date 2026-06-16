@@ -13,6 +13,12 @@ const (
 	GameBase = "https://github.com/ICQCQ/NiceSwarm/releases/download/latest/"
 	// ReleasesPage is the human-facing page for the latest game release.
 	ReleasesPage = "https://github.com/ICQCQ/NiceSwarm/releases/tag/latest"
+
+	// LauncherBase is the rolling "launcher" release where CI publishes the launcher
+	// binaries (decoupled from the game's `latest` tag).
+	LauncherBase = "https://github.com/ICQCQ/NiceSwarm/releases/download/launcher/"
+	// LauncherPage is the human-facing page for the launcher release.
+	LauncherPage = "https://github.com/ICQCQ/NiceSwarm/releases/tag/launcher"
 )
 
 // Target describes the game asset to fetch/install for the running platform.
@@ -52,3 +58,27 @@ func (t Target) DownloadURL() string { return GameBase + t.AssetFile }
 
 // SidecarURL is the matching ".sha256" checksum file.
 func (t Target) SidecarURL() string { return GameBase + t.AssetFile + ".sha256" }
+
+// LauncherAsset returns the launcher's OWN published filename for this platform, used
+// for the self-update check (does a newer launcher exist?). Returns "" where the
+// self-check isn't supported yet — currently macOS, whose launcher ships as a .app
+// inside a zip and is published artifact-only (see LAUNCHER.md Phase 2).
+func LauncherAsset() string {
+	if runtime.GOOS != "windows" {
+		return ""
+	}
+	if runtime.GOARCH == "arm64" {
+		return "NiceSwarm-Launcher-arm64.exe"
+	}
+	return "NiceSwarm-Launcher.exe"
+}
+
+// LauncherSidecarURL is the ".sha256" for this launcher's own asset, or "" if the
+// self-check is unsupported on this platform.
+func LauncherSidecarURL() string {
+	a := LauncherAsset()
+	if a == "" {
+		return ""
+	}
+	return LauncherBase + a + ".sha256"
+}

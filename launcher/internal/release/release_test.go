@@ -37,3 +37,28 @@ func TestSidecarURL(t *testing.T) {
 		t.Errorf("DownloadURL = %q, want .../NiceSwarm.exe", got)
 	}
 }
+
+// The launcher self-update check resolves its OWN asset on the `launcher` tag
+// (Windows only for now; "" elsewhere).
+func TestLauncherSelfResolve(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		if got := LauncherAsset(); got != "" {
+			t.Errorf("LauncherAsset on %s = %q, want \"\" (self-check unsupported)", runtime.GOOS, got)
+		}
+		if got := LauncherSidecarURL(); got != "" {
+			t.Errorf("LauncherSidecarURL on %s = %q, want \"\"", runtime.GOOS, got)
+		}
+		return
+	}
+	want := "NiceSwarm-Launcher.exe"
+	if runtime.GOARCH == "arm64" {
+		want = "NiceSwarm-Launcher-arm64.exe"
+	}
+	if got := LauncherAsset(); got != want {
+		t.Errorf("LauncherAsset = %q, want %q", got, want)
+	}
+	got := LauncherSidecarURL()
+	if !strings.Contains(got, "/releases/download/launcher/") || !strings.HasSuffix(got, "/"+want+".sha256") {
+		t.Errorf("LauncherSidecarURL = %q, want .../launcher/%s.sha256", got, want)
+	}
+}
