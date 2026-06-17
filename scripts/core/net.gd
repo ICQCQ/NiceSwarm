@@ -264,6 +264,11 @@ func send_announce(text: String, is_boss: bool) -> void:
 		rpc_announce.rpc(text, is_boss)
 
 
+func send_final_stage() -> void:
+	if active:
+		rpc_final_stage.rpc()
+
+
 func send_end(won: bool, elapsed: float, level: int, kills: int, scores: PackedFloat32Array, names: PackedStringArray) -> void:
 	if active:
 		rpc_end.rpc(won, elapsed, level, kills, scores, names)
@@ -441,6 +446,11 @@ func rpc_event(type: int, pos: Vector2) -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_announce(text: String, is_boss: bool) -> void:
 	main.hud.show_banner(text, is_boss)
+
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_final_stage() -> void:
+	main.apply_final_stage()
 
 
 @rpc("authority", "call_remote", "reliable")

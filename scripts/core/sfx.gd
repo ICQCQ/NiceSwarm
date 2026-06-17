@@ -92,13 +92,23 @@ func _make_sounds() -> void:
 	_synth("clock", 0.06, 1500.0, 760.0, W_TRI, 0.0, 0.001, 0.55)       # resume-countdown tick
 	_synth("alert", 0.2, 760.0, 1320.0, W_SQUARE, 0.0, 0.004, 0.65)     # game-resume alert
 	_synth("telegraph", 0.22, 300.0, 620.0, W_SQUARE, 0.1, 0.01, 0.5)  # bombardier warning
+	# Sustained foghorn note timed to the 5-second final-stage banner.
+	# SINE + zero noise = clean resonant tone; 0.8 s attack = ominous swell;
+	# decay_exp=0.4 holds the note through the banner; release=0.5 fades it
+	# to true silence so the stream end doesn't click.
+	_synth("final_stage", 5.0, 87.0, 87.0, W_SINE, 0.0, 0.8, 0.95, 0.4, 0.5)
 
 
 ## Renders one short sound: exponential pitch sweep f0->f1, optional noise mix,
 ## linear attack then power-curve decay envelope.
+## decay_exp: exponent of pow(1-t, e) — lower = longer sustain (0.5 ≈ sqrt, 1.5 = default fast).
+## release: seconds of linear fade-to-silence baked at the tail; prevents the hard
+##          cut when AudioStreamWAV reaches its end with non-zero amplitude.
 func _synth(sname: String, dur: float, f0: float, f1: float, wave: int,
-		noise_mix: float, attack: float, vol: float) -> void:
+		noise_mix: float, attack: float, vol: float,
+		decay_exp: float = 1.5, release: float = 0.0) -> void:
 	var n := int(dur * SR)
+	var rel_samples := int(release * SR)
 	var bytes := PackedByteArray()
 	bytes.resize(n * 2)
 	var phase := 0.0
@@ -118,7 +128,9 @@ func _synth(sname: String, dur: float, f0: float, f1: float, wave: int,
 				s = sin(phase * TAU)
 		if noise_mix > 0.0:
 			s = lerpf(s, randf_range(-1.0, 1.0), noise_mix)
-		var env := minf(t / maxf(attack / maxf(dur, 0.001), 0.001), 1.0) * pow(1.0 - t, 1.5)
+		var env := minf(t / maxf(attack / maxf(dur, 0.001), 0.001), 1.0) * pow(1.0 - t, decay_exp)
+		if rel_samples > 0 and i >= n - rel_samples:
+			env *= float(n - i) / float(rel_samples)
 		bytes.encode_s16(i * 2, int(clampf(s * env * vol, -1.0, 1.0) * 32767.0))
 	var stream := AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS

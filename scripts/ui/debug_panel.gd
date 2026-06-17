@@ -86,6 +86,11 @@ func build() -> void:
 	no_spawn_btn.pressed.connect(_toggle_no_spawn)
 	vbox.add_child(no_spawn_btn)
 
+	var skip_btn := Button.new()
+	skip_btn.text = "Skip 1 Min"
+	skip_btn.pressed.connect(_skip_minute)
+	vbox.add_child(skip_btn)
+
 	var levelup_btn := Button.new()
 	levelup_btn.text = "Instant Level Up"
 	levelup_btn.pressed.connect(_level_up)
@@ -240,6 +245,15 @@ func _reset_loadout() -> void:
 	p.max_hp = 5
 	p.hp = mini(p.hp, p.max_hp)
 	p.health_changed.emit(p.hp, p.max_hp)
+
+
+## Advance the run clock by 60 seconds and fast-forward the spawner difficulty
+## to match — lets you jump to late-game state without waiting.
+func _skip_minute() -> void:
+	if not main.is_host() or not main.playing or main.game_over:
+		return
+	main.elapsed = minf(main.elapsed + 60.0, main.cfg_win_time - 1.0)
+	main.spawner.update_difficulty(60.0)
 
 
 ## Force the party to its next level-up pick immediately (host-only — the

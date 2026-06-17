@@ -19,8 +19,13 @@ var _poop_pid: int = -1           # who currently holds last place
 ## Per-frame HUD refresh (called from main._process).
 func update() -> void:
 	var me: Player = main.players.get(main.local_id)
-	var t := int(main.elapsed)
-	main.timer_label.text = "%02d:%02d" % [t / 60, t % 60]
+	if main.final_stage:
+		main.timer_label.text = "Final Stage"
+		main.timer_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
+	else:
+		var t := int(main.elapsed)
+		main.timer_label.text = "%02d:%02d" % [t / 60, t % 60]
+		main.timer_label.add_theme_color_override("font_color", Color.WHITE)
 	main.level_label.text = "Lv %d" % main.level
 	main.kills_label.text = "Kills %d" % main.kills
 	main.xp_bar.value = float(main.xp) / float(maxi(main._current_needed(), 1)) * 100.0
@@ -356,6 +361,15 @@ func _fusion_short(dname: String) -> String:
 	if s.length() < 2:
 		s = dname.replace(" ", "")
 	return s.to_upper().substr(0, 3)
+
+
+func show_final_stage_banner() -> void:
+	if main.banner_label == null:
+		return
+	main.banner_label.text = "FINAL STAGE\nKILL ALL BOSSES TO WIN"
+	main.banner_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
+	main.banner_label.add_theme_font_size_override("font_size", 58)
+	main._banner_t = 5.0
 
 
 func show_banner(text: String, is_boss: bool) -> void:

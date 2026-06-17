@@ -160,6 +160,7 @@ var level := 1
 var xp := 0
 var net_xp_needed := 6
 var game_over := false
+var final_stage := false  # true once timer hits cfg_win_time; spawning stops, clear to win
 var leveling := false
 var free_choice := false
 var pending_chests := 0
@@ -229,7 +230,7 @@ var last_tick := {0: -1, 1: -1, 2: -1, 3: -1}
 # --- UI nodes ---
 var ui: CanvasLayer
 const BANNER_LIFE := 2.6  # boss / mini-boss banner duration (seconds)
-var banner_label: Label   # centered boss/mini-boss spawn announcement
+var banner_label: Label   # centered boss/mini-boss spawn announcement (fades)
 var _banner_t := 0.0      # seconds left on the current banner
 var hp_label: Label
 var timer_label: Label
@@ -1296,6 +1297,7 @@ func _reset_run_state() -> void:
 	xp = 0
 	net_xp_needed = 6
 	game_over = false
+	final_stage = false
 	leveling = false
 	free_choice = false
 	pending_chests = 0
@@ -1481,18 +1483,25 @@ func _process(delta: float) -> void:
 		_tick_countdown(delta)
 		return
 	var running := not (game_over or leveling or get_tree().paused)
-	if running:
+	if running and not final_stage:
 		elapsed += delta  # clients advance too; host HUD sync corrects drift
 	if is_host() and running:
-		if elapsed >= cfg_win_time:
-			_end_game(true)
-			return
-		if OS.get_environment("NICESWARM_TEST") == "score" and elapsed > 4.0 and not game_over:
-			_end_game(true)  # headless scoreboard check
-			return
-		spawner.update_difficulty(delta)
-		spawner.run_spawning(delta)
-		_run_revives(delta)
+		if final_stage:
+			var boss_alive := enemies_by_id.values().any(func(e: Enemy) -> bool: return e.boss)
+			if not boss_alive:
+				_end_game(true)
+				return
+			_run_revives(delta)
+		else:
+			if elapsed >= cfg_win_time:
+				_enter_final_stage()
+				return
+			if OS.get_environment("NICESWARM_TEST") == "score" and elapsed > 4.0 and not game_over:
+				_end_game(true)  # headless scoreboard check
+				return
+			spawner.update_difficulty(delta)
+			spawner.run_spawning(delta)
+			_run_revives(delta)
 		if Engine.time_scale > 1.0:  # NICESWARM_FF: log progress at each game-minute
 			sim.ff_minute_log()
 	# Headless: auto-resolve level-up picks (sim-aware; else the first level-up pauses forever).
@@ -2128,6 +2137,24 @@ func _check_all_downed() -> void:
 		if not p.downed:
 			return
 	_end_game(false)
+
+
+## Host: timer expired — stop spawning, announce final stage, notify clients.
+## Players must kill all remaining bosses to win.
+func _enter_final_stage() -> void:
+	final_stage = true
+	apply_final_stage()
+	net.send_final_stage()
+
+
+## All peers: switch timer label and show the fading announcement banner.
+## Host calls this locally; clients receive it via RPC from net.send_final_stage.
+func apply_final_stage() -> void:
+	if not playing or game_over:
+		return
+	final_stage = true
+	hud.show_final_stage_banner()
+	Sfx.play("final_stage", null, 0.0)
 
 
 func _end_game(won: bool) -> void:
