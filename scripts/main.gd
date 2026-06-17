@@ -1878,6 +1878,7 @@ func open_picks(free: bool, starter: bool = false) -> void:
 	if cfg_async_levelup and not starter and not free:
 		unspent_points += 1
 		_update_unspent_label()
+		Sfx.play("point_banked")
 		return
 	if ingame_menu:
 		_force_close_ingame_menu()  # a level-up pre-empts an open menu (clears safe/freeze)
@@ -2098,6 +2099,7 @@ func _choose_upgrade(index: int) -> void:
 	Sfx.play("click")
 	for b in choice_buttons:
 		b.visible = false
+		b.release_focus()  # async picks reuse these Buttons — don't let a hidden one keep GUI focus and auto-fire on the next Enter
 	net.submit_choice(local_id, current_choices[index].id)
 	# Async mode: no waiting for anyone. If more points remain, stay open with fresh choices.
 	if cfg_async_levelup and not picks_starter and not free_choice:
@@ -2661,6 +2663,11 @@ func _input(event: InputEvent) -> void:
 		elif cfg_async_levelup and not picks_starter and not free_choice:
 			if key == KEY_ENTER or key == KEY_KP_ENTER or key == KEY_ESCAPE:
 				_close_async_panel_mid_pick()
+				# Swallow the key so Godot's default ui_accept/ui_cancel GUI dispatch
+				# doesn't also re-activate a choice Button that kept focus from a
+				# previous pick — without this, reopening with Enter could
+				# immediately auto-fire that stale-focused button's `pressed`.
+				get_viewport().set_input_as_handled()
 	elif ingame_menu:  # our own in-run menu/hub is open
 		if key == KEY_ESCAPE:
 			if codex_view != "":
@@ -2686,6 +2693,7 @@ func _input(event: InputEvent) -> void:
 			stats_panel.visible = stats_mode != 0
 	elif (key == KEY_ENTER or key == KEY_KP_ENTER) and cfg_async_levelup:
 		_toggle_async_panel()
+		get_viewport().set_input_as_handled()  # see comment above — same stale-focus hazard on open
 	elif key == KEY_ESCAPE:
 		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 
