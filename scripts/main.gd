@@ -171,6 +171,7 @@ var choice_history := {}        # peer_id -> Array[String] of upgrade ids applie
                                  # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
 var unspent_points := 0         # async mode: banked levelup picks waiting to be opened
+var _async_saved_choices: Array = []  # async: choices preserved when panel is closed mid-pick
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
 var ingame_menu := false        # our own in-game menu/hub is open (opening it pauses the whole run for everyone)
 var menu_open_pids := {}         # host-only: pids whose in-game menu is open — the run stays paused while non-empty
@@ -1317,6 +1318,7 @@ func _reset_run_state() -> void:
 	choice_history = {}
 	i_chose = false
 	unspent_points = 0
+	_async_saved_choices.clear()
 	_update_unspent_label()
 	paused_menu = false
 	menu_open_pids = {}
@@ -1495,7 +1497,9 @@ func _process(delta: float) -> void:
 	if countdown_time > 0.0:  # resume countdown holds the world until it reaches zero
 		_tick_countdown(delta)
 		return
-	var running := not (game_over or leveling or get_tree().paused)
+	# In async mode, leveling just means the pick panel is open — the sim keeps running.
+	var async_picking := cfg_async_levelup and leveling and not picks_starter and not free_choice
+	var running := not (game_over or (leveling and not async_picking) or get_tree().paused)
 	if running and not final_stage:
 		elapsed += delta  # clients advance too; host HUD sync corrects drift
 	if is_host() and running:
@@ -1776,8 +1780,12 @@ func _on_pickup_taken(kind: String, by: Node2D, pickup: Pickup) -> void:
 					gems_by_id.erase(id)
 		"chest":
 			Sfx.play("chest", by.global_position)
-			pending_chests += 1
-			_maybe_open_picks()
+			if cfg_async_levelup:
+				unspent_points += 1
+				_update_unspent_label()
+			else:
+				pending_chests += 1
+				_maybe_open_picks()
 
 
 func _bomb_fx(pos: Vector2) -> void:
@@ -1890,7 +1898,14 @@ func open_picks(free: bool, starter: bool = false) -> void:
 	level_panel.visible = true
 
 
-## Async mode: player manually opens the pending pick panel (ENTER key or HUD button).
+## Async mode: toggle the pick panel (ENTER / HUD button). Closes if open, opens if not.
+func _toggle_async_panel() -> void:
+	if leveling and not picks_starter and not free_choice:
+		_close_async_panel_mid_pick()
+	else:
+		_open_async_panel()
+
+
 func _open_async_panel() -> void:
 	if unspent_points <= 0 or leveling or game_over or not playing:
 		return
@@ -1902,8 +1917,21 @@ func _open_async_panel() -> void:
 	i_chose = false
 	Sfx.play("levelup")
 	panel_title.text = "LEVEL UP — pick an upgrade  (⬆ %d pending)" % unspent_points
-	_roll_choices()
+	if not _async_saved_choices.is_empty():
+		current_choices = _async_saved_choices.duplicate()
+		_async_saved_choices.clear()
+		_display_choices()
+	else:
+		_roll_choices()
 	level_panel.visible = true
+
+
+## Async mode: close the panel without consuming a point; preserve choices for next open.
+func _close_async_panel_mid_pick() -> void:
+	_async_saved_choices = current_choices.duplicate()
+	i_chose = false
+	leveling = false
+	level_panel.visible = false
 
 
 func _update_unspent_label() -> void:
@@ -2024,6 +2052,12 @@ func _roll_choices() -> void:
 		chosen.append(e)
 	chosen.shuffle()
 	current_choices = chosen.slice(0, cfg_choices)
+	_display_choices()
+	if cfg_random_power and not picks_starter:
+		call_deferred("_auto_pick_weighted")
+
+
+func _display_choices() -> void:
 	for i in choice_buttons.size():
 		if i < current_choices.size():
 			var u: Dictionary = current_choices[i]
@@ -2035,8 +2069,6 @@ func _roll_choices() -> void:
 			choice_buttons[i].visible = true
 		else:
 			choice_buttons[i].visible = false
-	if cfg_random_power and not picks_starter:
-		call_deferred("_auto_pick_weighted")
 
 
 func _auto_pick_weighted() -> void:
@@ -2067,12 +2099,18 @@ func _choose_upgrade(index: int) -> void:
 	for b in choice_buttons:
 		b.visible = false
 	net.submit_choice(local_id, current_choices[index].id)
-	# Async mode: close the panel immediately — no waiting for anyone.
+	# Async mode: no waiting for anyone. If more points remain, stay open with fresh choices.
 	if cfg_async_levelup and not picks_starter and not free_choice:
+		_async_saved_choices.clear()
 		unspent_points = maxi(unspent_points - 1, 0)
 		_update_unspent_label()
-		leveling = false
-		level_panel.visible = false
+		if unspent_points > 0:
+			i_chose = false
+			panel_title.text = "LEVEL UP — pick an upgrade  (⬆ %d pending)" % unspent_points
+			_roll_choices()
+		else:
+			leveling = false
+			level_panel.visible = false
 		return
 	if peer_ids.size() > 1:
 		panel_title.text = "Waiting for your allies to pick..."
@@ -2620,6 +2658,9 @@ func _input(event: InputEvent) -> void:
 	elif leveling:
 		if key >= KEY_1 and key < KEY_1 + MAX_CHOICES:  # 1..6 select dynamically
 			_choose_upgrade(key - KEY_1)
+		elif cfg_async_levelup and not picks_starter and not free_choice:
+			if key == KEY_ENTER or key == KEY_KP_ENTER or key == KEY_ESCAPE:
+				_close_async_panel_mid_pick()
 	elif ingame_menu:  # our own in-run menu/hub is open
 		if key == KEY_ESCAPE:
 			if codex_view != "":
@@ -2644,7 +2685,7 @@ func _input(event: InputEvent) -> void:
 			stats_mode = (stats_mode + 1) % 3
 			stats_panel.visible = stats_mode != 0
 	elif (key == KEY_ENTER or key == KEY_KP_ENTER) and cfg_async_levelup:
-		_open_async_panel()
+		_toggle_async_panel()
 	elif key == KEY_ESCAPE:
 		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 
