@@ -14,9 +14,11 @@ this file should be regenerated — don't trust it over the code.
 - **5 weapon slots** per run (`MAX_WEAPONS`). Once full, new picks are levels, stats, or merges.
 - **Weapon level cap 7** (`MAX_WEAPON_LEVEL`). A weapon at Lv7 becomes **mergeable**.
 - **Spawn counts freeze at Lv7** (`count_level()`) — extra projectiles/blades/turrets stop, but
-  damage / area / cadence keep scaling with the real level past 7 (fused parts level on).
-- **Fusion depth cap 3** (`MAX_FUSION_TIER`): base+base → **T1**, T1+T1 → **T2**, T2+T2 → **T3**
-  (final, can never merge again). Merging tiers `a`,`b` yields `max(a,b)+1`.
+  damage / area / cadence keep scaling with the real level past 7. A fresh **fusion** is born with
+  `count_level()` already near max (`FUSION_BORN_COUNT_FLOOR`), so it fires near-max counts at once.
+- **Same-kind merges only** (`Fusions.can_merge`): base+base → **signature fusion (T1)**, then
+  T1+T1 → **amalgam (T2)**, which is **terminal** — an amalgam never merges again (no base+fusion,
+  no amalgam+anything). Both inputs must be the **same tier** and maxed (Lv7).
 
 ## Stat upgrades
 
@@ -91,9 +93,9 @@ current build's Power/Haste/Area/Duration multipliers — for base weapons *and*
 | **Homing Missiles** | `missiles` | 3.0 | 0.345 | 2.4 | Phys | seeking rockets with splash damage · +1 missile, more damage |
 | **Sweep Laser** | `laser` | 1.2 | 0.46 | 0.3ʳ | Energy | beams sweep around you · **1→4 evenly-spread beams** (2 at Lv3, 3 at Lv5, 4 at Lv7), longer beam |
 | **Frost Shards** | `frost` | 1.5 | 0.345 | 1.8 | Ice | piercing shards that chill enemies · +1 shard, more damage |
-| **Gravity Well** | `gravity` | 0.5 | 0.575 | 6.0 | Energy | vortex drags the swarm together · wider, stronger pull; **+1 simultaneous well at Lv4 & Lv6** (up to 3) |
-| **Sentry Turret** | `turret` | 1.2 | 0.46 | 6.5 | Phys | deployable turret fights for you · longer uptime; 2nd turret at Lv3 |
-| **Venom Trail** | `venom` | 0.8 | 0.46 | 0.35ᵈ | Phys | leave toxic puddles as you move · bigger, deadlier puddles; **wider carpet past Lv3** (2nd puddle Lv3, 3rd Lv6) |
+| **Gravity Well** | `gravity` | 1.0 | 0.575 | 6.0 | Energy | vortex drags the swarm together · wider, stronger pull; **+1 simultaneous well at Lv4 & Lv6** (up to 3) |
+| **Sentry Turret** | `turret` | 1.5 | 0.46 | 6.5 | Phys | deployable turret fights for you · longer uptime; 2nd turret at Lv3 |
+| **Venom Trail** | `venom` | 1.2 | 0.46 | 0.35ᵈ | Phys | leave toxic puddles as you move · bigger, deadlier puddles; **wider carpet past Lv3** (2nd puddle Lv3, 3rd Lv6) |
 
 ʳ `cd` = per-enemy re-hit interval · ᵗ `cd` = tick interval · ᵈ `cd` = puddle-drop interval.
 
@@ -107,12 +109,18 @@ Merging two **Lv7** weapons consumes both and produces **one distinct new weapon
 slot (freeing a slot). Every fusion honors the same four stat axes. Pairs are listed
 alphabetically by result name; the same data backs the `[FUSE]` upgrade pick text in-game.
 
-**A signature fusion is born at Lv1 and levels up 1..Lv7 like a base weapon.** It carries a
-born damage boost (`GameConfig.FUSION_BORN_DMG`, ×1.5) so a fresh fusion isn't a downgrade from
-the two Lv7 weapons it consumed, then keeps growing as you level it. This also **gates the next
-merge**: the `[MERGE]` pool only offers **maxed** weapons, so a signature fusion must be leveled
-all the way to `MAX_WEAPON_LEVEL` before it can be amalgamated again into a higher tier — only a
-maxed-out fusion fuses on.
+**A signature fusion is born at the combined power of its two Lv7 components — never a downgrade.**
+Its Lv1 is *designed* from the two maxed weapons it consumed: it fires near-max **counts**
+(`FUSION_BORN_COUNT_FLOOR`), opens at near-max **area** (ring/beam/blast sizes), and each
+sub-action hits at its source weapon's **Lv7 damage** (a nova-fusion's ring ≈ maxed Nova, a
+lightning-fusion's chains ≈ maxed Chain Lightning, etc.). From there it grows **gently** with
+level (`GameConfig.FUSION_LEVEL_GROWTH`, ~×1.5 by Lv7 — not a base weapon's ~×3.4), since it's
+already full-power at birth. Tuning knobs all live in `GameConfig` (`FUSION_LEVEL_GROWTH`,
+`FUSION_BORN_DMG`, `FUSION_BORN_COUNT_FLOOR`). See [docs/balance/FUSION_REDESIGN.md].
+
+Integer level still climbs 1..Lv7, which **gates the next merge**: the `[MERGE]` pool only offers
+**maxed** weapons, so a signature fusion must be leveled to `MAX_WEAPON_LEVEL` before it can be
+amalgamated — only a maxed-out fusion fuses on.
 
 The generic **Amalgam** (deeper merges / uncovered pairs) keeps **both component weapons running**
 as one slot. Leveling the amalgam buffs **all of its components' stats** by
