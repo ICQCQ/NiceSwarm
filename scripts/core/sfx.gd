@@ -125,6 +125,8 @@ func _make_sounds() -> void:
 	_synth("gem", 0.05, 1150.0, 1600.0, W_SINE, 0.0, 0.003, 0.35)       # pickup blip
 	_synth("chest", 0.22, 660.0, 1320.0, W_SINE, 0.0, 0.01, 0.6)        # treasure
 	_synth("levelup", 0.3, 520.0, 1040.0, W_SINE, 0.0, 0.02, 0.6)       # chime up
+	_synth2("point_banked", 0.05, 480.0, 340.0, W_SINE, 0.6,    # "pu" — soft low thump
+			0.025, 0.06, 1250.0, 2000.0, W_TRI, 0.6)            # "kink" — bright metallic tick
 	_synth("merge", 0.45, 330.0, 1320.0, W_SAW, 0.1, 0.03, 0.6)         # power surge
 	_synth("revive", 0.3, 400.0, 820.0, W_TRI, 0.0, 0.02, 0.6)
 	_synth("click", 0.03, 820.0, 820.0, W_SQUARE, 0.0, 0.002, 0.35)
@@ -138,18 +140,16 @@ func _make_sounds() -> void:
 	_synth("final_stage", 5.0, 87.0, 87.0, W_SINE, 0.0, 0.8, 0.95, 0.4, 0.5)
 
 
-## Renders one short sound: exponential pitch sweep f0->f1, optional noise mix,
-## linear attack then power-curve decay envelope.
-## decay_exp: exponent of pow(1-t, e) — lower = longer sustain (0.5 ≈ sqrt, 1.5 = default fast).
-## release: seconds of linear fade-to-silence baked at the tail; prevents the hard
-##          cut when AudioStreamWAV reaches its end with non-zero amplitude.
-func _synth(sname: String, dur: float, f0: float, f1: float, wave: int,
-		noise_mix: float, attack: float, vol: float,
-		decay_exp: float = 1.5, release: float = 0.0) -> void:
+## Renders one short tone into `bytes` starting at sample `offset`: exponential
+## pitch sweep f0->f1, optional noise mix, linear attack then power-curve decay
+## envelope. decay_exp: exponent of pow(1-t, e) — lower = longer sustain
+## (0.5 ≈ sqrt, 1.5 = default fast). release: seconds of linear fade-to-silence
+## baked at the tail; prevents the hard cut when a stream ends with non-zero amplitude.
+func _render_tone(bytes: PackedByteArray, offset: int, dur: float, f0: float, f1: float,
+		wave: int, noise_mix: float, attack: float, vol: float,
+		decay_exp: float, release: float) -> void:
 	var n := int(dur * SR)
 	var rel_samples := int(release * SR)
-	var bytes := PackedByteArray()
-	bytes.resize(n * 2)
 	var phase := 0.0
 	for i in n:
 		var t := float(i) / n
@@ -170,7 +170,36 @@ func _synth(sname: String, dur: float, f0: float, f1: float, wave: int,
 		var env := minf(t / maxf(attack / maxf(dur, 0.001), 0.001), 1.0) * pow(1.0 - t, decay_exp)
 		if rel_samples > 0 and i >= n - rel_samples:
 			env *= float(n - i) / float(rel_samples)
-		bytes.encode_s16(i * 2, int(clampf(s * env * vol, -1.0, 1.0) * 32767.0))
+		bytes.encode_s16((offset + i) * 2, int(clampf(s * env * vol, -1.0, 1.0) * 32767.0))
+
+
+## Renders one short sound: a single tone via _render_tone (see its docstring
+## for the parameters shared with _synth2).
+func _synth(sname: String, dur: float, f0: float, f1: float, wave: int,
+		noise_mix: float, attack: float, vol: float,
+		decay_exp: float = 1.5, release: float = 0.0) -> void:
+	var n := int(dur * SR)
+	var bytes := PackedByteArray()
+	bytes.resize(n * 2)
+	_render_tone(bytes, 0, dur, f0, f1, wave, noise_mix, attack, vol, decay_exp, release)
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = SR
+	stream.data = bytes
+	sounds[sname] = stream
+
+
+## Two-note notice sound ("pu-kink"): two short tones back to back with a
+## silent gap between, baked into a single stream so one play() fires both.
+func _synth2(sname: String, dur1: float, f0_1: float, f1_1: float, wave1: int, vol1: float,
+		gap: float, dur2: float, f0_2: float, f1_2: float, wave2: int, vol2: float) -> void:
+	var n1 := int(dur1 * SR)
+	var n_gap := int(gap * SR)
+	var n2 := int(dur2 * SR)
+	var bytes := PackedByteArray()
+	bytes.resize((n1 + n_gap + n2) * 2)
+	_render_tone(bytes, 0, dur1, f0_1, f1_1, wave1, 0.0, 0.004, vol1, 1.2, dur1 * 0.3)
+	_render_tone(bytes, n1 + n_gap, dur2, f0_2, f1_2, wave2, 0.0, 0.004, vol2, 1.2, dur2 * 0.3)
 	var stream := AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
 	stream.mix_rate = SR

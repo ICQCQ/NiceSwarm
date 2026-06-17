@@ -1878,6 +1878,7 @@ func open_picks(free: bool, starter: bool = false) -> void:
 	if cfg_async_levelup and not starter and not free:
 		unspent_points += 1
 		_update_unspent_label()
+		Sfx.play("point_banked")
 		return
 	if ingame_menu:
 		_force_close_ingame_menu()  # a level-up pre-empts an open menu (clears safe/freeze)
