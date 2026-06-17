@@ -8,19 +8,19 @@ extends RefCounted
 ## Spatial sizes, projectile counts, and per-weapon extras stay in each weapon_*.gd.
 
 const BASE := {
-	"bolt":      {"dmg": 2.0, "growth": 0.345, "cd": 0.8},
+	"bolt":      {"dmg": 2.5, "growth": 0.345, "cd": 0.8},
 	"orbit":     {"dmg": 2.0, "growth": 0.46, "cd": 0.45},  # cd = per-enemy re-hit
-	"nova":      {"dmg": 3.0, "growth": 0.575, "cd": 3.5},
+	"nova":      {"dmg": 2.5, "growth": 0.575, "cd": 3.5},
 	"glaive":    {"dmg": 2.5, "growth": 0.345, "cd": 1.6},
 	"lightning": {"dmg": 2.0, "growth": 0.46, "cd": 2.2},
-	"flame":     {"dmg": 0.6, "growth": 0.46, "cd": 0.15},  # cd = tick interval
+	"flame":     {"dmg": 0.75, "growth": 0.46, "cd": 0.15},  # cd = tick interval
 	"mines":     {"dmg": 6.0, "growth": 0.575, "cd": 2.0},
 	"missiles":  {"dmg": 3.0, "growth": 0.345, "cd": 2.4},
 	"laser":     {"dmg": 1.2, "growth": 0.46, "cd": 0.3},   # cd = per-enemy re-hit
 	"frost":     {"dmg": 1.5, "growth": 0.345, "cd": 1.8},
-	"gravity":   {"dmg": 1.0, "growth": 0.575, "cd": 6.0},
-	"turret":    {"dmg": 1.5, "growth": 0.46, "cd": 6.5},
-	"venom":     {"dmg": 1.2, "growth": 0.46, "cd": 0.35},  # cd = puddle drop interval
+	"gravity":   {"dmg": 4, "growth": 0.575, "cd": 6.0},
+	"turret":    {"dmg": 2.2, "growth": 0.46, "cd": 6.5},
+	"venom":     {"dmg": 1.4, "growth": 0.46, "cd": 0.35},  # cd = puddle drop interval
 	# Deployed turret fusions (turret + X, see Fusions._Sentry). Lv1 dmg ==
 	# a Lv3 base "turret"'s damage, so fusing doesn't feel like a downgrade.
 	"sentry":    {"dmg": 2.16, "growth": 0.46, "cd": 4.5},

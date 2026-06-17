@@ -12,16 +12,16 @@ const MAX_FUSION_TIER := 3       # legacy; merge rule is same-kind only (Fusions
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
 
 # --- player stat-upgrade caps: a pick stops being offered, and its value is clamped, here ---
-const STAT_CAP_POWER := 6.0        # power_stat (pick-driven damage multiplier)
-const STAT_CAP_AREA := 2.0         # area_mult
+const STAT_CAP_POWER := 3        # power_stat (pick-driven damage multiplier)
+const STAT_CAP_AREA := 1.5         # area_mult
 const STAT_CAP_DURATION := 2.5     # duration_mult
 const STAT_CAP_RATE := 1.0 / 2.0   # rate_mult floor → caps Haste at 2x faster
 const STAT_CAP_SPEED := 396.0      # move_speed cap (1.8x base 220)
 const STAT_CAP_MAGNET := 270.0     # pickup_range cap (3x base 90)
 const STAT_CAP_MAX_HP := 15        # max_hp cap from Vitality
-const ENEMY_CAP := 220           # hard limit on live enemies
+const ENEMY_CAP := 300           # hard limit on live enemies
 const TELEGRAPH_WARN := 1.5      # seconds to dodge a telegraphed strike
-const MAX_TELEGRAPHS := 6        # cap simultaneous danger zones so the arena can't be blanketed
+const MAX_TELEGRAPHS := 7        # cap simultaneous danger zones so the arena can't be blanketed
 const NET_PORT := 24565          # default co-op port
 
 # --- weapon progression ---
@@ -51,19 +51,19 @@ const FUSION_BORN_COUNT_FLOOR := 6     # fresh signature fusion count_level() fl
 const FUSION_LEVEL_GROWTH := 0.08      # redesigned-fusion per-level damage growth (~×1.5 at Lv7)
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
-const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
+const DIFF_BASE := 1.0 / 55.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
 # Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
 const ENEMY_SPEED_DIFF_SCALE := 0.020  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
-const ENEMY_HP_DIFF_SCALE := 0.04      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
-const ENEMY_HP_PER_LEVEL := 0.02       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const ENEMY_HP_DIFF_SCALE := 0.05      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
+const ENEMY_HP_PER_LEVEL := 0.03       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
 # Frost / slow potency. Every applied slow funnels through Enemy.apply_slow, which
 # deepens the incoming speed factor by SLOW_POTENCY (so frost/freeze "really" bites)
 # and clamps it to SLOW_FLOOR_MULT — a slowed enemy crawls at 20% speed (an 80% slow).
 # One central buff point for ALL slow sources; bosses/tier-3 included (still slowable).
 const SLOW_POTENCY := 1.6             # amplify each slow's speed reduction (the 0.5 base slow -> 0.2 speed)
-const SLOW_FLOOR_MULT := 0.2          # deepest slow: enemies move at 20% speed (= "slow to 0.8"), never lower
+const SLOW_FLOOR_MULT := 0.1          # deepest slow: enemies move at 20% speed (= "slow to 0.8"), never lower
 const DIFF_HEAT := 3.12          # how much clear-rate heat accelerates the climb (was 2.4, +30%)
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
@@ -75,8 +75,8 @@ const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor p
 const SPAWN_RING_MAX := 1200.0        # ...up to this far (random within the ring; was 900 — wider band)
 const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
 const SPAWN_DESIRED_BASE := 6.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
-const SPAWN_DESIRED_PER_PROGRESS := 0.38 # +this many target enemies per run_progress point (≈3.5/pace at old scale)
-const SPAWN_INTERVAL_START := 0.2     # seconds between spawns early (5x faster than the prior 1.0)
+const SPAWN_DESIRED_PER_PROGRESS := 0.5 # +this many target enemies per run_progress point (≈3.5/pace at old scale)
+const SPAWN_INTERVAL_START := 1     # seconds between spawns early (5x faster than the prior 1.0)
 const SPAWN_INTERVAL_END := 0.024     # seconds between spawns late (5x faster than the prior 0.12)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
@@ -87,7 +87,7 @@ const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired 
 # from the original 0.5/0.6 — at those rates a 4-player field was ~2.5× hp and
 # ~2.8× spawn density, which over-punished co-op (sim 2-4p sat at ~27-33% win vs
 # the 50-60% target). See docs/balance/MULTIPLAYER_BALANCE_SIM.md.
-const PARTY_HP_PER := 0.1             # enemy hp ×(1 + this·(N-1))
+const PARTY_HP_PER := 0.2             # enemy hp ×(1 + this·(N-1))
 const PARTY_RATE_PER := 0.25           # spawn density ×(1 + this·(N-1))
 
 # --- wave rhythm (layered on top of run_progress/heat in EnemySpawner.run_spawning) ---
@@ -109,7 +109,7 @@ const WAVES := [
 const WAVE_POP_FLOOR := 3.0           # valleys can thin the field to this (a genuine lull)
 
 # --- xp gems ---
-const MAX_GEMS := 400                  # hard cap on live ground gems (perf); excess XP condenses
+const MAX_GEMS := 200                  # hard cap on live ground gems (perf); excess XP condenses
 const GEM_CONDENSED_THRESHOLD := 25    # gem value at/above which it renders as a big red gem
 
 # --- xp level curve: three-band step curve (cost at level L to reach L+1), /cfg_xp_rate ---
@@ -147,7 +147,7 @@ static func xp_gain(value: int, lvl: int) -> int:
 
 # --- heat exponential spike: punishes near-clearing the map once mid-game ---
 const MID_GAME_PROGRESS := 50.0  # heat_spike can only arm after this run_progress (≈300 s / WIN_TIME)
-const HEAT_SPIKE_POP_FRAC := 0.2 # live pop below this fraction of desired_pop arms the spike
+const HEAT_SPIKE_POP_FRAC := 0.5 # live pop below this fraction of desired_pop arms the spike
 const HEAT_SPIKE_GROWTH := 1.8   # exponential growth rate (/s) while armed
 const HEAT_SPIKE_DECAY := 2.0    # linear decay rate (/s) once the map refills
 const HEAT_SPIKE_MAX := 5.0      # cap on the spike term
@@ -159,9 +159,9 @@ const BOSS_KILL_INTERVAL := 200          # kills required for the second boss
 const BOSS_KILL_INTERVAL_GROWTH := 100   # added to the interval each time a boss dies
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
-const BOSS_DPS_WINDOW := 15.0    # seconds of party damage averaged into "recent dps"
-const BOSS_FIGHT_SECONDS := 5.0  # boss hp ~= recent_dps * this (target single-boss fight length)
-const BOSS_HP_PER_LEVEL := 0.015 # boss hp x(1 + this*(party_level-1))
+const BOSS_DPS_WINDOW := 60.0    # seconds of party damage averaged into "recent dps"
+const BOSS_FIGHT_SECONDS := 6.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_HP_PER_LEVEL := 0.02 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
 const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end
 
