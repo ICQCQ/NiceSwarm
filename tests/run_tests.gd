@@ -21,6 +21,7 @@ const MODULES := [
 	"res://tests/test_gems.gd",
 	"res://tests/test_stats.gd",
 	"res://tests/test_settings.gd",
+	"res://tests/test_build_version.gd",
 ]
 
 

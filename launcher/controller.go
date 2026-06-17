@@ -31,6 +31,7 @@ type controller struct {
 	ready            bool // a runnable game build is installed -> Play enabled
 	target           release.Target
 	launcherOutdated bool
+	gameVersion      string // VERSION.txt label of the published build ("Publish v. 220"); "" until fetched
 }
 
 func newController(w *app.Window, dataDir string, cfg config.Config) *controller {
@@ -46,12 +47,13 @@ type state struct {
 	busy, ready      bool
 	launcherOutdated bool
 	target           release.Target
+	gameVersion      string
 }
 
 func (c *controller) state() state {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return state{c.status, c.progress, c.busy, c.ready, c.launcherOutdated, c.target}
+	return state{c.status, c.progress, c.busy, c.ready, c.launcherOutdated, c.target, c.gameVersion}
 }
 
 // update mutates state under the lock and requests a redraw.
@@ -92,10 +94,12 @@ func (c *controller) progressFn() download.Progress {
 }
 
 // checkAndUpdate resolves the target for debug mode, fetches the sidecar, and
-// downloads+installs if the local build differs. Offline-safe: if the network fails
-// but a build is installed, Play is still enabled. Assumes tryStart already claimed
-// the worker slot; runs in its own goroutine.
-func (c *controller) checkAndUpdate(debug bool) {
+// downloads+installs if the local build differs. When force is true the "already current"
+// short-circuit is skipped, so the latest build is re-downloaded and reinstalled even when
+// the hashes match (the "Force Update" button). Offline-safe: if the network fails but a
+// build is installed, Play is still enabled. Assumes tryStart already claimed the worker
+// slot; runs in its own goroutine.
+func (c *controller) checkAndUpdate(debug, force bool) {
 	defer c.finish()
 	c.update(func() { c.ready = false })
 
@@ -106,6 +110,12 @@ func (c *controller) checkAndUpdate(debug bool) {
 	}
 	c.update(func() { c.target = t })
 
+	// Best-effort: surface which published build this is ("Publish v. 220"). Never blocks
+	// the update itself — a missing/unreachable VERSION.txt just leaves the field empty.
+	if v, verr := download.FetchText(release.GameVersionURL(), sidecarTimeout); verr == nil && v != "" {
+		c.update(func() { c.gameVersion = v })
+	}
+
 	want, err := download.SidecarHash(t.SidecarURL(), sidecarTimeout)
 	if err != nil {
 		if install.Exists(c.dataDir, t) {
@@ -115,7 +125,7 @@ func (c *controller) checkAndUpdate(debug bool) {
 		}
 		return
 	}
-	if install.IsCurrent(c.dataDir, t, want) {
+	if !force && install.IsCurrent(c.dataDir, t, want) {
 		c.update(func() { c.ready = true; c.status = "Up to date — ready to play." })
 		return
 	}

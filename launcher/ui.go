@@ -36,6 +36,7 @@ type ui struct {
 
 	debug         widget.Bool
 	checkBtn      widget.Clickable
+	forceBtn      widget.Clickable
 	playBtn       widget.Clickable
 	updateSelfBtn widget.Clickable
 }
@@ -46,8 +47,8 @@ func runGUI(dataDir string, cfg config.Config) error {
 	w := new(app.Window)
 	w.Option(
 		app.Title("NiceSwarm Launcher"),
-		app.Size(unit.Dp(460), unit.Dp(340)),
-		app.MinSize(unit.Dp(400), unit.Dp(300)),
+		app.Size(unit.Dp(520), unit.Dp(360)),
+		app.MinSize(unit.Dp(480), unit.Dp(320)),
 	)
 
 	th := material.NewTheme()
@@ -59,7 +60,7 @@ func runGUI(dataDir string, cfg config.Config) error {
 
 	// Initial game check (claims the worker slot) + read-only launcher self-check.
 	if c.tryStart("Checking for updates…") {
-		go c.checkAndUpdate(cfg.Debug)
+		go c.checkAndUpdate(cfg.Debug, false)
 	}
 	go c.checkLauncher()
 
@@ -89,13 +90,19 @@ func (u *ui) handle(gtx C) {
 		} else {
 			_ = config.Save(u.dataDir, config.Config{Debug: u.debug.Value})
 			if u.c.tryStart("Switching build…") {
-				go u.c.checkAndUpdate(u.debug.Value)
+				go u.c.checkAndUpdate(u.debug.Value, false)
 			}
 		}
 	}
 	if u.checkBtn.Clicked(gtx) {
 		if u.c.tryStart("Checking for updates…") {
-			go u.c.checkAndUpdate(u.debug.Value)
+			go u.c.checkAndUpdate(u.debug.Value, false)
+		}
+	}
+	// Force Update: re-download and reinstall the latest build even if it already matches.
+	if u.forceBtn.Clicked(gtx) {
+		if u.c.tryStart("Reinstalling latest build…") {
+			go u.c.checkAndUpdate(u.debug.Value, true)
 		}
 	}
 	if u.playBtn.Clicked(gtx) && st.ready {
@@ -117,12 +124,13 @@ func (u *ui) layout(gtx C) D {
 			layout.Rigid(material.H5(u.th, "NiceSwarm").Layout),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(2)}.Layout),
 			layout.Rigid(func(gtx C) D {
-				lbl := material.Caption(u.th, "Auto-updating launcher")
+				lbl := material.Caption(u.th, "Auto-updating launcher · "+launcherVersion())
 				lbl.Color = colMuted
 				return lbl.Layout(gtx)
 			}),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(18)}.Layout),
 			layout.Rigid(material.Body1(u.th, st.status).Layout),
+			layout.Rigid(func(gtx C) D { return u.gameVersionRow(gtx, st) }),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
 			layout.Rigid(func(gtx C) D { return u.progressArea(gtx, st) }),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(16)}.Layout),
@@ -154,6 +162,19 @@ func (u *ui) progressArea(gtx C, st state) D {
 	})
 }
 
+// gameVersionRow shows which published build the launcher will install ("Game: Publish
+// v. 220"), once VERSION.txt has been fetched. Empty (zero height) until then / if offline.
+func (u *ui) gameVersionRow(gtx C, st state) D {
+	if st.gameVersion == "" {
+		return D{}
+	}
+	return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+		lbl := material.Caption(u.th, "Game: "+st.gameVersion)
+		lbl.Color = colMuted
+		return lbl.Layout(gtx)
+	})
+}
+
 func (u *ui) buttonRow(gtx C, st state) D {
 	play := material.Button(u.th, &u.playBtn, "Play")
 	if !st.ready || st.busy {
@@ -164,10 +185,18 @@ func (u *ui) buttonRow(gtx C, st state) D {
 	if st.busy {
 		check.Background = colDisabled
 	}
+	// Force Update: re-fetch + reinstall the latest build even when it already matches.
+	force := material.Button(u.th, &u.forceBtn, "Force Update")
+	force.Background = colSecondary
+	if st.busy {
+		force.Background = colDisabled
+	}
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Rigid(play.Layout),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
 		layout.Rigid(check.Layout),
+		layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+		layout.Rigid(force.Layout),
 	)
 }
 

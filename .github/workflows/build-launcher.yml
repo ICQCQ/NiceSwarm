@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — the version stamp uses `git rev-list --count HEAD` (shallow returns 1)
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
@@ -53,9 +55,13 @@ jobs:
           CGO_ENABLED: "0" # Gio's Windows backend is pure-Go; no cgo needed
         run: |
           mkdir -p dist
+          # Stamp the launcher's own build version (branch + commit count) via two -X vars —
+          # the split avoids go tool link splitting an "-X main.version=Publish v. 220" value on
+          # the space. Shown in the launcher window by launcherVersion().
+          VER="-X main.verBranch=${GITHUB_REF_NAME} -X main.verCount=$(git rev-list --count HEAD)"
           # -H=windowsgui: GUI subsystem, so no console window flashes beside the Gio window.
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H=windowsgui" -o dist/NiceSwarm-Launcher.exe .
-          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -H=windowsgui" -o dist/NiceSwarm-Launcher-arm64.exe .
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H=windowsgui ${VER}" -o dist/NiceSwarm-Launcher.exe .
+          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -H=windowsgui ${VER}" -o dist/NiceSwarm-Launcher-arm64.exe .
           # SHA256 sidecars the launcher reads to detect that IT is outdated. sha256sum's
           # "<hash>  <filename>" output is exactly the sidecar format the launcher parses.
           ( cd dist && sha256sum NiceSwarm-Launcher.exe > NiceSwarm-Launcher.exe.sha256 )
@@ -90,6 +96,8 @@ jobs:
     needs: launcher-windows
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — the version stamp uses `git rev-list --count HEAD` (shallow returns 1)
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
@@ -101,8 +109,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist build
-          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w" -o build/launcher_amd64 .
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o build/launcher_arm64 .
+          # Stamp the launcher's own build version (branch + commit count); see the windows job.
+          VER="-X main.verBranch=${GITHUB_REF_NAME} -X main.verCount=$(git rev-list --count HEAD)"
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -trimpath -ldflags "-s -w ${VER}" -o build/launcher_amd64 .
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w ${VER}" -o build/launcher_arm64 .
           lipo -create -output build/NiceSwarm-Launcher build/launcher_amd64 build/launcher_arm64
           app="build/NiceSwarm Launcher.app"
           mkdir -p "$app/Contents/MacOS"

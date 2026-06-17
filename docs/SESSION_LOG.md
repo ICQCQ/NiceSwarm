@@ -971,3 +971,26 @@ Two reported balance bugs, both rooted in the 3→7 weapon-cap rise not being fo
   UX/tooling milestones M6.22–M6.27, status to v0.9.0).
 - **Working mode:** documented the orchestrator + 3-Sonnet-sub-agent model (`ORCHESTRATION.md`, CLAUDE.md),
   with per-agent git-worktree isolation.
+
+### 2026-06-18 — Session 14: branch+count build version, version on launcher, Force Update
+- **Build version scheme:** `BuildVersion` (`scripts/config/build_version.gd`) gained `BRANCH` + `COUNT`
+  consts alongside `COMMIT`; `commit_label()` replaced by `label()` → `"Publish v. 220"` (branch + commit
+  count) and `full_label()` → `"Publish v. 220 (9da5762)"` (sha + `*` dirty marker). The menu footer
+  (`game_ui.gd`) now shows `full_label()` only (the 0.9.0 semver is dropped from the in-game display but
+  stays in `project.godot`/`export_presets.cfg`/`main.gd VERSION` for exe metadata). Title-casing is
+  first-char-only (NOT `String.capitalize()`) so it matches the launcher.
+- **Stamping:** `build.ps1` and both CI jobs in `build-windows.yml` now stamp all three consts
+  (`rev-parse --short HEAD` / `GITHUB_REF_NAME` / `rev-list --count HEAD`). **Critical:** added
+  `fetch-depth: 0` to every CI checkout (all four, across build-windows + build-launcher) — a shallow
+  clone makes `rev-list --count` return 1, which would have shipped "Publish v. 1".
+- **Launcher (Go):** shows BOTH its own build version (stamped via `-ldflags -X main.verBranch/verCount`
+  in `build-launcher.yml`; `version.go`) under the title AND the published game version, fetched from a
+  new plain-text `VERSION.txt` asset CI publishes next to the binaries (`release.GameVersionURL()` +
+  `download.FetchText()`). Added a **Force Update** button: `checkAndUpdate(debug, force)` skips the
+  "already current" short-circuit to re-download + reinstall the latest build.
+- **Verified:** `[tests] 1112 passed, 0 failed` (incl. new `test_build_version.gd`); 300-frame smoke
+  clean; stamp simulation confirmed end-to-end `LABEL=Publish v. 220` / `FULL=Publish v. 220 (9da5762)`;
+  launcher `go vet`/`go test ./internal/...`/`go build` all green (new `FetchText` + `GameVersionURL`
+  tests). build_version.gd restored to `dev` defaults after the probe.
+- **Next:** push to `publish` so CI publishes the first `VERSION.txt` (launcher game-version line stays
+  blank until then); manually dispatch `build-launcher.yml` to ship a version-stamped launcher.

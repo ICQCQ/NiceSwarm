@@ -5,21 +5,29 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 New-Item -ItemType Directory -Force "$root\build" | Out-Null
 
-# Embed the commit id INTO the build at build time: overwrite the BuildVersion.COMMIT
-# const before export so it is compiled into the .exe (no runtime git/file lookup), then
-# restore the committed "dev" placeholder afterward. Short SHA (not `git describe`, which
-# would surface v* release tags instead of a bare commit id). `-dirty` marks a build made
-# from a modified *tracked* working tree (--untracked-files=no, matching describe --dirty
-# semantics), so a local build is distinguishable from a clean HEAD build.
+# Embed the build identity INTO the build at build time: overwrite the BuildVersion
+# BRANCH/COMMIT/COUNT consts before export so they are compiled into the .exe (no runtime
+# git/file lookup), then restore the committed "dev" placeholders afterward. COMMIT is the
+# short SHA (not `git describe`, which would surface v* release tags instead of a bare
+# commit id); `-dirty` marks a build made from a modified *tracked* working tree
+# (--untracked-files=no, matching describe --dirty semantics) so a local build is
+# distinguishable from a clean HEAD build. BRANCH+COUNT drive the headline version string
+# ("Publish v. 220") via BuildVersion.label().
 $commit = (git -C $root rev-parse --short HEAD 2>$null)
 if (-not $commit) { $commit = "unknown" }
 elseif (git -C $root status --porcelain --untracked-files=no) { $commit = "$commit-dirty" }
+$branch = (git -C $root rev-parse --abbrev-ref HEAD 2>$null)
+if (-not $branch) { $branch = "dev" }
+$count = (git -C $root rev-list --count HEAD 2>$null)
+if (-not $count) { $count = "0" }
 $bvFile = "$root\scripts\config\build_version.gd"
 $bvOrig = Get-Content $bvFile -Raw   # restored verbatim after export (works even if uncommitted)
-# Replace only the COMMIT line so the rest of the file (e.g. commit_label()) is preserved.
-($bvOrig -replace 'const COMMIT := "[^"]*"', "const COMMIT := `"$commit`"") |
+# Replace only the const lines so the rest of the file (label()/full_label()) is preserved.
+($bvOrig -replace 'const COMMIT := "[^"]*"', "const COMMIT := `"$commit`"" `
+        -replace 'const BRANCH := "[^"]*"', "const BRANCH := `"$branch`"" `
+        -replace 'const COUNT := "[^"]*"', "const COUNT := `"$count`"") |
     Set-Content -Path $bvFile -NoNewline -Encoding ascii
-Write-Host "Build commit: $commit"
+Write-Host "Build version: $branch v. $count ($commit)"
 
 try {
     Write-Host "Importing project..."
