@@ -54,8 +54,8 @@ const FUSION_LEVEL_GROWTH := 0.08      # redesigned-fusion per-level damage grow
 const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
 # Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
-const ENEMY_SPEED_DIFF_SCALE := 0.020  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
-const ENEMY_HP_DIFF_SCALE := 0.01      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
+const ENEMY_SPEED_DIFF_SCALE := 0.000  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
+const ENEMY_HP_DIFF_SCALE := 0.005      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
 const ENEMY_HP_PER_LEVEL := 0.01       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
 # Frost / slow potency. Every applied slow funnels through Enemy.apply_slow, which
@@ -160,7 +160,7 @@ const BOSS_KILL_INTERVAL_GROWTH := 100   # added to the interval each time a bos
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
 const BOSS_DPS_WINDOW := 60.0    # seconds of party damage averaged into "recent dps"
-const BOSS_FIGHT_SECONDS := 20.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_FIGHT_SECONDS := 10.0  # boss hp ~= recent_dps * this (target single-boss fight length)
 const BOSS_HP_PER_LEVEL := 0.02 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
 const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end
