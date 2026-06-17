@@ -11,7 +11,7 @@ var owner_weapon_id := -1  # instance id of the deploying weapon; caps per-weapo
 var damage := 1.2
 var target_range := 480.0  # Area
 var fire_mult := 1.0   # Haste (lower = faster)
-var proj_radius := 5.0
+var proj_radius := 2.0
 var mode := "bolt"
 var area_mult := 1.0
 var dur_mult := 1.0
@@ -27,10 +27,10 @@ var gun_cd := 0.0      # independent timer for the normal bolt gun (GUN_RETAININ
 # (missile/frost/glaive + the plain bolt) and the continuous beam/orbit are unchanged.
 const GUN_RETAINING_MODES := {
 	"mines": true, "gravity": true, "venom": true,
-	"nova": true, "lightning": true, "flame": true,
+	"nova": false, "lightning": false, "flame": false,
 }
 const BOLT_CD := 0.45  # normal turret bolt cadence (matches the default fire mode)
-const GUN_RETAIN_SCALE := 0.5  # retained bolt gun on AoE/deploy modes is a bonus, not a 2nd full weapon
+const GUN_RETAIN_SCALE := 0.35  # retained bolt gun on AoE/deploy modes is a bonus, not a 2nd full weapon
 
 
 func _ready() -> void:
