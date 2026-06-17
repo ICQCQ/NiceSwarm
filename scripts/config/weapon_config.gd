@@ -18,9 +18,9 @@ const BASE := {
 	"missiles":  {"dmg": 3.0, "growth": 0.345, "cd": 2.4},
 	"laser":     {"dmg": 1.2, "growth": 0.46, "cd": 0.3},   # cd = per-enemy re-hit
 	"frost":     {"dmg": 1.5, "growth": 0.345, "cd": 1.8},
-	"gravity":   {"dmg": 0.5, "growth": 0.575, "cd": 6.0},
-	"turret":    {"dmg": 1.2, "growth": 0.46, "cd": 6.5},
-	"venom":     {"dmg": 0.8, "growth": 0.46, "cd": 0.35},  # cd = puddle drop interval
+	"gravity":   {"dmg": 1.0, "growth": 0.575, "cd": 6.0},
+	"turret":    {"dmg": 1.5, "growth": 0.46, "cd": 6.5},
+	"venom":     {"dmg": 1.2, "growth": 0.46, "cd": 0.35},  # cd = puddle drop interval
 	# Deployed turret fusions (turret + X, see Fusions._Sentry). Lv1 dmg ==
 	# a Lv3 base "turret"'s damage, so fusing doesn't feel like a downgrade.
 	"sentry":    {"dmg": 2.16, "growth": 0.46, "cd": 4.5},
