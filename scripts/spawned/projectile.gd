@@ -62,7 +62,7 @@ func _physics_process(delta: float) -> void:
 
 func _on_body_entered(body: Node) -> void:
 	if body is Enemy:
-		if source_weapon:
+		if is_instance_valid(source_weapon):
 			source_weapon.damage_dealt += damage
 		body.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 		if explode_radius > 0.0:
@@ -85,7 +85,7 @@ func _explode() -> void:
 	Sfx.play("boom", global_position, -8.0)
 	for e in EnemyGrid.near(global_position, explode_radius):
 		if global_position.distance_to(e.global_position) <= explode_radius + e.radius:
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += explode_damage
 			e.take_hit(explode_damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if push_strength > 0.0:
@@ -95,7 +95,7 @@ func _explode() -> void:
 func _drop_fire_puddle() -> void:
 	var pud := VenomPuddle.new()
 	pud.source_pid = fire_puddle_source_pid
-	pud.source_weapon = fire_puddle_source_weapon
+	pud.source_weapon = fire_puddle_source_weapon if is_instance_valid(fire_puddle_source_weapon) else null
 	pud.radius = fire_puddle_radius
 	pud.damage = fire_puddle_damage
 	pud.max_life = fire_puddle_life

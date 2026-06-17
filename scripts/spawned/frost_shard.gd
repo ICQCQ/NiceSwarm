@@ -31,7 +31,7 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to(e.global_position) <= hit_radius + e.radius:
 			hit_ids[e.get_instance_id()] = true
 			var was_slowed := e.slow_timer > 0.0
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position, Enemy.DMG_ICE, source_pid)
 			e.apply_slow(0.5, slow_dur)
@@ -54,7 +54,7 @@ func _shatter(center: Enemy) -> void:
 	Sfx.play("frost", center.global_position, -8.0)
 	for e in EnemyGrid.near(center.global_position, shatter_radius):
 		if center.global_position.distance_to(e.global_position) <= shatter_radius + e.radius:
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += shatter_dmg
 			e.take_hit(shatter_dmg, center.global_position, Enemy.DMG_ICE, source_pid)
 			e.apply_slow(0.5, slow_dur)

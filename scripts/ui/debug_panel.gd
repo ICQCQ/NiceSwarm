@@ -287,6 +287,16 @@ func _grant_fusion() -> void:
 	var p: Player = main.players.get(main.local_id)
 	if p == null:
 		return
+	# If the fusion result is already in the loadout, level it up instead.
+	var tmp := Fusions.make(a, b)
+	if tmp != null:
+		var fid := tmp.weapon_id
+		tmp.free()
+		var existing := p.get_weapon(fid)
+		if existing != null:
+			if existing.level < Main.MAX_WEAPON_LEVEL:
+				main.net.submit_choice(main.local_id, "lv_" + fid)
+			return
 	for id in [a, b]:
 		_grant_weapon(id)
 		var w := p.get_weapon(id)

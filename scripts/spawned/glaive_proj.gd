@@ -47,7 +47,7 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to(e.global_position) <= hit_radius + e.radius:
 			hit_ids[e.get_instance_id()] = true
 			if damage > 0.0:
-				if source_weapon:
+				if is_instance_valid(source_weapon):
 					source_weapon.damage_dealt += damage
 				e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if burn_dps > 0.0:  # Duration: glaive leaves a bleed/burn
@@ -72,7 +72,7 @@ func _arc_from(src: Node2D) -> void:
 			best = e
 	if best == null:
 		return
-	if source_weapon:
+	if is_instance_valid(source_weapon):
 		source_weapon.damage_dealt += arc_damage
 	best.take_hit(arc_damage, src.global_position, Enemy.DMG_PHYS, source_pid)
 	var fx := LightningFx.new()

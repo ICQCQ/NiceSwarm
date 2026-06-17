@@ -69,7 +69,7 @@ func _explode() -> void:
 	Sfx.play("boom", global_position, -10.0)
 	for e in EnemyGrid.near(global_position, splash):
 		if global_position.distance_to(e.global_position) <= splash + e.radius:
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if freeze_slow > 0.0:
@@ -79,7 +79,7 @@ func _explode() -> void:
 	if fire_dps > 0.0:
 		var pud := VenomPuddle.new()
 		pud.source_pid = source_pid
-		pud.source_weapon = source_weapon
+		pud.source_weapon = (source_weapon if is_instance_valid(source_weapon) else null)
 		pud.radius = fire_radius
 		pud.damage = fire_dps
 		pud.max_life = fire_dur
@@ -92,7 +92,7 @@ func _explode() -> void:
 	if venom_dps > 0.0:
 		var tpud := VenomPuddle.new()
 		tpud.source_pid = source_pid
-		tpud.source_weapon = source_weapon
+		tpud.source_weapon = (source_weapon if is_instance_valid(source_weapon) else null)
 		tpud.radius = venom_radius
 		tpud.damage = venom_dps
 		tpud.max_life = venom_dur
@@ -104,7 +104,7 @@ func _explode() -> void:
 	for i in shrapnel_count:
 		var g := GlaiveProj.new()
 		g.source_pid = source_pid
-		g.source_weapon = source_weapon
+		g.source_weapon = (source_weapon if is_instance_valid(source_weapon) else null)
 		g.velocity = Vector2.from_angle(TAU * float(i) / shrapnel_count) * 420.0
 		g.damage = shrapnel_dmg
 		g.hit_radius = shrapnel_radius
@@ -129,7 +129,7 @@ func _explode() -> void:
 			if best == null:
 				break
 			visited[best.get_instance_id()] = true
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += chain_dmg
 			best.take_hit(chain_dmg, from_pos, Enemy.DMG_ENERGY, source_pid)
 			var cfx := LightningFx.new()

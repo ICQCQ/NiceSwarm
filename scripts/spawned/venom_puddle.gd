@@ -40,7 +40,7 @@ func _physics_process(delta: float) -> void:
 	tick = 0.4
 	for e in EnemyGrid.near(global_position, radius):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += damage
 			e.take_hit(damage, null, Enemy.DMG_PHYS, source_pid)
 			if burn_dps > 0.0:

@@ -59,7 +59,7 @@ func _physics_process(delta: float) -> void:
 				var id := e.get_instance_id()
 				if not _hit_enemies.has(id):  # base gravity damage: one instance per enemy, not per tick
 					_hit_enemies[id] = true
-					if source_weapon:
+					if is_instance_valid(source_weapon):
 						source_weapon.damage_dealt += damage
 					e.take_hit(damage, global_position, Enemy.DMG_ENERGY, source_pid)
 			if do_damage:
@@ -69,7 +69,7 @@ func _physics_process(delta: float) -> void:
 		var pts: Array = []
 		for e in inside.slice(0, 4):
 			pts.append(e.global_position)
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += chain_dmg
 			e.take_hit(chain_dmg, global_position, Enemy.DMG_ENERGY, source_pid)
 		var fx := LightningFx.new()
@@ -92,7 +92,7 @@ func _physics_process(delta: float) -> void:
 				var dir := Vector2.from_angle(beam_angle + TAU * float(s) / beam_spokes)
 				var along := clampf(rel.dot(dir), 0.0, beam_len)
 				if (dir * along).distance_to(rel) <= 8.0 + e.radius:
-					if source_weapon:
+					if is_instance_valid(source_weapon):
 						source_weapon.damage_dealt += beam_dmg
 					e.take_hit(beam_dmg, global_position + dir * along, Enemy.DMG_ENERGY, source_pid)
 					_beam_hit_cd[e.get_instance_id()] = 0.35
@@ -110,7 +110,7 @@ func _detonate() -> void:
 	Sfx.play("boom", global_position)
 	for e in EnemyGrid.near(global_position, radius):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
-			if source_weapon:
+			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += detonate_damage
 			e.take_hit(detonate_damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if push_strength > 0.0:
