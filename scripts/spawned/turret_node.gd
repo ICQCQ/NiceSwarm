@@ -11,7 +11,7 @@ var owner_weapon_id := -1  # instance id of the deploying weapon; caps per-weapo
 var damage := 1.2
 var target_range := 480.0  # Area
 var fire_mult := 1.0   # Haste (lower = faster)
-var proj_radius := 2.0
+var proj_radius := 1.5
 var mode := "bolt"
 var area_mult := 1.0
 var dur_mult := 1.0
