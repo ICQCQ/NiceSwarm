@@ -94,6 +94,11 @@ func build() -> void:
 	main.hint_label.text = Main.HINT_COOP
 
 	# Async level-up pending indicator: bottom-right, blinks when picks are banked.
+	# Parented to main.ui directly (not hud_root) and added below, right after
+	# _build_level_panel() — that puts it above the level-up overlay's full-rect
+	# dim layer (which has the default mouse_filter=STOP and would otherwise eat
+	# the click), so pressing it while the panel is open actually closes it, but
+	# still below the end/pause/ingame-menu/countdown overlays built after it.
 	main.unspent_label = Button.new()
 	main.unspent_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	main.unspent_label.offset_left = -300.0
@@ -106,7 +111,6 @@ func build() -> void:
 	main.unspent_label.flat = true
 	main.unspent_label.visible = false
 	main.unspent_label.pressed.connect(func(): main._toggle_async_panel())
-	main.hud_root.add_child(main.unspent_label)
 
 	main.banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
 	main.banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -122,6 +126,7 @@ func build() -> void:
 
 	_build_rank_panel()
 	_build_level_panel()
+	main.ui.add_child(main.unspent_label)
 	_build_end_panel()
 	_build_pause_panel()
 	_build_ingame_menu_panel()
