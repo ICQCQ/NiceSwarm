@@ -92,6 +92,20 @@ func build() -> void:
 
 	main.hint_label = _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	main.hint_label.text = Main.HINT_COOP
+
+	# Async level-up pending indicator: bottom-center, blinks when picks are banked.
+	main.unspent_label = Button.new()
+	main.unspent_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	main.unspent_label.offset_top = -52.0
+	main.unspent_label.offset_bottom = -20.0
+	main.unspent_label.add_theme_font_size_override("font_size", 22)
+	main.unspent_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	main.unspent_label.add_theme_color_override("font_color_hover", Color(1.0, 1.0, 0.6))
+	main.unspent_label.flat = true
+	main.unspent_label.visible = false
+	main.unspent_label.pressed.connect(func(): main._open_async_panel())
+	main.hud_root.add_child(main.unspent_label)
+
 	main.banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
 	main.banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	main.banner_label.offset_top = 90.0  # centered, just below the difficulty/threat readout (not over the left HUD list)

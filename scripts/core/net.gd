@@ -73,9 +73,9 @@ func leave() -> void:
 
 func send_config(choices: int, xp_rate: float, enemy_scale: float,
 		win_time: float, boss_base: int, boss_interval: int, boss_growth: int,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	if active:
-		rpc_run_config.rpc(choices, xp_rate, enemy_scale, win_time, boss_base, boss_interval, boss_growth, random_power)
+		rpc_run_config.rpc(choices, xp_rate, enemy_scale, win_time, boss_base, boss_interval, boss_growth, random_power, async_levelup)
 
 
 # Lobby: a client tells the host its chosen name/color/shape (host relays the
@@ -124,10 +124,10 @@ func send_rejoin_request(old_pid: int) -> void:
 func send_rejoin_accept(target: int, ids: PackedInt32Array, roster: Dictionary,
 		history: Dictionary, hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool, resuming: bool,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	if active:
 		rpc_rejoin_accept.rpc_id(target, ids, roster, history, hp_snapshot, choices, xp_rate, enemy_scale,
-			paused, leveling, free_choice, picks_starter, resuming, random_power)
+			paused, leveling, free_choice, picks_starter, resuming, random_power, async_levelup)
 
 
 func send_rejoin_reject(target: int, reason: String) -> void:
@@ -169,10 +169,10 @@ func send_late_join_reject(target: int, reason: String) -> void:
 func send_late_join_accept(target: int, ids: PackedInt32Array, roster: Dictionary,
 		history: Dictionary, hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	if active:
 		rpc_late_join_accept.rpc_id(target, ids, roster, history, hp_snapshot, choices, xp_rate,
-			enemy_scale, paused, leveling, free_choice, picks_starter, random_power)
+			enemy_scale, paused, leveling, free_choice, picks_starter, random_power, async_levelup)
 
 
 # Host -> everyone already in the run (not the joiner, which rebuilds via
@@ -295,8 +295,8 @@ func send_reset() -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_run_config(choices: int, xp_rate: float, enemy_scale: float,
 		win_time: float, boss_base: int, boss_interval: int, boss_growth: int,
-		random_power: bool = false) -> void:
-	main.apply_config(choices, xp_rate, enemy_scale, win_time, boss_base, boss_interval, boss_growth, random_power)
+		random_power: bool = false, async_levelup: bool = false) -> void:
+	main.apply_config(choices, xp_rate, enemy_scale, win_time, boss_base, boss_interval, boss_growth, random_power, async_levelup)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -333,9 +333,9 @@ func rpc_rejoin_request(old_pid: int) -> void:
 func rpc_rejoin_accept(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool, resuming: bool,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	main.rejoin_game(ids, roster, history, hp_snapshot, choices, xp_rate, enemy_scale,
-		paused, leveling, free_choice, picks_starter, resuming, random_power)
+		paused, leveling, free_choice, picks_starter, resuming, random_power, async_levelup)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -367,9 +367,9 @@ func rpc_late_join_reject(reason: String) -> void:
 func rpc_late_join_accept(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		paused: bool, leveling: bool, free_choice: bool, picks_starter: bool,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	main.late_join_game(ids, roster, history, hp_snapshot, choices, xp_rate, enemy_scale,
-		paused, leveling, free_choice, picks_starter, random_power)
+		paused, leveling, free_choice, picks_starter, random_power, async_levelup)
 
 
 @rpc("authority", "call_remote", "reliable")

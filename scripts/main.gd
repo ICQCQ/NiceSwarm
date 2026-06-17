@@ -133,6 +133,7 @@ var cfg_boss_kill_base := GameConfig.BOSS_KILL_BASE
 var cfg_boss_interval := GameConfig.BOSS_KILL_INTERVAL
 var cfg_boss_growth := GameConfig.BOSS_KILL_INTERVAL_GROWTH
 var cfg_random_power := false
+var cfg_async_levelup := false    # async level-up: don't freeze, bank pending points instead
 # menu cycler option lists
 const CHOICES_OPTS := [2, 3, 4, 5, 6]
 const XP_OPTS := [0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
@@ -169,6 +170,7 @@ var picked_ids := {}            # host: peers that picked this round
 var choice_history := {}        # peer_id -> Array[String] of upgrade ids applied, in order
                                  # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
+var unspent_points := 0         # async mode: banked levelup picks waiting to be opened
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
 var ingame_menu := false        # our own in-game menu/hub is open (opening it pauses the whole run for everyone)
 var menu_open_pids := {}         # host-only: pids whose in-game menu is open — the run stays paused while non-empty
@@ -256,6 +258,7 @@ var burn_dps_val: float = 0.0
 var _burn_dps_timer: float = 1.0
 var _burn_dps_history: Array[float] = []   # rolling burn DPS over WeaponBase.DPS_WINDOW seconds
 var hint_label: Label
+var unspent_label: Button        # async mode HUD: pending levelup points indicator
 var xp_bar: ProgressBar
 var arrows: Control
 var hud_root: Control
@@ -484,14 +487,14 @@ func _on_start_pressed() -> void:
 	# Connections stay open after start (unlike a session lock) so a disconnected
 	# player can reconnect and rejoin via handle_rejoin_request.
 	_apply_menu_config()
-	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power)
+	net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power, cfg_async_levelup)
 	net.send_start(PackedInt32Array(ids))
 	start_game(ids)
 
 
 func apply_config(choices: int, xp_rate: float, enemy_scale: float,
 		win_time: float, boss_base: int, boss_interval: int, boss_growth: int,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	cfg_choices = choices
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
@@ -500,6 +503,7 @@ func apply_config(choices: int, xp_rate: float, enemy_scale: float,
 	cfg_boss_interval = boss_interval
 	cfg_boss_growth = boss_growth
 	cfg_random_power = random_power
+	cfg_async_levelup = async_levelup
 	if lobby_panel != null and lobby_panel.visible:
 		_refresh_lobby_config_display()
 
@@ -683,7 +687,7 @@ func _take_over_slot(new_id: int, old_pid: int) -> void:
 		net.send_set_paused(true)
 	net.send_rejoin_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
 		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
-		get_tree().paused, leveling, free_choice, picks_starter, resuming, cfg_random_power)
+		get_tree().paused, leveling, free_choice, picks_starter, resuming, cfg_random_power, cfg_async_levelup)
 	if resuming:
 		net.send_resume_countdown()
 		_begin_resume_countdown(func() -> void:
@@ -796,7 +800,7 @@ func handle_session_check(new_id: int, player_name: String, color_idx: int, shap
 
 	net.send_late_join_accept(new_id, PackedInt32Array(peer_ids), lobby_players, choice_history,
 		hp_snapshot, cfg_choices, cfg_xp_rate, cfg_enemy_scale,
-		get_tree().paused, leveling, free_choice, picks_starter, cfg_random_power)
+		get_tree().paused, leveling, free_choice, picks_starter, cfg_random_power, cfg_async_levelup)
 	net.send_player_joined(new_id, p.player_name, p.color_idx, p.shape_idx,
 		spawn_pos.x, spawn_pos.y, p.hp, p.max_hp)
 	if OS.get_environment("NICESWARM_NET") != "":
@@ -830,7 +834,7 @@ func _late_join_spawn_pos() -> Vector2:
 func late_join_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool,
-		random_power: bool = false) -> void:
+		random_power: bool = false, async_levelup: bool = false) -> void:
 	peer_ids = Array(ids)
 	peer_ids.sort()
 	lobby_players = roster
@@ -838,6 +842,7 @@ func late_join_game(ids: PackedInt32Array, roster: Dictionary, history: Dictiona
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
 	cfg_random_power = random_power
+	cfg_async_levelup = async_levelup
 	local_id = multiplayer.get_unique_id()
 	_reset_run_state()
 	_build_world(false)
@@ -989,7 +994,7 @@ func _load_profile() -> void:
 func rejoin_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 		hp_snapshot: Dictionary, choices: int, xp_rate: float, enemy_scale: float,
 		host_paused: bool, host_leveling: bool, host_free_choice: bool, host_picks_starter: bool,
-		resuming: bool, random_power: bool = false) -> void:
+		resuming: bool, random_power: bool = false, async_levelup: bool = false) -> void:
 	peer_ids = Array(ids)
 	peer_ids.sort()
 	lobby_players = roster
@@ -997,6 +1002,7 @@ func rejoin_game(ids: PackedInt32Array, roster: Dictionary, history: Dictionary,
 	cfg_xp_rate = xp_rate
 	cfg_enemy_scale = enemy_scale
 	cfg_random_power = random_power
+	cfg_async_levelup = async_levelup
 	local_id = multiplayer.get_unique_id()
 	_reset_run_state()
 	_build_world(false)
@@ -1168,13 +1174,17 @@ func _refresh_lobby_config_display() -> void:
 		c.queue_free()
 	_make_config_label(lobby_config_box, "Port", str(lobby_port))
 	if is_host():
-		var _send := func(): net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power)
+		var _send := func(): net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power, cfg_async_levelup)
 		_make_lobby_cycler(lobby_config_box, "Options / level-up", str(CHOICES_OPTS[cfg_choices_i]), func():
 			cfg_choices_i = (cfg_choices_i + 1) % CHOICES_OPTS.size()
 			_apply_menu_config(); _send.call()
 			_refresh_lobby_config_display())
 		_make_lobby_cycler(lobby_config_box, "Random power", "On" if cfg_random_power else "Off", func():
 			cfg_random_power = not cfg_random_power
+			_send.call()
+			_refresh_lobby_config_display())
+		_make_lobby_cycler(lobby_config_box, "Async level-up", "On" if cfg_async_levelup else "Off", func():
+			cfg_async_levelup = not cfg_async_levelup
 			_send.call()
 			_refresh_lobby_config_display())
 		_make_lobby_cycler(lobby_config_box, "XP rate", str(XP_OPTS[cfg_xp_i]) + "x", func():
@@ -1204,6 +1214,7 @@ func _refresh_lobby_config_display() -> void:
 	else:
 		_make_config_label(lobby_config_box, "Options / level-up", str(cfg_choices))
 		_make_config_label(lobby_config_box, "Random power", "On" if cfg_random_power else "Off")
+		_make_config_label(lobby_config_box, "Async level-up", "On" if cfg_async_levelup else "Off")
 		_make_config_label(lobby_config_box, "XP rate", str(cfg_xp_rate) + "x")
 		_make_config_label(lobby_config_box, "Enemy scale", str(cfg_enemy_scale) + "x")
 		_make_config_label(lobby_config_box, "Max time (min)", "%.0f:00" % (cfg_win_time / 60.0))
@@ -1305,6 +1316,8 @@ func _reset_run_state() -> void:
 	picked_ids = {}
 	choice_history = {}
 	i_chose = false
+	unspent_points = 0
+	_update_unspent_label()
 	paused_menu = false
 	menu_open_pids = {}
 	_force_close_ingame_menu()
@@ -1829,7 +1842,7 @@ func _current_needed() -> int:
 
 
 func _maybe_open_picks() -> void:
-	if leveling or game_over or not is_host():
+	if (leveling and not cfg_async_levelup) or game_over or not is_host():
 		return
 	if debug_no_levelup:
 		xp = 0
@@ -1853,6 +1866,11 @@ func _trigger_picks(free: bool, starter: bool = false) -> void:
 func open_picks(free: bool, starter: bool = false) -> void:
 	if not playing:
 		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
+	# Async mode: bank the point; player opens the panel manually when ready.
+	if cfg_async_levelup and not starter and not free:
+		unspent_points += 1
+		_update_unspent_label()
+		return
 	if ingame_menu:
 		_force_close_ingame_menu()  # a level-up pre-empts an open menu (clears safe/freeze)
 	_cancel_countdown()  # a (chained) pick supersedes any in-flight resume countdown
@@ -1870,6 +1888,32 @@ func open_picks(free: bool, starter: bool = false) -> void:
 		panel_title.text = "LEVEL UP — everyone picks an upgrade"
 	_roll_choices()
 	level_panel.visible = true
+
+
+## Async mode: player manually opens the pending pick panel (ENTER key or HUD button).
+func _open_async_panel() -> void:
+	if unspent_points <= 0 or leveling or game_over or not playing:
+		return
+	if ingame_menu:
+		return
+	leveling = true
+	free_choice = false
+	picks_starter = false
+	i_chose = false
+	Sfx.play("levelup")
+	panel_title.text = "LEVEL UP — pick an upgrade  (⬆ %d pending)" % unspent_points
+	_roll_choices()
+	level_panel.visible = true
+
+
+func _update_unspent_label() -> void:
+	if unspent_label == null:
+		return
+	if unspent_points > 0:
+		unspent_label.text = "  ⬆ %d   ENTER  " % unspent_points
+		unspent_label.visible = true
+	else:
+		unspent_label.visible = false
 
 
 func _build_choice_pool(p: Player) -> Array:
@@ -2022,9 +2066,16 @@ func _choose_upgrade(index: int) -> void:
 	Sfx.play("click")
 	for b in choice_buttons:
 		b.visible = false
+	net.submit_choice(local_id, current_choices[index].id)
+	# Async mode: close the panel immediately — no waiting for anyone.
+	if cfg_async_levelup and not picks_starter and not free_choice:
+		unspent_points = maxi(unspent_points - 1, 0)
+		_update_unspent_label()
+		leveling = false
+		level_panel.visible = false
+		return
 	if peer_ids.size() > 1:
 		panel_title.text = "Waiting for your allies to pick..."
-	net.submit_choice(local_id, current_choices[index].id)
 
 
 ## `replay`: true when reconstructing a rejoining client's history -- applies the
@@ -2072,8 +2123,10 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 		# Track stat picks for the on-screen icons (runs on every peer via call_local).
 		p.stat_levels[id] = int(p.stat_levels.get(id, 0)) + 1
 	if is_host() and not replay:
-		picked_ids[pid] = true
-		_check_all_picked()
+		# Async XP level-up picks are independent per player — no "all picked" tracking.
+		if not (cfg_async_levelup and not picks_starter and not free_choice):
+			picked_ids[pid] = true
+			_check_all_picked()
 
 
 func _check_all_picked() -> void:
@@ -2590,6 +2643,8 @@ func _input(event: InputEvent) -> void:
 		if stats_panel != null:
 			stats_mode = (stats_mode + 1) % 3
 			stats_panel.visible = stats_mode != 0
+	elif (key == KEY_ENTER or key == KEY_KP_ENTER) and cfg_async_levelup:
+		_open_async_panel()
 	elif key == KEY_ESCAPE:
 		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 
