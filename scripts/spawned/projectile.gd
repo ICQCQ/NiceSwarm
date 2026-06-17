@@ -7,7 +7,7 @@ var source_pid := -1  # scoreboard: which player owns this
 var source_weapon: WeaponBase  # damage stats: credit dealt damage to this weapon
 var damage := 1.0
 var life := 1.6
-var radius := 5.0  # scaled by the firing weapon's Area stat
+var radius := 1.5  # scaled by the firing weapon's Area stat
 var explode_radius := 0.0  # >0: burst into an AoE on hit (fused Plasma Burst)
 var explode_damage := 0.0
 var push_strength := 0.0   # >0: shockwave push on the explosion (fused Plasma Burst)
