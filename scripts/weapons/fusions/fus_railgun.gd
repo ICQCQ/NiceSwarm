@@ -18,12 +18,13 @@ func _physics_process(delta: float) -> void:
 		return
 	var dir := (target.global_position - player.global_position).normalized()
 	var length := 999.0 * fuse_area()            # long line-of-sight rail
-	var zap_r := 50.0 * fuse_area()              # one block (~100px) wide zap corridor
+	var zap_r := randf_range(42.0, 80.0) * fuse_area()   # erratic corridor reach (not a fixed beam)
 	var dmg := 5.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	var origin := player.global_position
 	var fx := LightningFx.new()
 	fx.points = [origin, origin + dir * length]
 	player.get_parent().add_child(fx)
+	var visited := {}
 	for e in Main.instance.enemies_in_radius(origin, length + zap_r + 64.0):
 		var rel: Vector2 = e.global_position - origin
 		var along := rel.dot(dir)
@@ -32,11 +33,40 @@ func _physics_process(delta: float) -> void:
 		var beam_pt := origin + dir * along
 		if beam_pt.distance_to(e.global_position) > zap_r + e.radius:
 			continue
+		if visited.has(e.get_instance_id()):
+			continue
+		visited[e.get_instance_id()] = true
 		damage_dealt += dmg
 		e.take_hit(dmg, origin, Enemy.DMG_PHYS, player.peer_id)
 		ignite(e, dmg)
 		var z := LightningFx.new()            # arc from the beam to each zapped foe
 		z.points = [beam_pt, e.global_position]
 		player.get_parent().add_child(z)
+		_bounce(e, dmg * 0.6, randi_range(1, 2), visited)   # erratic 1-2 hops to RANDOM foes
 	Sfx.play("lightning", origin)
 	cooldown = 0.9 * fuse_rate()
+
+
+## Erratic chain: bounce from `src` to a RANDOM nearby unvisited enemy (not the nearest —
+## so it never forms the same fixed tree that Chain Lightning does), up to `hops` times.
+func _bounce(src: Node2D, dmg: float, hops: int, visited: Dictionary) -> void:
+	if hops <= 0 or player == null:
+		return
+	var reach := randf_range(90.0, 170.0) * fuse_area()   # bounce reach is kind of random too
+	var candidates: Array = []
+	for e in Main.instance.enemies_in_radius(src.global_position, reach + 64.0):
+		if visited.has(e.get_instance_id()):
+			continue
+		if src.global_position.distance_to(e.global_position) <= reach + e.radius:
+			candidates.append(e)
+	if candidates.is_empty():
+		return
+	var nxt: Node2D = candidates[randi() % candidates.size()]   # RANDOM target, not nearest
+	visited[nxt.get_instance_id()] = true
+	damage_dealt += dmg
+	nxt.take_hit(dmg, src.global_position, Enemy.DMG_PHYS, player.peer_id)
+	ignite(nxt, dmg)
+	var bz := LightningFx.new()
+	bz.points = [src.global_position, nxt.global_position]
+	player.get_parent().add_child(bz)
+	_bounce(nxt, dmg * 0.7, hops - 1, visited)
