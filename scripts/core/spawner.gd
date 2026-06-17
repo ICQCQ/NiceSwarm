@@ -349,7 +349,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 		e.hp = (d.hp0 + dl * d.hpk) * party * (1.0 + dl * GameConfig.ENEMY_HP_DIFF_SCALE) * lvl_hp
 	e.speed = (d.spd + dl * d.get("spdk", 0.0)) * (1.0 + dl * GameConfig.ENEMY_SPEED_DIFF_SCALE)
 	e.radius = d.r
-	e.dmg = d.dmg + int(dl / 7.0)  # enemies hit harder as difficulty climbs (was dl/12 — steeper)
+	e.dmg = d.dmg + int(dl / 30.0)  # enemies hit harder as difficulty climbs (gentler: +1 per 30 diff)
 	e.xp_value = d.xp
 	e.color = d.col
 	e.elite = d.get("elite", false)
