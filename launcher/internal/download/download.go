@@ -50,6 +50,24 @@ func parseSidecar(text string) (string, error) {
 	return h, nil
 }
 
+// FetchText GETs a small text resource (e.g. the VERSION.txt build-version label) and
+// returns its trimmed contents. Capped read — these files are a single short line.
+func FetchText(url string, timeout time.Duration) (string, error) {
+	resp, err := (&http.Client{Timeout: timeout}).Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("text HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
+}
+
 // ToFile streams url to dest and returns the lowercase-hex SHA256 of the downloaded
 // bytes (the caller compares it to the expected hash). On any transport error dest
 // is removed.

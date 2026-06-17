@@ -28,21 +28,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — `git rev-list --count HEAD` needs every commit (a shallow clone returns 1)
 
-      # CI builds bypass build.ps1, so stamp the short commit id into BuildVersion the same
-      # way build.ps1 does — otherwise the exe ships the committed "dev" placeholder. Bare SHA,
-      # no -dirty marker: a fresh checkout is clean, and core.autocrlf=true on windows-latest
-      # would otherwise flag every build dirty. Replace only the COMMIT line so commit_label()
-      # is preserved.
-      - name: Stamp build commit into BuildVersion
+      # CI builds bypass build.ps1, so stamp the build identity into BuildVersion the same way
+      # build.ps1 does — otherwise the exe ships the committed "dev" placeholders. Bare SHA, no
+      # -dirty marker: a fresh checkout is clean, and core.autocrlf=true on windows-latest would
+      # otherwise flag every build dirty. BRANCH comes from GITHUB_REF_NAME ("publish" on the
+      # branch push, "v1.2.3" on a tag) rather than `rev-parse --abbrev-ref` (which is "HEAD" on
+      # the detached checkout CI uses). COUNT is the commit number; the headline version is then
+      # "Publish v. <count>". Replace only the const lines so label()/full_label() are preserved.
+      - name: Stamp build version into BuildVersion
         shell: pwsh
         run: |
           $commit = (git rev-parse --short HEAD)
+          $branch = "${env:GITHUB_REF_NAME}"
+          $count = (git rev-list --count HEAD)
           $bvFile = "scripts/config/build_version.gd"
-          (Get-Content $bvFile -Raw) -replace 'const COMMIT := "[^"]*"', "const COMMIT := `"$commit`"" |
+          (Get-Content $bvFile -Raw) `
+            -replace 'const COMMIT := "[^"]*"', "const COMMIT := `"$commit`"" `
+            -replace 'const BRANCH := "[^"]*"', "const BRANCH := `"$branch`"" `
+            -replace 'const COUNT := "[^"]*"', "const COUNT := `"$count`"" |
             Set-Content -Path $bvFile -NoNewline -Encoding ascii
-          Write-Host "Build commit: $commit"
+          Write-Host "Build version: $branch v. $count ($commit)"
           Get-Content $bvFile
+
+      # Publish the headline build-version label as a plain-text asset the launcher fetches
+      # ("Publish v. 220") so it can show the user which game build it will install. Must match
+      # BuildVersion.label() (uppercase first char only — NOT a multi-word title-case). Published
+      # to the same rolling `latest`/versioned release as the binaries below.
+      - name: Write VERSION.txt (build-version label for the launcher)
+        shell: pwsh
+        run: |
+          $branch = "${env:GITHUB_REF_NAME}"
+          $count = (git rev-list --count HEAD)
+          $titled = if ($branch.Length -gt 0) { $branch.Substring(0,1).ToUpper() + $branch.Substring(1) } else { "Build" }
+          $label = "$titled v. $count"
+          New-Item -ItemType Directory -Force build | Out-Null
+          $label | Out-File -Encoding ascii -NoNewline "build/VERSION.txt"
+          Write-Host "VERSION.txt: $label"
 
       # Installs the Godot editor + matching export templates. GDScript-only project,
       # so the non-.NET build is used. Bump `version` in lockstep with project.godot.
@@ -178,6 +202,7 @@ jobs:
         with:
           name: NiceSwarm-windows
           path: |
+            build/VERSION.txt
             build/NiceSwarm.exe
             build/NiceSwarm.exe.sha256
             build/NiceSwarm-debug.exe
@@ -191,6 +216,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            build/VERSION.txt
             build/NiceSwarm.exe
             build/NiceSwarm.exe.sha256
             build/NiceSwarm-debug.exe
@@ -208,6 +234,7 @@ jobs:
           body: Auto-built from the latest `publish` commit (${{ github.sha }}).
           prerelease: true
           files: |
+            build/VERSION.txt
             build/NiceSwarm.exe
             build/NiceSwarm.exe.sha256
             build/NiceSwarm-debug.exe
@@ -225,13 +252,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — `git rev-list --count HEAD` needs every commit (a shallow clone returns 1)
 
-      - name: Stamp build commit into BuildVersion
+      - name: Stamp build version into BuildVersion
         run: |
           commit=$(git rev-parse --short HEAD)
+          branch="${GITHUB_REF_NAME}"
+          count=$(git rev-list --count HEAD)
           sed -i '' -E "s/const COMMIT := \"[^\"]*\"/const COMMIT := \"$commit\"/" \
             scripts/config/build_version.gd
-          echo "Build commit: $commit"; cat scripts/config/build_version.gd
+          sed -i '' -E "s/const BRANCH := \"[^\"]*\"/const BRANCH := \"$branch\"/" \
+            scripts/config/build_version.gd
+          sed -i '' -E "s/const COUNT := \"[^\"]*\"/const COUNT := \"$count\"/" \
+            scripts/config/build_version.gd
+          echo "Build version: $branch v. $count ($commit)"; cat scripts/config/build_version.gd
 
       - name: Set up Godot 4.6
         uses: chickensoft-games/setup-godot@v2

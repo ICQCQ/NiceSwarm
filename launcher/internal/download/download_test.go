@@ -1,10 +1,36 @@
 package download
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 )
+
+func TestFetchText(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("  Publish v. 220\n"))
+	}))
+	defer srv.Close()
+	got, err := FetchText(srv.URL, 5*time.Second)
+	if err != nil {
+		t.Fatalf("FetchText: %v", err)
+	}
+	if got != "Publish v. 220" {
+		t.Errorf("FetchText = %q, want %q (trimmed)", got, "Publish v. 220")
+	}
+}
+
+func TestFetchTextHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	if _, err := FetchText(srv.URL, 5*time.Second); err == nil {
+		t.Error("FetchText on 404 = nil error, want error")
+	}
+}
 
 func TestParseSidecar(t *testing.T) {
 	good := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

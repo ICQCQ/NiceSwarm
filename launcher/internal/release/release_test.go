@@ -38,6 +38,13 @@ func TestSidecarURL(t *testing.T) {
 	}
 }
 
+func TestGameVersionURL(t *testing.T) {
+	got := GameVersionURL()
+	if !strings.HasPrefix(got, GameBase) || !strings.HasSuffix(got, "/VERSION.txt") {
+		t.Errorf("GameVersionURL = %q, want %sVERSION.txt", got, GameBase)
+	}
+}
+
 // The launcher self-update check resolves its OWN asset on the `launcher` tag
 // (Windows only for now; "" elsewhere).
 func TestLauncherSelfResolve(t *testing.T) {

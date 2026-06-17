@@ -11,11 +11,17 @@ go build -o NiceSwarm-Launcher.exe .   # or just: go run .
 ./NiceSwarm-Launcher.exe                # opens the launcher window
 ```
 
-The window auto-checks for a game update on open, shows a **progress bar** while
-downloading, then enables **Play**. Controls:
+The window shows the **launcher's own build version** ("Publish v. 220", branch + commit
+count, injected via `-ldflags`; see `version.go`) under the title, and — once the update
+check has run — the **published game build version** it will install (fetched from the
+`VERSION.txt` asset CI publishes next to the binaries). It auto-checks for a game update on
+open, shows a **progress bar** while downloading, then enables **Play**. Controls:
 
 - **Play** — launch the installed game (enabled once a build is ready).
 - **Check for Updates** — re-run the check/download on demand.
+- **Force Update** — re-download and reinstall the latest build even when the installed
+  copy already matches (skips the "already up to date" short-circuit). Useful to repair a
+  corrupt install or re-pull after a force-push to `latest`.
 - **Debug build** checkbox — switch between the release and debug game build
   (Windows x86_64 only); the choice is persisted to `launcher.json`.
 - **Update Launcher** — appears when a newer launcher is published; downloads, verifies,

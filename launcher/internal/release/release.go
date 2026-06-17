@@ -53,6 +53,11 @@ func Resolve(wantDebug bool) (Target, error) {
 	}
 }
 
+// GameVersionURL is the plain-text build-version label CI publishes next to the game
+// assets ("Publish v. 220"), shown in the launcher so the user sees which build they'll
+// install. Platform-independent: one VERSION.txt covers every asset in the `latest` release.
+func GameVersionURL() string { return GameBase + "VERSION.txt" }
+
 // DownloadURL is the asset URL.
 func (t Target) DownloadURL() string { return GameBase + t.AssetFile }
 

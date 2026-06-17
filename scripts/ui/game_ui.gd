@@ -560,7 +560,7 @@ func _build_menu() -> void:
 	vbox.add_child(title)
 
 	var sub := Label.new()
-	sub.text = "co-op arena survival   ·   v. %s (%s)" % [Main.VERSION, BuildVersion.commit_label()]
+	sub.text = "co-op arena survival   ·   %s" % BuildVersion.full_label()
 	# Mark the debug exe (an exported debug-template build) so bug reports name the right build.
 	# Gated on has_feature("template") so the editor — also is_debug_build() — isn't tagged.
 	if OS.has_feature("template") and OS.is_debug_build():
