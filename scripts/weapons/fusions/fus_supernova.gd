@@ -13,7 +13,7 @@ func _physics_process(delta: float) -> void:
 	if cooldown > 0.0:
 		return
 	var radius := (270.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var dmg := 3.5 * fuse_damage() * (1.0 + 0.5 * (level - 1))
+	var dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # ring = nova @L7 (13.35 eff)
 	var hit_any := false
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:

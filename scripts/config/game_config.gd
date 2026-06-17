@@ -42,6 +42,13 @@ const WEAPON_LEVEL_POWER := 0.025   # was 0.04 — dialed back to shrink the lat
 const AMALGAM_STAT_PER_LEVEL := 0.05   # +5% all stats per amalgam level
 const FUSION_BORN_DMG := 1.5           # fresh signature fusion deals ×this base damage
 const FUSION_BORN_COUNT_FLOOR := 6     # fresh signature fusion count_level() floor (max is MAX_WEAPON_LEVEL=7)
+#  - FUSION_LEVEL_GROWTH: per-level damage growth for REDESIGNED fusions whose Lv1 is already
+#    anchored to "two maxed base weapons combined". Gentle (~×1.5 at Lv7), NOT the base weapons'
+#    ~×3.4 — Lv1 is already full-power, so leveling is a modest top-up + the amalgam-merge gate.
+#    Re-tune fusion late-game power here in ONE place. (Fusion coeffs are pre-divided by
+#    FUSION_BORN_DMG so effective Lv1 = the maxed-component target; born_dmg stays the global
+#    fusion multiplier.) See docs/balance/FUSION_REDESIGN.md.
+const FUSION_LEVEL_GROWTH := 0.08      # redesigned-fusion per-level damage growth (~×1.5 at Lv7)
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
 const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
