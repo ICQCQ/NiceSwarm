@@ -19,7 +19,7 @@ func _physics_process(delta: float) -> void:
 	m.source_pid = player.peer_id
 	m.source_weapon = self
 	m.owner_weapon_id = get_instance_id()
-	m.damage = 6.0 * fuse_damage() * (1.0 + 0.5 * (level - 1))
+	m.damage = 17.8 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	m.blast_radius = (110.0 + 15.0 * (level - 1)) * fuse_area()
 	m.trigger_radius = 60.0 * fuse_area()
 	m.life = 12.0 * fuse_duration()

@@ -21,12 +21,12 @@ func _physics_process(delta: float) -> void:
 	w.source_pid = player.peer_id
 	w.source_weapon = self
 	w.radius = r
-	w.damage = 0.5 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	w.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	w.pull = 210.0
 	w.life = 3.0 * fuse_duration()
 	w.position = target.global_position
 	player.get_parent().add_child(w)
-	var dmg := 3.0 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var count := 1 + count_level()
 	for i in count:
 		var m := MissileProj.new()

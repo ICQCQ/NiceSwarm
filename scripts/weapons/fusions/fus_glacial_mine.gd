@@ -15,7 +15,7 @@ func _physics_process(delta: float) -> void:
 	if get_tree().get_nodes_in_group("mines").size() >= 3 + count_level():
 		cooldown = 0.2
 		return
-	var dmg := 5.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 17.8 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var m := MineNode.new()
 	m.source_pid = player.peer_id
 	m.source_weapon = self

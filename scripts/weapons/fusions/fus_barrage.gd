@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var base := (target.global_position - player.global_position).normalized()
 	var count := 1 + count_level()
-	var dmg := 1.2 * fuse_damage() * (1.0 + 0.3 * (level - 1))
+	var dmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var splash := (44.0 + 6.0 * (level - 1)) * fuse_area()
 	for i in count:
 		var p := Projectile.new()

@@ -7,5 +7,5 @@ func _init() -> void:
 	display_name = "Nova Mine"
 func _load(m: MineNode) -> void:
 	m.nova_radius = (180.0 + 25.0 * count_level()) * fuse_area()
-	m.nova_dmg = 2.6 * fuse_damage() * (1.0 + 0.4 * level)
+	m.nova_dmg = 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * level)
 	m.nova_push = 80.0 * fuse_area()

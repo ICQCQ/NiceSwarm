@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var dir := (target.global_position - player.global_position).normalized()
 	var n := 1 + count_level()
-	var dmg := 2.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for i in n:
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
@@ -28,7 +28,7 @@ func _physics_process(delta: float) -> void:
 		p.radius = 7.0 * fuse_area()
 		p.life = 1.6 * fuse_duration()
 		p.explode_radius = 100.0 * fuse_area()  # the bolt blooms a real nova ring, not a pop
-		p.explode_damage = dmg * 0.8
+		p.explode_damage = dmg * 0.32
 		p.push_strength = 70.0 * fuse_area()
 		p.color = Color(1.0, 0.5, 0.9)
 		p.position = player.global_position
