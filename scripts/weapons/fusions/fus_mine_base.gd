@@ -15,8 +15,8 @@ func _physics_process(delta: float) -> void:
 	var m := MineNode.new()
 	m.source_pid = player.peer_id
 	m.source_weapon = self
-	m.damage = 6.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
-	m.blast_radius = (95.0 + 12.0 * (level - 1)) * fuse_area()
+	m.damage = 17.8 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # mine = mines @L7 (26.7 eff)
+	m.blast_radius = (154.0 + 6.0 * (count_level() - 1)) * fuse_area()  # born ~184, max ~190 = mines @L7 blast
 	m.trigger_radius = 50.0 * fuse_area()
 	m.life = 11.0 * fuse_duration()
 	_load(m)
