@@ -7,6 +7,14 @@ const SR := 22050
 const POOL_2D := 20
 const POOL_FLAT := 8
 
+# Off-screen distance attenuation (positional sounds). Built-in 2D rolloff is too
+# shallow — an enemy dying across the arena was as loud as one next to you. Instead
+# we keep full volume out to the nearest visible screen edge (+ a little slack), then
+# fade with distance to a quiet floor for off-screen events. Listener = local player.
+const FULL_VOL_MARGIN := 140.0      # px of slack past the nearest screen edge before fade starts
+const OFF_SCREEN_FADE := 1000.0     # px over which an off-screen sound fades to the floor
+const OFF_SCREEN_FLOOR_DB := -18.0  # max extra attenuation for far off-screen sounds
+
 # wave types for _synth
 const W_SINE := 0
 const W_SQUARE := 1
@@ -29,7 +37,11 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for i in POOL_2D:
 		var p := AudioStreamPlayer2D.new()
-		p.max_distance = 1400.0
+		# Disable the built-in distance rolloff (attenuation=0 keeps stereo panning but
+		# flattens volume) and lift the cull range — _distance_db() drives the falloff
+		# explicitly so it's screen-relative, not a fixed-radius curve.
+		p.attenuation = 0.0
+		p.max_distance = 100000.0
 		add_child(p)
 		pool_2d.append(p)
 	for i in POOL_FLAT:
@@ -51,7 +63,7 @@ func play(sname: String, pos: Variant = null, vol_db := 0.0) -> void:
 		idx_2d = (idx_2d + 1) % pool_2d.size()
 		p.global_position = pos
 		p.stream = sounds[sname]
-		p.volume_db = vol_db
+		p.volume_db = vol_db + _distance_db(pos)
 		p.play()
 	else:
 		var q: AudioStreamPlayer = pool_flat[idx_flat]
@@ -59,6 +71,30 @@ func play(sname: String, pos: Variant = null, vol_db := 0.0) -> void:
 		q.stream = sounds[sname]
 		q.volume_db = vol_db
 		q.play()
+
+
+## Extra volume attenuation (dB, <= 0) for a positional sound based on how far it is
+## from the local player past the visible screen edge. 0 dB while on/near screen, fading
+## to OFF_SCREEN_FLOOR_DB for distant off-screen events. Returns 0 with no listener
+## (headless/sim) so nothing is silenced there.
+func _distance_db(pos: Vector2) -> float:
+	if Main.instance == null:
+		return 0.0
+	var me: Node2D = Main.instance.players.get(Main.instance.local_id)
+	if me == null:
+		return 0.0
+	var vp := get_viewport()
+	if vp == null:
+		return 0.0
+	# Camera has no zoom (world units == screen px); nearest visible edge = half the
+	# shorter viewport dimension. Full volume within that + a little slack.
+	var half: Vector2 = vp.get_visible_rect().size * 0.5
+	var full_r := minf(half.x, half.y) + FULL_VOL_MARGIN
+	var d := me.global_position.distance_to(pos)
+	if d <= full_r:
+		return 0.0
+	var t := clampf((d - full_r) / OFF_SCREEN_FADE, 0.0, 1.0)
+	return OFF_SCREEN_FLOOR_DB * t
 
 
 func _make_sounds() -> void:
