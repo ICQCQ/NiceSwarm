@@ -133,7 +133,7 @@ func _update_rank_panel() -> void:
 			lbl.scroll_active = false
 			lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 			lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			lbl.custom_minimum_size = Vector2(300, ROW_H)
+			lbl.custom_minimum_size = Vector2(380, ROW_H)
 			lbl.add_theme_font_size_override("normal_font_size", 20)
 			main.rank_panel.add_child(lbl)
 			_rank_rows[pid] = lbl
@@ -189,6 +189,16 @@ func _update_rank_panel() -> void:
 		var ping := int(main.net_pings.get(pid, 0))
 		var ping_s := " %dms" % ping if ping > 0 else ""
 		var dmg_str := _fmt_dmg(damages.get(pid, 0.0))
+		# HP + downed status per player — restored onto the leaderboard rows. Downed shows
+		# revive progress (red); otherwise hearts/max (green). Same source the old allies
+		# list read, so it stays live on clients too (ally hp/downed are synced).
+		var status := ""
+		if p != null:
+			if p.downed:
+				status = "[color=#ff5555]DOWN %d%%[/color]" % int(p.revive_progress * 100.0)
+			else:
+				status = "[color=#7ee08a]♥%d/%d[/color]" % [p.hp, p.max_hp]
+		var away := "  [color=#6b7488](away)[/color]" if (p != null and p.disconnected) else ""
 
 		var rank_badge: String
 		if rank == 0:
@@ -200,10 +210,10 @@ func _update_rank_panel() -> void:
 
 		var bold_open := "[b]" if pid == main.local_id else ""
 		var bold_close := "[/b]" if pid == main.local_id else ""
-		lbl.text = "%s[color=#%s]%s %s%s%s[/color]  [color=#ff9a8a]%s[/color][color=#39414f]%s[/color]" % [
+		lbl.text = "%s[color=#%s]%s %s%s%s[/color]  %s  [color=#ff9a8a]%s[/color][color=#39414f]%s[/color]%s" % [
 			rank_badge, col.to_html(false), glyph,
 			bold_open, name_str, bold_close,
-			dmg_str, ping_s
+			status, dmg_str, ping_s, away
 		]
 
 
