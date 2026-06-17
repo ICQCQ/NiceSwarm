@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	tick = TICK * fuse_rate()
 	var length := (380.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	var width := 16.0 * fuse_area()
-	var dmg := 1.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var dir := player.facing
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		var rel: Vector2 = e.global_position - global_position

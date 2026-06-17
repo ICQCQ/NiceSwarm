@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.1
 		return
 	var dir := (target.global_position - player.global_position).normalized()
-	var dmg := 1.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var count := count_level()  # near-max salvo at birth (count_level floors for fresh fusions), capped at MAX
 	for i in count:
 		var spread := deg_to_rad(9.0) * (i - (count - 1) / 2.0)

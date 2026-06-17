@@ -32,9 +32,9 @@ func _physics_process(delta: float) -> void:
 		pulse_timers.pop_back()
 	var orbit_r := ORBIT_R * fuse_area()
 	var blade_r := BLADE_R * fuse_area()
-	var dmg := 1.6 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var pulse_radius := (90.0 + 20.0 * (level - 1)) * fuse_area()  # real nova area, not a mini bang
-	var pulse_dmg := 2.6 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var pulse_dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for i in n:
 		var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		# contact damage from the spinning blade itself

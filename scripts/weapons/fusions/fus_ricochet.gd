@@ -26,7 +26,7 @@ func _fire(from: Vector2, toward: Node2D, hops_left: int, visited: Dictionary, d
 	p.source_pid = player.peer_id
 	p.source_weapon = self
 	p.velocity = dir * 540.0
-	p.damage = 2.8 * fuse_damage() * (1.0 + 0.35 * (level - 1)) * dmg_scale
+	p.damage = 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1)) * dmg_scale
 	p.radius = 6.0 * fuse_area()
 	p.life = 2.0 * fuse_duration()
 	p.color = Color(0.95, 0.8, 0.2)

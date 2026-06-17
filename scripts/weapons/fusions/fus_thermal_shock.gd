@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 		return
 	tick = TICK * fuse_rate()
 	var reach := (150.0 + 12.0 * (level - 1)) * fuse_area()
-	var dmg := 0.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var any := false
 	for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
 		var to: Vector2 = e.global_position - player.global_position

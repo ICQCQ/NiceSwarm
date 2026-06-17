@@ -25,7 +25,7 @@ func _physics_process(delta: float) -> void:
 		hit_cd.erase(k)
 	var beams := 1 + count_level()
 	var length := (360.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var dmg := 1.4 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -42,7 +42,7 @@ func _physics_process(delta: float) -> void:
 	nova_cd -= delta
 	if nova_cd <= 0.0:
 		var radius := (226.0 + 10.0 * (count_level() - 1)) * fuse_area()  # nova back to good area
-		var ndmg := 2.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		var ndmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:

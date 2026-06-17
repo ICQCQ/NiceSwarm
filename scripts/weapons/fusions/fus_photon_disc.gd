@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var count := 1 + count_level()
 	var base := (target.global_position - player.global_position).normalized()
-	var dmg := 2.6 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 5.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for i in count:
 		var g := GlaiveProj.new()
 		g.source_pid = player.peer_id
@@ -37,7 +37,7 @@ func _physics_process(delta: float) -> void:
 func _on_hit(e: Node2D, pos: Vector2) -> void:
 	var dir: Vector2 = (e.global_position - player.global_position).normalized()
 	var length := (300.0 + 40.0 * (level - 1)) * fuse_area()   # laser range buffed + grows with level
-	var dmg := 2.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))  # laser damage buffed
+	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # laser damage buffed
 	for en in Main.instance.enemies_in_radius(pos, length + 64.0):
 		var rel: Vector2 = en.global_position - pos
 		var along := rel.dot(dir)

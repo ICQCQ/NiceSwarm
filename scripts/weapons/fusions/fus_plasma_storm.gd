@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	tick -= delta
 	if tick <= 0.0:
 		tick = TICK * fuse_rate()
-		var dmg := 0.7 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		var dmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
 			var to: Vector2 = e.global_position - player.global_position
 			if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF:
@@ -29,7 +29,7 @@ func _physics_process(delta: float) -> void:
 	if bolt_cd <= 0.0:
 		var first := player.nearest_enemy(reach + 60.0)
 		if first != null:
-			var bdmg := 2.2 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+			var bdmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 			var chains := 2 + count_level()
 			var pts: Array = [player.global_position]
 			var visited := {}

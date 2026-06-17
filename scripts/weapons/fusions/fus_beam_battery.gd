@@ -44,7 +44,7 @@ func _physics_process(delta: float) -> void:
 		if locks.is_empty():
 			missile_cd = 0.2
 			return
-		var dmg := 2.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		var dmg := 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		for lock in locks:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id

@@ -27,7 +27,7 @@ func _physics_process(delta: float) -> void:
 	var n := 2 + count_level()
 	var orbit_r := ORBIT_R * fuse_area()
 	var blade_r := BLADE_R * fuse_area()
-	var dmg := 2.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -44,7 +44,7 @@ func _physics_process(delta: float) -> void:
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
-		m.damage = 5.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		m.damage = 17.8 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		m.blast_radius = 90.0 * fuse_area()
 		m.trigger_radius = 50.0 * fuse_area()
 		m.life = 10.0 * fuse_duration()

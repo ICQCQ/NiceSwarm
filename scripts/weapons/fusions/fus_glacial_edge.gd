@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var count := 2 + count_level()
 	var base := (target.global_position - player.global_position).normalized()
-	var dmg := 2.8 * fuse_damage() * (1.0 + 0.3 * (level - 1))
+	var dmg := 5.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for i in count:
 		var g := GlaiveProj.new()
 		g.source_pid = player.peer_id

@@ -18,14 +18,14 @@ func _physics_process(delta: float) -> void:
 		return
 	var base := (target.global_position - player.global_position).normalized()
 	var count := 2 + count_level()
-	var shatter_dmg := 3.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var shatter_dmg := 4.6 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var shatter_radius := (60.0 + 12.0 * (level - 1)) * fuse_area()
 	for i in count:
 		var s := FrostShard.new()
 		s.source_pid = player.peer_id
 		s.source_weapon = self
 		s.velocity = base.rotated(deg_to_rad(6.0 * (i - (count - 1) / 2.0))) * 620.0
-		s.damage = 2.2 * fuse_damage() * (1.0 + 0.3 * (level - 1))
+		s.damage = 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		s.hit_radius = 8.0 * fuse_area()
 		s.life = 1.6 * fuse_duration()
 		s.slow_dur = 1.4 * fuse_duration()

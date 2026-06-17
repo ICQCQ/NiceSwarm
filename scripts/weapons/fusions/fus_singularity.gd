@@ -20,10 +20,10 @@ func _physics_process(delta: float) -> void:
 	w.source_pid = player.peer_id
 	w.source_weapon = self
 	w.radius = (212.0 + 8.0 * (count_level() - 1)) * fuse_area()
-	w.damage = 1.45 * fuse_damage() * (1.0 + 0.5 * (level - 1))  # +20%: single-well fusion, 75%-of-combined floor
+	w.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # re-anchored: Lv1 ≈ two max-level base weapons
 	w.pull = 210.0
 	w.life = 2.5 * fuse_duration()
-	w.detonate_damage = 7.2 * fuse_damage() * (1.0 + 0.5 * (level - 1))  # +20% (see above)
+	w.detonate_damage = 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # re-anchored: nova @L7 (13.35 eff)
 	w.push_strength = 70.0 * fuse_area()  # meatier collapse shockwave
 	w.position = target.global_position
 	player.get_parent().add_child(w)

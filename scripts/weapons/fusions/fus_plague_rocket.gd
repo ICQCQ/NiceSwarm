@@ -16,7 +16,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.2
 		return
 	var count := 1 + count_level()
-	var dmg := 2.6 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for i in count:
 		var m := MissileProj.new()
 		m.source_pid = player.peer_id

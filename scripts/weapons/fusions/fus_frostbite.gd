@@ -16,7 +16,7 @@ func _physics_process(delta: float) -> void:
 	if target == null:
 		cooldown = 0.2
 		return
-	var dmg := 0.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var pud := VenomPuddle.new()
 	pud.source_pid = player.peer_id
 	pud.source_weapon = self

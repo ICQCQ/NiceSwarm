@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 		g.source_weapon = self
 		g.player = player
 		g.velocity = base.rotated(deg_to_rad(22.0) * (i - (count - 1) / 2.0)) * 430.0
-		g.damage = 2.0 * fuse_damage() * (1.0 + 0.3 * (level - 1))
+		g.damage = 5.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		g.hit_radius = 14.0 * fuse_area()
 		g.on_hit = Callable(self, "_on_glaive_hit")
 		g.position = player.global_position

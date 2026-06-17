@@ -27,7 +27,7 @@ func _physics_process(delta: float) -> void:
 	var n := 2 + count_level()
 	var orbit_r := ORBIT_R * fuse_area()
 	var blade_r := BLADE_R * fuse_area()
-	var dmg := 2.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -42,7 +42,7 @@ func _physics_process(delta: float) -> void:
 	pulse_cd -= delta
 	if pulse_cd <= 0.0:
 		var radius := (182.0 + 8.0 * (count_level() - 1)) * fuse_area()
-		var pdmg := 1.6 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		var pdmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:

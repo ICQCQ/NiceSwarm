@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var base_dir := (target.global_position - player.global_position).normalized()
 	var count := 1 + count_level()
-	var dmg := 1.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
+	var dmg := 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var puddle_r := (50.0 + 8.0 * (level - 1)) * fuse_area()
 	var puddle_life := 2.5 * fuse_duration()
 	for i in count:

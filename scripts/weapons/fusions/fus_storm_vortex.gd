@@ -21,10 +21,10 @@ func _physics_process(delta: float) -> void:
 	w.source_pid = player.peer_id
 	w.source_weapon = self
 	w.radius = r
-	w.damage = 0.7 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	w.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	w.pull = 190.0
 	w.life = 2.8 * fuse_duration()
-	w.chain_dmg = 1.5 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	w.chain_dmg = 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	w.position = target.global_position
 	player.get_parent().add_child(w)
 	Sfx.play("lightning", target.global_position)

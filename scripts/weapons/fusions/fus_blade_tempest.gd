@@ -30,7 +30,7 @@ func _physics_process(delta: float) -> void:
 	var n := maxi(total - detached, 1)
 	var orbit_r := ORBIT_R * fuse_area()
 	var blade_r := BLADE_R * fuse_area()
-	var dmg := 1.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -53,7 +53,7 @@ func _physics_process(delta: float) -> void:
 		g.source_weapon = self
 		g.player = player
 		g.velocity = (target.global_position - player.global_position).normalized() * 460.0
-		g.damage = 2.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+		g.damage = 5.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 		g.hit_radius = 14.0 * fuse_area()
 		g.position = global_position + Vector2.from_angle(angle) * orbit_r
 		g.tree_exited.connect(func(): detached = maxi(detached - 1, 0))

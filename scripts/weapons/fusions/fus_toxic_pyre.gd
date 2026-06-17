@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	p.source_pid = player.peer_id
 	p.source_weapon = self
 	p.radius = (55.0 + 6.0 * (level - 1)) * fuse_area()
-	p.damage = 1.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	p.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	p.max_life = 3.0 * fuse_duration()
 	p.life = p.max_life
 	p.fiery = true

@@ -16,7 +16,7 @@ func _physics_process(delta: float) -> void:
 	if first == null:
 		cooldown = 0.15
 		return
-	var dmg := 2.5 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	var chains := 3 + count_level()
 	var jump := 210.0 * fuse_area()
 	var pts: Array = [player.global_position]

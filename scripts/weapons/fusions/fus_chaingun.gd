@@ -22,7 +22,7 @@ func _physics_process(delta: float) -> void:
 	p.source_pid = player.peer_id
 	p.source_weapon = self
 	p.velocity = dir * 600.0
-	p.damage = 0.75 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	p.damage = 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	p.radius = 4.0 * fuse_area()
 	p.life = 1.5 * fuse_duration()
 	p.color = Color(0.8, 0.95, 1.0)
