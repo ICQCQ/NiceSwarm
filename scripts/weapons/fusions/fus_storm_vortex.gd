@@ -16,7 +16,7 @@ func _physics_process(delta: float) -> void:
 	if target == null:
 		cooldown = 0.2
 		return
-	var r := (160.0 + 15.0 * (level - 1)) * fuse_area()
+	var r := (202.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id
 	w.source_weapon = self

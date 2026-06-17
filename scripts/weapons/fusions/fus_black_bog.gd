@@ -16,7 +16,7 @@ func _physics_process(delta: float) -> void:
 	if target == null:
 		cooldown = 0.2
 		return
-	var r := (170.0 + 15.0 * (level - 1)) * fuse_area()
+	var r := (212.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	var life := 3.0 * fuse_duration()
 	var dmg := fuse_damage() * (1.0 + 0.4 * (level - 1))
 	var w := GravityWell.new()

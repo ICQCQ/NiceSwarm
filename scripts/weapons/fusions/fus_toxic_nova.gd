@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var radius := (130.0 + 28.0 * (level - 1)) * fuse_area()
+	var radius := (238.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	var dmg := 3.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	var any := false
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):

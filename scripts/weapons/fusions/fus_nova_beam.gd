@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	for k in expired:
 		hit_cd.erase(k)
 	var beams := 1 + count_level()
-	var length := (240.0 + 30.0 * (level - 1)) * fuse_area()
+	var length := (360.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	var dmg := 1.4 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		if hit_cd.has(e.get_instance_id()):
@@ -41,7 +41,7 @@ func _physics_process(delta: float) -> void:
 				break
 	nova_cd -= delta
 	if nova_cd <= 0.0:
-		var radius := (130.0 + 26.0 * (level - 1)) * fuse_area()  # nova back to good area
+		var radius := (226.0 + 10.0 * (count_level() - 1)) * fuse_area()  # nova back to good area
 		var ndmg := 2.8 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
@@ -66,7 +66,7 @@ func _draw() -> void:
 	if player == null or player.downed:
 		return
 	var beams := 1 + count_level()
-	var length := (240.0 + 30.0 * (level - 1)) * fuse_area()
+	var length := (360.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	for b in beams:
 		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.4, 0.5, 0.25), 9.0)

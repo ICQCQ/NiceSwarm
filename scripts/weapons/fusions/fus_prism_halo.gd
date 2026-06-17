@@ -22,7 +22,7 @@ func _physics_process(delta: float) -> void:
 	for k in exp:
 		hit_cd.erase(k)
 	var spokes := 1 + count_level()
-	var length := (150.0 + 20.0 * (level - 1)) * fuse_area()
+	var length := (222.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	var dmg := 1.6 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		if hit_cd.has(e.get_instance_id()):
@@ -42,7 +42,7 @@ func _draw() -> void:
 	if player == null or player.downed:
 		return
 	var spokes := 1 + count_level()
-	var length := (150.0 + 20.0 * (level - 1)) * fuse_area()
+	var length := (222.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	for s in spokes:
 		var dir := Vector2.from_angle(angle + TAU * float(s) / spokes)
 		draw_line(Vector2.ZERO, dir * length, Color(0.8, 0.5, 1.0, 0.3), 7.0)

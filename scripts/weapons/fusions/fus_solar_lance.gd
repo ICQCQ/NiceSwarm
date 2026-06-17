@@ -15,7 +15,7 @@ func _physics_process(delta: float) -> void:
 	if tick > 0.0:
 		return
 	tick = TICK * fuse_rate()
-	var length := (260.0 + 30.0 * (level - 1)) * fuse_area()
+	var length := (380.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	var width := 16.0 * fuse_area()
 	var dmg := 1.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	var dir := player.facing
@@ -30,7 +30,7 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var length := (260.0 + 30.0 * (level - 1)) * fuse_area()
+	var length := (380.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	var dir := player.facing
 	draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.5, 0.1, 0.35), 16.0 * fuse_area())
 	draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.9, 0.4), 4.0)

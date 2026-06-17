@@ -20,7 +20,7 @@ func _physics_process(delta: float) -> void:
 	var pud := VenomPuddle.new()
 	pud.source_pid = player.peer_id
 	pud.source_weapon = self
-	pud.radius = (60.0 + 8.0 * (level - 1)) * fuse_area()
+	pud.radius = (84.0 + 4.0 * (count_level() - 1)) * fuse_area()
 	pud.damage = dmg
 	pud.max_life = 3.5 * fuse_duration()
 	pud.life = pud.max_life

@@ -22,7 +22,7 @@ func _physics_process(delta: float) -> void:
 		m.source_pid = player.peer_id
 		m.source_weapon = self
 		m.damage = dmg
-		m.splash = (80.0 + 12.0 * (level - 1)) * fuse_area()
+		m.splash = (116.0 + 6.0 * (count_level() - 1)) * fuse_area()
 		m.life = 4.0 * fuse_duration()
 		m.velocity = Vector2.from_angle(randf() * TAU) * 280.0
 		m.freeze_slow = 0.5

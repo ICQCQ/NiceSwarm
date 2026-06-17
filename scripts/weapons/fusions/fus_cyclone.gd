@@ -33,7 +33,7 @@ func _physics_process(delta: float) -> void:
 			cooldown = 0.1
 	nova_cd -= delta
 	if nova_cd <= 0.0:
-		var radius := (140.0 + 26.0 * (level - 1)) * fuse_area()  # central nova back to good area
+		var radius := (236.0 + 10.0 * (count_level() - 1)) * fuse_area()  # central nova back to good area
 		var ndmg := 3.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(player.global_position, radius + 64.0):

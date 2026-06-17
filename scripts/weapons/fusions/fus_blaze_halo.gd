@@ -41,7 +41,7 @@ func _physics_process(delta: float) -> void:
 				break
 	pulse_cd -= delta
 	if pulse_cd <= 0.0:
-		var radius := (110.0 + 20.0 * (level - 1)) * fuse_area()
+		var radius := (182.0 + 8.0 * (count_level() - 1)) * fuse_area()
 		var pdmg := 1.6 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):

@@ -23,7 +23,7 @@ func _physics_process(delta: float) -> void:
 	for k in texpired:
 		tagged.erase(k)
 	var beams := 1 + count_level()
-	var length := (160.0 + 22.0 * (level - 1)) * fuse_area()
+	var length := (244.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	# beams deal no damage of their own -- they just paint targets
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		var rel: Vector2 = e.global_position - global_position
@@ -66,7 +66,7 @@ func _draw() -> void:
 	if player == null or player.downed:
 		return
 	var beams := 1 + count_level()
-	var length := (160.0 + 22.0 * (level - 1)) * fuse_area()
+	var length := (244.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	for b in beams:
 		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.7, 0.3, 0.22), 12.0)

@@ -21,7 +21,7 @@ func _physics_process(delta: float) -> void:
 	m.source_weapon = self
 	m.owner_weapon_id = get_instance_id()
 	m.damage = dmg
-	m.blast_radius = (100.0 + 15.0 * (level - 1)) * fuse_area()
+	m.blast_radius = (154.0 + 6.0 * (count_level() - 1)) * fuse_area()
 	m.trigger_radius = 55.0 * fuse_area()
 	m.life = 12.0 * fuse_duration()
 	m.fire_dps = dmg * 0.25

@@ -19,7 +19,7 @@ func _physics_process(delta: float) -> void:
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id
 	w.source_weapon = self
-	w.radius = (170.0 + 15.0 * (level - 1)) * fuse_area()
+	w.radius = (212.0 + 8.0 * (count_level() - 1)) * fuse_area()
 	w.damage = 1.45 * fuse_damage() * (1.0 + 0.5 * (level - 1))  # +20%: single-well fusion, 75%-of-combined floor
 	w.pull = 210.0
 	w.life = 2.5 * fuse_duration()
