@@ -160,7 +160,7 @@ const BOSS_KILL_INTERVAL_GROWTH := 100   # added to the interval each time a bos
 # Boss HP is DPS-responsive so a boss is always a real fight, never melted by a snowball
 # build. It scales with: the party's recent damage output, party level, and player count.
 const BOSS_DPS_WINDOW := 60.0    # seconds of party damage averaged into "recent dps"
-const BOSS_FIGHT_SECONDS := 6.0  # boss hp ~= recent_dps * this (target single-boss fight length)
+const BOSS_FIGHT_SECONDS := 20.0  # boss hp ~= recent_dps * this (target single-boss fight length)
 const BOSS_HP_PER_LEVEL := 0.02 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
 const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end
