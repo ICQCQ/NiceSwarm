@@ -105,7 +105,7 @@ func build() -> void:
 	main.unspent_label.add_theme_color_override("font_color_hover", Color(1.0, 1.0, 0.6))
 	main.unspent_label.flat = true
 	main.unspent_label.visible = false
-	main.unspent_label.pressed.connect(func(): main._open_async_panel())
+	main.unspent_label.pressed.connect(func(): main._toggle_async_panel())
 	main.hud_root.add_child(main.unspent_label)
 
 	main.banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
