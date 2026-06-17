@@ -18,7 +18,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var dir := (target.global_position - player.global_position).normalized()
 	var length := 999.0 * fuse_area()            # long line-of-sight rail
-	var zap_r := 333.0 * fuse_area()             # zap everything near the beam
+	var zap_r := 50.0 * fuse_area()              # one block (~100px) wide zap corridor
 	var dmg := 5.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	var origin := player.global_position
 	var fx := LightningFx.new()
