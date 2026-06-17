@@ -15,14 +15,14 @@ func run(t) -> void:
 	t.ok(GameConfig.XP_GAIN_MULT > 0.0 and GameConfig.XP_GAIN_MULT <= 1.0, "XP_GAIN_MULT in (0,1]")
 
 	# player stat-upgrade caps
-	t.eq(GameConfig.STAT_CAP_POWER, 6.0, "STAT_CAP_POWER")
-	t.eq(GameConfig.STAT_CAP_AREA, 2.0, "STAT_CAP_AREA")
+	t.eq(GameConfig.STAT_CAP_POWER, 3, "STAT_CAP_POWER")
+	t.eq(GameConfig.STAT_CAP_AREA, 1.5, "STAT_CAP_AREA")
 	t.eq(GameConfig.STAT_CAP_DURATION, 2.5, "STAT_CAP_DURATION")
 	t.eq(GameConfig.STAT_CAP_MAX_HP, 15, "STAT_CAP_MAX_HP")
 	t.ok(GameConfig.STAT_CAP_RATE > 0.0 and GameConfig.STAT_CAP_RATE < 1.0, "STAT_CAP_RATE is a sub-1 rate floor (faster)")
 	t.gt(GameConfig.STAT_CAP_SPEED, 220.0, "STAT_CAP_SPEED above base move speed")
 	t.gt(GameConfig.STAT_CAP_MAGNET, 90.0, "STAT_CAP_MAGNET above base pickup range")
-	t.eq(GameConfig.ENEMY_CAP, 220, "ENEMY_CAP")
+	t.eq(GameConfig.ENEMY_CAP, 300, "ENEMY_CAP")
 	t.eq(GameConfig.NET_PORT, 24565, "NET_PORT")
 	t.gt(GameConfig.TELEGRAPH_WARN, 0.0, "TELEGRAPH_WARN positive")
 	t.ok(GameConfig.ARENA.size.x > 0.0 and GameConfig.ARENA.size.y > 0.0, "ARENA has positive size")
