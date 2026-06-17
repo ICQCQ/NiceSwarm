@@ -1,17 +1,47 @@
 # --- nova + venom ------------------------------------------------------------
 class_name FusToxicNova
 extends WeaponBase
+## Toxic Nova: a Nova-style shockwave that poisons + leaves a puddle. Like base Nova,
+## each cooldown fires one blast plus level-scaled echo pulses (count_level()-4 extra
+## shockwaves), so high levels pulse several times per cycle instead of only widening.
+
+const ECHO_GAP := 0.22  # seconds between a pulse and its echoes (x Haste)
 
 var cooldown := 1.6
+var echoes_left := 0
+var echo_cd := 0.0
+
+
 func _init() -> void:
 	weapon_id = "fus_toxicnova"
 	display_name = "Toxic Nova"
+
+
 func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		return
+	# High-level kicker: drain queued echo pulses so it hits several times per cooldown
+	# (the "pulsing attack" — mirrors base Nova's echoes).
+	if echoes_left > 0:
+		echo_cd -= delta
+		if echo_cd <= 0.0:
+			echoes_left -= 1
+			echo_cd = ECHO_GAP * player.rate_mult
+			_blast(false)
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
+	if _blast(true):
+		cooldown = 1.3 * fuse_rate()             # halved (was 2.6)
+		echoes_left = maxi(0, count_level() - 4)  # pulses scale with level, like Nova (born floor 6 -> 2-3)
+		echo_cd = ECHO_GAP * player.rate_mult
+	else:
+		cooldown = 0.25  # nothing in range, retry soon
+
+
+## One toxic shockwave: damages + poisons everything in radius. `with_puddle` drops the
+## ground puddle (only the main pulse does, not every echo). Returns whether it hit.
+func _blast(with_puddle: bool) -> bool:
 	var radius := (238.0 + 10.0 * (count_level() - 1)) * fuse_area()
 	var dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # ring = nova @L7 (13.35 eff)
 	var any := false
@@ -23,8 +53,7 @@ func _physics_process(delta: float) -> void:
 			push(e, global_position)
 			any = true
 	if not any:
-		cooldown = 0.25
-		return
+		return false
 	var fx := RingFx.new()
 	fx.position = global_position
 	fx.radius = 25.0
@@ -32,14 +61,15 @@ func _physics_process(delta: float) -> void:
 	fx.life = 0.4
 	fx.color = Color(0.5, 0.9, 0.4)
 	player.get_parent().add_child(fx)
-	var pud := VenomPuddle.new()
-	pud.source_pid = player.peer_id
-	pud.source_weapon = self
-	pud.radius = radius * 0.7
-	pud.damage = dmg * 0.25
-	pud.max_life = 2.5 * fuse_duration()
-	pud.life = pud.max_life
-	pud.position = global_position
-	player.get_parent().add_child(pud)
+	if with_puddle:
+		var pud := VenomPuddle.new()
+		pud.source_pid = player.peer_id
+		pud.source_weapon = self
+		pud.radius = radius * 0.7
+		pud.damage = dmg * 0.25
+		pud.max_life = 2.5 * fuse_duration()
+		pud.life = pud.max_life
+		pud.position = global_position
+		player.get_parent().add_child(pud)
 	Sfx.play("nova", global_position)
-	cooldown = 2.6 * fuse_rate()
+	return true
