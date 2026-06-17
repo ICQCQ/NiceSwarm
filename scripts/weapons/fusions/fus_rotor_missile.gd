@@ -25,7 +25,7 @@ func _physics_process(delta: float) -> void:
 		m.splash = (60.0 + 8.0 * (level - 1)) * fuse_area()
 		m.life = 4.0 * fuse_duration()
 		m.velocity = Vector2.from_angle(randf() * TAU) * 280.0
-		m.shrapnel_count = 2 + level
+		m.shrapnel_count = 2 + count_level()
 		m.shrapnel_dmg = 1.6 * fuse_damage() * (1.0 + 0.3 * (level - 1))
 		m.shrapnel_radius = 12.0 * fuse_area()
 		m.position = player.global_position

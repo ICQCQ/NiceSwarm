@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if owned_in_group("mines") >= 3 + level:  # per-weapon cap, not a shared global count
+	if owned_in_group("mines") >= 3 + count_level():  # per-weapon cap, not a shared global count
 		cooldown = 0.2
 		return
 	var m := MineNode.new()
@@ -23,7 +23,7 @@ func _physics_process(delta: float) -> void:
 	m.blast_radius = (110.0 + 15.0 * (level - 1)) * fuse_area()
 	m.trigger_radius = 60.0 * fuse_area()
 	m.life = 12.0 * fuse_duration()
-	m.spawn_missiles = 2 + level
+	m.spawn_missiles = 2 + count_level()
 	m.position = player.global_position \
 		+ Vector2(randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	player.get_parent().add_child(m)

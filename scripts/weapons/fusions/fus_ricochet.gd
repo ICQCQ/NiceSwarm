@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 		cooldown = 0.1
 		return
 	var visited := {target.get_instance_id(): true}
-	_fire(player.global_position, target, level, visited, 1.0)
+	_fire(player.global_position, target, count_level(), visited, 1.0)
 	Sfx.play("bolt", player.global_position)
 	cooldown = 0.8 * fuse_rate()
 func _fire(from: Vector2, toward: Node2D, hops_left: int, visited: Dictionary, dmg_scale: float) -> void:

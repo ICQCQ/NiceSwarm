@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var count := 6 + 2 * level  # 8 / 10 / 12 bolts
+	var count := 6 + 2 * count_level()  # born ~18 bolts (count_level floored), 20 at max
 	var dmg := 1.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
 	for i in count:
 		var dir := Vector2.from_angle(TAU * float(i) / count)

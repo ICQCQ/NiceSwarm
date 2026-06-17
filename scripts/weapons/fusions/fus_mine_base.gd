@@ -9,7 +9,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if get_tree().get_nodes_in_group("mines").size() >= 3 + level:
+	if get_tree().get_nodes_in_group("mines").size() >= 3 + count_level():
 		cooldown = 0.2
 		return
 	var m := MineNode.new()

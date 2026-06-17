@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	w.damage = 0.7 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	w.pull = 190.0
 	w.life = 3.0 * fuse_duration()
-	w.beam_spokes = 1 + level
+	w.beam_spokes = 1 + count_level()
 	w.beam_dmg = 1.6 * fuse_damage() * (1.0 + 0.4 * (level - 1))
 	w.beam_len = r
 	w.beam_spin = 2.0 / fuse_rate()

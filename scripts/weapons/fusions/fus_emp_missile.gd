@@ -25,7 +25,7 @@ func _physics_process(delta: float) -> void:
 		m.splash = (65.0 + 8.0 * (level - 1)) * fuse_area()
 		m.life = 4.0 * fuse_duration()
 		m.velocity = Vector2.from_angle(randf() * TAU) * 280.0
-		m.chain_count = 2 + level
+		m.chain_count = 2 + count_level()
 		m.chain_dmg = 1.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
 		m.chain_range = 200.0 * fuse_area()
 		m.position = player.global_position

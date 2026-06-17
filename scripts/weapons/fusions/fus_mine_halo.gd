@@ -39,7 +39,7 @@ func _physics_process(delta: float) -> void:
 				hit_cd[e.get_instance_id()] = HIT_CD * fuse_rate()
 				break
 	drop_cd -= delta
-	if drop_cd <= 0.0 and get_tree().get_nodes_in_group("mines").size() < 4 + level:
+	if drop_cd <= 0.0 and get_tree().get_nodes_in_group("mines").size() < 4 + count_level():
 		var bp := global_position + Vector2.from_angle(angle) * orbit_r * 1.4
 		var m := MineNode.new()
 		m.source_pid = player.peer_id

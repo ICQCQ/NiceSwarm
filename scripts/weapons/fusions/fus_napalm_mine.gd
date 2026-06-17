@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if owned_in_group("mines") >= 3 + level:  # per-weapon cap, not a shared global count
+	if owned_in_group("mines") >= 3 + count_level():  # per-weapon cap, not a shared global count
 		cooldown = 0.2
 		return
 	var dmg := 6.0 * fuse_damage() * (1.0 + 0.5 * (level - 1))
