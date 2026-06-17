@@ -1776,8 +1776,12 @@ func _on_pickup_taken(kind: String, by: Node2D, pickup: Pickup) -> void:
 					gems_by_id.erase(id)
 		"chest":
 			Sfx.play("chest", by.global_position)
-			pending_chests += 1
-			_maybe_open_picks()
+			if cfg_async_levelup:
+				unspent_points += 1
+				_update_unspent_label()
+			else:
+				pending_chests += 1
+				_maybe_open_picks()
 
 
 func _bomb_fx(pos: Vector2) -> void:

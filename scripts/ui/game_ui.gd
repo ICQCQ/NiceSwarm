@@ -93,9 +93,11 @@ func build() -> void:
 	main.hint_label = _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	main.hint_label.text = Main.HINT_COOP
 
-	# Async level-up pending indicator: bottom-center, blinks when picks are banked.
+	# Async level-up pending indicator: bottom-right, blinks when picks are banked.
 	main.unspent_label = Button.new()
-	main.unspent_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	main.unspent_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	main.unspent_label.offset_left = -300.0
+	main.unspent_label.offset_right = -16.0
 	main.unspent_label.offset_top = -52.0
 	main.unspent_label.offset_bottom = -20.0
 	main.unspent_label.add_theme_font_size_override("font_size", 22)
