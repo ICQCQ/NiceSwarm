@@ -51,7 +51,7 @@ const FUSION_BORN_COUNT_FLOOR := 6     # fresh signature fusion count_level() fl
 const FUSION_LEVEL_GROWTH := 0.08      # redesigned-fusion per-level damage growth (~×1.5 at Lv7)
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
-const DIFF_BASE := 1.0 / 55.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
+const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)
 # Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
 const ENEMY_SPEED_DIFF_SCALE := 0.020  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
@@ -63,7 +63,7 @@ const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd ti
 # and clamps it to SLOW_FLOOR_MULT — a slowed enemy crawls at 20% speed (an 80% slow).
 # One central buff point for ALL slow sources; bosses/tier-3 included (still slowable).
 const SLOW_POTENCY := 1.6             # amplify each slow's speed reduction (the 0.5 base slow -> 0.2 speed)
-const SLOW_FLOOR_MULT := 0.1          # deepest slow: enemies move at 20% speed (= "slow to 0.8"), never lower
+const SLOW_FLOOR_MULT := 0.2          # deepest slow: enemies move at 20% speed (= "slow to 0.8"), never lower
 const DIFF_HEAT := 3.12          # how much clear-rate heat accelerates the climb (was 2.4, +30%)
 const DIFF_LEVEL := 0.02         # how much each player level accelerates the climb
 const DIFF_LEVEL_STEP := 0.05     # flat difficulty added on each level-up
@@ -74,9 +74,9 @@ const DIFF_WARMUP_PROGRESS := 21.7 # run_progress at which warmup reaches full (
 const SPAWN_RING_MIN := 700.0         # enemies spawn this far from the anchor player... (was 700; note SPAWN_SAFE_RADIUS still clamps the effective min)
 const SPAWN_RING_MAX := 1200.0        # ...up to this far (random within the ring; was 900 — wider band)
 const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
-const SPAWN_DESIRED_BASE := 6.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
+const SPAWN_DESIRED_BASE := 8.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
 const SPAWN_DESIRED_PER_PROGRESS := 0.5 # +this many target enemies per run_progress point (≈3.5/pace at old scale)
-const SPAWN_INTERVAL_START := 1     # seconds between spawns early (5x faster than the prior 1.0)
+const SPAWN_INTERVAL_START := 0.5     # seconds between spawns early (5x faster than the prior 1.0)
 const SPAWN_INTERVAL_END := 0.024     # seconds between spawns late (5x faster than the prior 0.12)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
