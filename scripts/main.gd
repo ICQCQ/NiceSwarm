@@ -1495,7 +1495,9 @@ func _process(delta: float) -> void:
 	if countdown_time > 0.0:  # resume countdown holds the world until it reaches zero
 		_tick_countdown(delta)
 		return
-	var running := not (game_over or leveling or get_tree().paused)
+	# In async mode, leveling just means the pick panel is open — the sim keeps running.
+	var async_picking := cfg_async_levelup and leveling and not picks_starter and not free_choice
+	var running := not (game_over or (leveling and not async_picking) or get_tree().paused)
 	if running and not final_stage:
 		elapsed += delta  # clients advance too; host HUD sync corrects drift
 	if is_host() and running:
