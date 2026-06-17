@@ -1532,7 +1532,7 @@ func _physics_process(delta: float) -> void:
 	if not is_host():
 		return
 	t_enemy += delta
-	if t_enemy >= 1.0 / 24.0:
+	if t_enemy >= 1.0 / 16.0:   # server netcode tickrate: 16 Hz world-state snapshots
 		t_enemy = 0.0
 		_send_state(STATE_ENEMIES)
 	t_items += delta

@@ -45,7 +45,7 @@ its consts, net.gd reads `NET_PORT`), `EnemyConfig.CLASSES` (the enemy table →
 
 **Multiplayer model (host-authoritative):** the host simulates everything (enemy AI,
 damage, XP, pickups, revives). Clients send their player pos/facing/dash (20 Hz) and
-upgrade picks; the host broadcasts chunked full-snapshot world state (enemies 24 Hz,
+upgrade picks; the host broadcasts chunked full-snapshot world state (enemies 16 Hz,
 gems/pickups/telegraphs 8 Hz, HUD + pings 4 Hz; ≤80 entities/packet, removal by diff).
 Each entity is a compact **10-byte `PackedByteArray` record** — `u32 id | s16 x·POS_SCALE |
 s16 y·POS_SCALE | u16 f` (positions ×16 fixed-point; `f` is the per-channel extra: enemy
