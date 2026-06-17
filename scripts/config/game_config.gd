@@ -39,7 +39,7 @@ const WEAPON_LEVEL_POWER := 0.025   # was 0.04 — dialed back to shrink the lat
 #    minimum. The real DPS cliff on fusion is the action collapsing (e.g. maxed Nova's 4 wide
 #    pulses -> a single pulse), not per-hit damage — this keeps the maxed weapon's "feel".
 #    Leveling 1->MAX still adds the last count and is what gates the next (amalgam) merge.
-const AMALGAM_STAT_PER_LEVEL := 0.05   # +5% all stats per amalgam level
+const AMALGAM_STAT_PER_LEVEL := 0.10   # +10% all stats per amalgam level
 const FUSION_BORN_DMG := 1.5           # fresh signature fusion deals ×this base damage
 const FUSION_BORN_COUNT_FLOOR := 6     # fresh signature fusion count_level() floor (max is MAX_WEAPON_LEVEL=7)
 #  - FUSION_LEVEL_GROWTH: per-level damage growth for REDESIGNED fusions whose Lv1 is already
@@ -55,8 +55,8 @@ const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, to
 # Late-game lethality: enemies scale fast/tanky enough with difficulty to catch and survive
 # against a high-DPS kiter (breaks the zero-damage snowball). Applied in spawner.make_enemy.
 const ENEMY_SPEED_DIFF_SCALE := 0.020  # enemy speed ×(1 + diff·this) — late enemies ~match player move speed
-const ENEMY_HP_DIFF_SCALE := 0.05      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
-const ENEMY_HP_PER_LEVEL := 0.03       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
+const ENEMY_HP_DIFF_SCALE := 0.03      # enemy hp ×(1 + diff·this) — survive the alpha strike to reach you
+const ENEMY_HP_PER_LEVEL := 0.01       # base enemy hp ×(1 + this·(party_level-1)) — tankier as the party levels
 const CC_IMMUNE_TIER := 2              # enemies at this tier index+ (the 3rd tier) + bosses resist knockback & suck-in
 # Frost / slow potency. Every applied slow funnels through Enemy.apply_slow, which
 # deepens the incoming speed factor by SLOW_POTENCY (so frost/freeze "really" bites)
@@ -76,7 +76,7 @@ const SPAWN_RING_MAX := 1200.0        # ...up to this far (random within the rin
 const SPAWN_SAFE_RADIUS := 500.0      # never spawn an enemy within this of ANY alive player (was 500 — closer spawns allowed)
 const SPAWN_DESIRED_BASE := 8.0          # target live-enemy count at run_progress 0 (was 6.0 — denser swarm)
 const SPAWN_DESIRED_PER_PROGRESS := 0.5 # +this many target enemies per run_progress point (≈3.5/pace at old scale)
-const SPAWN_INTERVAL_START := 0.5     # seconds between spawns early (5x faster than the prior 1.0)
+const SPAWN_INTERVAL_START := 0.25     # seconds between spawns early (5x faster than the prior 1.0)
 const SPAWN_INTERVAL_END := 0.024     # seconds between spawns late (5x faster than the prior 0.12)
 const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired population
 
@@ -88,7 +88,7 @@ const SPAWN_REFILL_MULT := 0.4        # interval ×this while below the desired 
 # ~2.8× spawn density, which over-punished co-op (sim 2-4p sat at ~27-33% win vs
 # the 50-60% target). See docs/balance/MULTIPLAYER_BALANCE_SIM.md.
 const PARTY_HP_PER := 0.2             # enemy hp ×(1 + this·(N-1))
-const PARTY_RATE_PER := 0.25           # spawn density ×(1 + this·(N-1))
+const PARTY_RATE_PER := 0.15           # spawn density ×(1 + this·(N-1))
 
 # --- wave rhythm (layered on top of run_progress/heat in EnemySpawner.run_spawning) ---
 # Per-10-progress-units [intensity, pop_mult] (≈ per game-minute), lerped for a smooth
