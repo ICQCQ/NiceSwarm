@@ -12,8 +12,11 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var radius := (140.0 + 28.0 * (level - 1)) * fuse_area()  # bigger EMP nova ring
-	var dmg := 3.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	# Ring = nova's body, so size it from the MAXED nova ring (Lv7 = 310) and retain it at
+	# birth: count_level() is born-floored, so a fresh fusion opens at ~310 (>=300), not 140.
+	# Per-hit damage still climbs with the real `level` (the leveling reward).
+	var radius := (170.0 + 28.0 * (count_level() - 1)) * fuse_area()  # born 310 (cl6), max 338 (cl7)
+	var dmg := 12.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))  # Lv1 ~= 0.9x maxed nova (13.35)
 	var hits: Array = []
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
@@ -32,7 +35,9 @@ func _physics_process(delta: float) -> void:
 	fx.color = Color(0.8, 0.85, 1.0)
 	player.get_parent().add_child(fx)
 	hits.shuffle()
-	for h in hits.slice(0, 3 + level):
+	# Forks = lightning's body: born firing near-max chains (count_level floored) ~= maxed
+	# lightning's 9 chains, each at dmg*0.6 (~7.2) ~= maxed lightning per-hit (7.52).
+	for h in hits.slice(0, 3 + count_level()):
 		var nb := _nearest_beyond(h.global_position, radius * 1.6)
 		if nb != null:
 			damage_dealt += dmg * 0.6
