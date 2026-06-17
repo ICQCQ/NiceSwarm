@@ -26,5 +26,5 @@ const BASE := {
 	"sentry":    {"dmg": 2.16, "growth": 0.46, "cd": 4.5},
 	# Redesigned fusions — all tuning lives here.
 	# fus_charge_round (bolt+laser): charge_time=cd, bolt_range=range, bolt_radius=radius
-	"fus_charge_round": {"dmg": 6.0, "growth": 0.08, "cd": 2.5, "range": 500.0, "radius": 8.0},
+	"fus_charge_round": {"dmg": 18.0, "growth": 0.08, "cd": 2.5, "range": 500.0, "radius": 8.0},
 }

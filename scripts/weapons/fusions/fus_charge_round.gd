@@ -1,9 +1,9 @@
 # --- bolt + laser: charge-up railgun — long charge, piercing round, high dmg --
 # All tuning lives in WeaponConfig.BASE["fus_charge_round"]: dmg/growth/cd/range/radius
-class_name FusChaingun
+class_name FusChargeRound
 extends WeaponBase
 
-const BOLT_SPEED := 900.0
+const BOLT_SPEED := 1200.0
 
 var charge    := 0.0
 var aim_angle := 0.0   # radians; tracks nearest enemy, persists between frames

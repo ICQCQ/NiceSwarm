@@ -162,7 +162,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"bolt|orbit": return FusScatterShot.new()
 		"bolt|glaive": return FusRicochet.new()
 		"bolt|gravity": return FusGravityRound.new()
-		"bolt|laser": return FusChaingun.new()
+		"bolt|laser": return FusChargeRound.new()
 		"bolt|mines": return FusSapperRound.new()
 		"bolt|venom": return FusCorrosiveRound.new()
 		"frost|laser": return FusCryoBeam.new()
