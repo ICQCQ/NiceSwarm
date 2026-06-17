@@ -28,7 +28,7 @@ func _physics_process(delta: float) -> void:
 	t.source_weapon = self
 	t.mode = mode
 	t.life = (6.0 + 0.5 * level) * fuse_duration() * life_scale
-	t.damage = dmg_base * fuse_damage() * (1.0 + WeaponConfig.BASE.sentry.growth * (level - 1))
+	t.damage = dmg_base * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
 	t.target_range = 480.0 * fuse_area()
 	t.proj_radius = 5.0 * fuse_area()
 	t.area_mult = fuse_area()
