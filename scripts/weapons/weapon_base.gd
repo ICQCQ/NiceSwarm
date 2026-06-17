@@ -26,6 +26,12 @@ var tier := 0   # 0 = base weapon, 1 = base+base signature fusion, 2 = amalgam (
 #    downgrade from the two maxed weapons it consumed (GameConfig.FUSION_BORN_DMG).
 var fuse_pow := 1.0
 var born_dmg := 1.0
+#  - born_count_floor: a fresh SIGNATURE fusion sets this (GameConfig.FUSION_BORN_COUNT_FLOOR)
+#    so count_level() is born near max — it fires near-max projectile/pulse/blade COUNTS
+#    immediately instead of the Lv1 minimum. Default 0 = no floor, so base weapons are
+#    byte-identical (clampi(level, 0, MAX) == mini(level, MAX)). This is the real fix for the
+#    fusion DPS cliff: the action (e.g. Nova's many wide pulses) no longer collapses to one.
+var born_count_floor := 0
 var player: Player
 
 
@@ -44,7 +50,9 @@ func fuse_rate() -> float: return player.rate_mult / fuse_pow
 ## explode the live entity count. Damage / area / cadence keep scaling with the
 ## real `level` past the cap (fused parts level on).
 func count_level() -> int:
-	return mini(level, GameConfig.MAX_WEAPON_LEVEL)
+	# Floor at born_count_floor (0 for base weapons = no effect) so a fresh fusion fires
+	# near-max counts immediately; cap at MAX so unbounded fusion leveling can't explode counts.
+	return clampi(level, born_count_floor, GameConfig.MAX_WEAPON_LEVEL)
 
 
 func _ready() -> void:

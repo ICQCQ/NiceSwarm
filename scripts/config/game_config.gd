@@ -34,8 +34,14 @@ const WEAPON_LEVEL_POWER := 0.025   # was 0.04 — dialed back to shrink the lat
 #    stats by this fraction per level (flat), instead of leveling each component.
 #  - FUSION_BORN_DMG: a fresh SIGNATURE fusion is born with this damage multiplier so it isn't
 #    a downgrade from the two maxed weapons it consumed (the born-at-Lv1 DPS dip).
+#  - FUSION_BORN_COUNT_FLOOR: a fresh SIGNATURE fusion's count_level() floors here so it's born
+#    firing near-max projectile/pulse/blade COUNTS (~90% of its max ability), not the Lv1
+#    minimum. The real DPS cliff on fusion is the action collapsing (e.g. maxed Nova's 4 wide
+#    pulses -> a single pulse), not per-hit damage — this keeps the maxed weapon's "feel".
+#    Leveling 1->MAX still adds the last count and is what gates the next (amalgam) merge.
 const AMALGAM_STAT_PER_LEVEL := 0.05   # +5% all stats per amalgam level
 const FUSION_BORN_DMG := 1.5           # fresh signature fusion deals ×this base damage
+const FUSION_BORN_COUNT_FLOOR := 6     # fresh signature fusion count_level() floor (max is MAX_WEAPON_LEVEL=7)
 
 # --- difficulty climb: difficulty += dt * BASE * warmup * (1 + heat*HEAT + (level-1)*LEVEL) ---
 const DIFF_BASE := 1.0 / 45.0    # base climb rate (was 1/62 — faster ramp, toward the old 1/34)

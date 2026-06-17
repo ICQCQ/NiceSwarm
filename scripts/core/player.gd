@@ -401,14 +401,17 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 	if sig != null:
 		sig.tier = new_tier
 		sig.born_dmg = GameConfig.FUSION_BORN_DMG  # fresh-fusion damage boost (vs the 2 maxed inputs)
-		# A signature fusion is born at level 1 and levels up 1..MAX like a base
-		# weapon (its default WeaponBase.level is 1). This intentionally gates the
-		# NEXT merge: the [MERGE] pool only offers MAXED weapons, so a fresh fusion
-		# must be leveled to MAX_WEAPON_LEVEL before it can be amalgamated again —
-		# only a maxed-out fusion fuses on. Trade-off (accepted): at Lv1 its damage
-		# growth term is x1.0, so a fresh signature fusion is weaker than the two Lv7
-		# weapons it consumed — a DPS dip that rewards leveling it back up. The generic
-		# WeaponFused path below is likewise born at level 1 (its shell drives level_up).
+		sig.born_count_floor = GameConfig.FUSION_BORN_COUNT_FLOOR  # born firing near-max COUNTS
+		# A signature fusion is born at integer level 1 and levels up 1..MAX like a base
+		# weapon (its default WeaponBase.level is 1). The integer level intentionally gates the
+		# NEXT merge: the [MERGE] pool only offers MAXED weapons (it reads `level`, not
+		# count_level()), so a fresh fusion must still be leveled to MAX_WEAPON_LEVEL before it
+		# can be amalgamated again — only a maxed-out fusion fuses on. But to kill the old DPS
+		# cliff (a maxed Nova's many wide pulses collapsing to a single pulse the moment you
+		# fuse), born_count_floor makes count_level() start near max so the fused weapon retains
+		# ~90% of the action/ability immediately; leveling 1->MAX adds the final count + unlocks
+		# the next merge. The generic WeaponFused (amalgam) path below keeps its components at
+		# their Lv7 levels, so it already retains full stats+counts — no floor needed there.
 		weapons.erase(a)
 		weapons.erase(b)
 		a.queue_free()

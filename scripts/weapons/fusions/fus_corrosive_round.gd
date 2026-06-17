@@ -18,8 +18,9 @@ func _physics_process(delta: float) -> void:
 		return
 	var dir := (target.global_position - player.global_position).normalized()
 	var dmg := 1.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
-	for i in level:
-		var spread := deg_to_rad(9.0) * (i - (level - 1) / 2.0)
+	var count := count_level()  # near-max salvo at birth (count_level floors for fresh fusions), capped at MAX
+	for i in count:
+		var spread := deg_to_rad(9.0) * (i - (count - 1) / 2.0)
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
 		p.source_weapon = self

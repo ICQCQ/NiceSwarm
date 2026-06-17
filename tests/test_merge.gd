@@ -47,6 +47,15 @@ func run(t) -> void:
 	t.eq(b1.tier, 1, "frost+lightning is tier 1")
 	# #1: a fresh signature fusion carries the born damage boost (not a downgrade from inputs)
 	t.eq(a1.born_dmg, GameConfig.FUSION_BORN_DMG, "fresh signature fusion has the born damage boost")
+	# ...and is born firing near-max COUNTS so the action doesn't cliff to the Lv1 minimum
+	# (the maxed-Nova "many wide pulses -> one pulse" downgrade). It's still integer level 1.
+	t.eq(a1.born_count_floor, GameConfig.FUSION_BORN_COUNT_FLOOR, "fresh signature fusion has the born count floor")
+	t.eq(a1.level, 1, "fresh signature fusion is still integer level 1 (gates the next merge)")
+	t.eq(a1.count_level(), GameConfig.FUSION_BORN_COUNT_FLOOR, "fresh fusion count_level() is floored near max at birth")
+	# base weapons are untouched: no floor, so a Lv1 base weapon fires its Lv1 count
+	# (use "laser" — still present here; bolt/nova/frost/lightning were consumed by a1/b1)
+	t.eq(p.get_weapon("laser").born_count_floor, 0, "base weapon has no born count floor")
+	t.eq(p.get_weapon("laser").count_level(), 1, "Lv1 base weapon count_level() is 1 (byte-identical to before)")
 	var t2a = _fuse(p, a1.weapon_id, b1.weapon_id)
 	t.eq(t2a.tier, 2, "tier-2 #1 has tier 2")
 	t.eq(t2a.get_child_count(), 2, "tier-2 #1 holds its 2 components")
