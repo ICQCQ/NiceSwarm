@@ -138,7 +138,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |
 | glaive + orbit | **Blade Tempest** | a ring of blades where one periodically breaks off, strikes as a glaive, and rejoins the ring |
 | flame + orbit | **Blaze Halo** | orbiting blades that ignite on contact and pulse a ring of fire |
-| bolt + laser | **Chaingun** | a blazing rapid-fire bolt stream |
+| bolt + laser | **Charge Round** | charges up a heavy piercing round that punches through every enemy in its path; charge time shortens with Haste, range and bullet size scale with Duration and Area |
 | flame + gravity | **Cinder Vortex** | a vortex that drags enemies into a burning pool |
 | mines + missiles | **Cluster Bomb** | mines that spray homing rockets on blast |
 | missiles + nova | **Cluster Warhead** | rockets whose splash is a mini-nova |

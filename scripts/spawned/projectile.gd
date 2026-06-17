@@ -22,6 +22,11 @@ var on_hit := Callable()        # optional: called(enemy, hit_pos, world) after 
 var color := Color(1.0, 0.92, 0.4)
 var homing_turn := 0.0   # >0: fused Flak Battery curves toward the nearest enemy, rad/s
 var homing_range := 0.0
+var pierce := false       # >0: passes through enemies (tracks already-hit ids)
+var max_dist := 0.0       # >0: free after traveling this many pixels (for piercing shots)
+
+var _pierce_hits := {}
+var _dist_traveled := 0.0
 
 
 func _ready() -> void:
@@ -51,7 +56,13 @@ func _physics_process(delta: float) -> void:
 			var ang := cur.angle_to(desired)
 			ang = clampf(ang, -homing_turn * delta, homing_turn * delta)
 			velocity = cur.rotated(ang) * speed
-	position += velocity * delta
+	var step := velocity * delta
+	position += step
+	if max_dist > 0.0:
+		_dist_traveled += step.length()
+		if _dist_traveled >= max_dist:
+			queue_free()
+			return
 	life -= delta
 	if life <= 0.0:
 		queue_free()
@@ -62,6 +73,11 @@ func _physics_process(delta: float) -> void:
 
 func _on_body_entered(body: Node) -> void:
 	if body is Enemy:
+		if pierce:
+			var eid := body.get_instance_id()
+			if _pierce_hits.has(eid):
+				return
+			_pierce_hits[eid] = true
 		if is_instance_valid(source_weapon):
 			source_weapon.damage_dealt += damage
 		body.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
@@ -71,7 +87,8 @@ func _on_body_entered(body: Node) -> void:
 			_drop_fire_puddle()
 		if on_hit.is_valid():
 			on_hit.call(body, global_position, get_parent())
-		queue_free()
+		if not pierce:
+			queue_free()
 
 
 func _explode() -> void:

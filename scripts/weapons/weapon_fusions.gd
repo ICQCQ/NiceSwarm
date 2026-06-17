@@ -56,7 +56,7 @@ const INFO := {
 	"bolt|orbit": {"name": "Scatter Shot", "desc": "a ring of bolts fired in all directions"},
 	"bolt|glaive": {"name": "Ricochet", "desc": "bolts that arc to the next enemy on every hit"},
 	"bolt|gravity": {"name": "Gravity Round", "desc": "bolts that form a gravity vortex on impact"},
-	"bolt|laser": {"name": "Chaingun", "desc": "a blazing rapid-fire bolt stream"},
+	"bolt|laser": {"name": "Charge Round", "desc": "charges up a heavy piercing round that punches through every enemy in its path"},
 	"bolt|mines": {"name": "Sapper Round", "desc": "bolts that arm a proximity mine on impact"},
 	"bolt|venom": {"name": "Corrosive Round", "desc": "bolts that shatter into a corrosive splash on hit"},
 	"frost|laser": {"name": "Cryo Beam", "desc": "rotating ice beams that chill everything they sweep"},
