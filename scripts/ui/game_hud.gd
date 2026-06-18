@@ -411,7 +411,7 @@ func _update_stats_panel(me: Player) -> void:
 	for w in me.weapons:
 		total += _weapon_dmg(w)
 	var title := "[b][color=#cdd6e6]%s[/color][/b]  [color=#39414f][TAB][/color]\n" \
-		% ("DPS (1s)" if show_dps else "DAMAGE STATS")
+		% ("DPS (30s avg)" if show_dps else "DAMAGE STATS")
 	var lines := title
 	for w in me.weapons:
 		var dmg := _weapon_dmg(w)
