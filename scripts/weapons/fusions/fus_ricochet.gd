@@ -12,26 +12,26 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(650.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.1
 		return
 	var visited := {target.get_instance_id(): true}
 	_fire(player.global_position, target, count_level(), visited, 1.0)
 	Sfx.play("bolt", player.global_position)
-	cooldown = 0.8 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()
 func _fire(from: Vector2, toward: Node2D, hops_left: int, visited: Dictionary, dmg_scale: float) -> void:
 	var dir := (toward.global_position - from).normalized()
 	var p := Projectile.new()
 	p.source_pid = player.peer_id
 	p.source_weapon = self
-	p.velocity = dir * 540.0
-	p.damage = 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1)) * dmg_scale
-	p.radius = 6.0 * fuse_area()
-	p.life = 2.0 * fuse_duration()
+	p.velocity = dir * cfg.speed
+	p.damage = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1)) * dmg_scale
+	p.radius = cfg.radius * fuse_area()
+	p.life = cfg.life * fuse_duration()
 	p.color = Color(0.95, 0.8, 0.2)
 	if hops_left > 0:
-		p.on_hit = Callable(self, "_chain").bind(hops_left, visited.duplicate(), dmg_scale * 0.7)
+		p.on_hit = Callable(self, "_chain").bind(hops_left, visited.duplicate(), dmg_scale * cfg.chain_decay)
 	p.position = from
 	# _fire is also called from _chain (an on_hit callback) — i.e. during physics
 	# query flush, where a synchronous Area2D add throws "can't change monitoring
@@ -40,7 +40,7 @@ func _fire(from: Vector2, toward: Node2D, hops_left: int, visited: Dictionary, d
 func _chain(enemy: Node2D, hit_pos: Vector2, _world: Node, hops_left: int, visited: Dictionary, dmg_scale: float) -> void:
 	if player == null:
 		return
-	var chain_r := 220.0 * fuse_area()
+	var chain_r: float = cfg.chain_range * fuse_area()
 	var best: Node2D = null
 	var bd := chain_r * chain_r
 	for e in Main.instance.enemies_in_radius(hit_pos, chain_r + 64.0):

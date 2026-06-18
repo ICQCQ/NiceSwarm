@@ -12,17 +12,17 @@ func _physics_process(delta: float) -> void:
 	drop -= delta
 	if drop > 0.0:
 		return
-	drop = 0.3 * fuse_rate()
+	drop = cfg.cd * fuse_rate()
 	var p := VenomPuddle.new()
 	p.source_pid = player.peer_id
 	p.source_weapon = self
-	p.radius = (55.0 + 6.0 * (level - 1)) * fuse_area()
-	p.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	p.max_life = 3.0 * fuse_duration()
+	p.radius = (cfg.radius + cfg.radius_per_level * (level - 1)) * fuse_area()
+	p.damage = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	p.max_life = cfg.life * fuse_duration()
 	p.life = p.max_life
 	p.fiery = true
-	p.burn_dps = 0.8 * fuse_damage()
-	p.burn_dur = 1.2 * fuse_duration()
+	p.burn_dps = cfg.burn_dps_ratio * fuse_damage()
+	p.burn_dur = cfg.burn_dur * fuse_duration()
 	p.position = player.global_position
 	player.get_parent().add_child(p)
 	Sfx.play("venom", player.global_position)

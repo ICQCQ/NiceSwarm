@@ -12,12 +12,12 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var first := player.nearest_enemy(520.0)
+	var first := player.nearest_enemy(cfg.range)
 	if first == null:
 		cooldown = 0.15
 		return
-	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	var chains := 3 + count_level()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var chains: int = cfg.chain_base + count_level()
 	var pts: Array = [player.global_position]
 	var visited := {}
 	var cur: Node2D = first
@@ -26,18 +26,18 @@ func _physics_process(delta: float) -> void:
 		pts.append(cur.global_position)
 		damage_dealt += dmg
 		cur.take_hit(dmg, null, Enemy.DMG_ENERGY, player.peer_id)
-		cur.apply_burn(dmg * 0.4, 2.0 * fuse_duration(), 1.0, player.peer_id)  # virulent poison
+		cur.apply_burn(dmg * cfg.poison_dps_ratio, cfg.poison_dur * fuse_duration(), 1.0, player.peer_id)  # virulent poison
 		chains -= 1
 		cur = _next(pts[pts.size() - 1], visited)
 	var fx := LightningFx.new()
 	fx.points = pts
 	player.get_parent().add_child(fx)
 	Sfx.play("lightning", player.global_position)
-	cooldown = 1.9 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()
 func _next(from: Vector2, visited: Dictionary) -> Node2D:
 	var best: Node2D = null
-	var bd := 210.0 * 210.0
-	for e in Main.instance.enemies_in_radius(from, 210.0 + 64.0):
+	var bd: float = cfg.chain_range * cfg.chain_range
+	for e in Main.instance.enemies_in_radius(from, cfg.chain_range + 64.0):
 		if visited.has(e.get_instance_id()):
 			continue
 		var d: float = from.distance_squared_to(e.global_position)

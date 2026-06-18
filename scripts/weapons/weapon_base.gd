@@ -33,6 +33,11 @@ var born_dmg := 1.0
 #    fusion DPS cliff: the action (e.g. Nova's many wide pulses) no longer collapses to one.
 var born_count_floor := 0
 var player: Player
+## This weapon's own WeaponConfig.BASE[weapon_id] entry, cached once in _ready() (weapon_id
+## is already set by _init() at that point and config values never change mid-session) so
+## every per-frame/per-fire read is a plain field access instead of a Dictionary lookup by
+## weapon_id every time. Empty for weapons with no config entry (e.g. WeaponFused amalgams).
+var cfg: Dictionary
 
 
 ## Fusion-aware stat accessors. Fused weapons read these instead of player.* so an
@@ -60,6 +65,7 @@ func _ready() -> void:
 	while n != null and not (n is Player):
 		n = n.get_parent()
 	player = n as Player
+	cfg = WeaponConfig.BASE.get(weapon_id, {})
 
 
 func _process(delta: float) -> void:

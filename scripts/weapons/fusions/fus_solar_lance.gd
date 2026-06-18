@@ -15,9 +15,9 @@ func _physics_process(delta: float) -> void:
 	if tick > 0.0:
 		return
 	tick = TICK * fuse_rate()
-	var length := (380.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var width := 16.0 * fuse_area()
-	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var length: float = (cfg.length + cfg.length_per_count * (count_level() - 1)) * fuse_area()
+	var width: float = cfg.width * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	var dir := player.facing
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		var rel: Vector2 = e.global_position - global_position
@@ -25,12 +25,12 @@ func _physics_process(delta: float) -> void:
 		if along >= 0.0 and along <= length and (dir * along).distance_to(rel) <= width + e.radius:
 			damage_dealt += dmg
 			e.take_hit(dmg, global_position, Enemy.DMG_FIRE, player.peer_id)
-			e.apply_burn(dmg * 0.6, 1.2 * fuse_duration(), 1.0, player.peer_id)
+			e.apply_burn(dmg * cfg.burn_dps_ratio, cfg.burn_dur * fuse_duration(), 1.0, player.peer_id)
 	Sfx.play("laser", global_position, -10.0)
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var length := (380.0 + 10.0 * (count_level() - 1)) * fuse_area()
+	var length: float = (cfg.length + cfg.length_per_count * (count_level() - 1)) * fuse_area()
 	var dir := player.facing
-	draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.5, 0.1, 0.35), 16.0 * fuse_area())
+	draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.5, 0.1, 0.35), cfg.width * fuse_area())
 	draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.9, 0.4), 4.0)

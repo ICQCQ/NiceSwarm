@@ -2,8 +2,6 @@
 class_name FusTeslaHalo
 extends WeaponBase
 
-const ORBIT_R := 80.0
-const BLADE_R := 11.0
 const HIT_CD := 0.5
 var angle := 0.0
 var hit_cd := {}
@@ -23,10 +21,10 @@ func _physics_process(delta: float) -> void:
 			expired.append(k)
 	for k in expired:
 		hit_cd.erase(k)
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
-	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_r * fuse_area()
+	var blade_r: float = cfg.blade_r * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -40,9 +38,10 @@ func _physics_process(delta: float) -> void:
 				_zap(e, dmg)
 				break
 func _zap(src: Node2D, dmg: float) -> void:
+	var zap_range: float = cfg.zap_range
 	var best: Node2D = null
-	var bd := 170.0 * 170.0
-	for e in Main.instance.enemies_in_radius(src.global_position, 170.0 + 64.0):
+	var bd := zap_range * zap_range
+	for e in Main.instance.enemies_in_radius(src.global_position, zap_range + 64.0):
 		if e == src:
 			continue
 		var d: float = src.global_position.distance_squared_to(e.global_position)
@@ -51,17 +50,17 @@ func _zap(src: Node2D, dmg: float) -> void:
 			best = e
 	if best == null:
 		return
-	damage_dealt += dmg * 0.7
-	best.take_hit(dmg * 0.7, src.global_position, Enemy.DMG_ENERGY, player.peer_id)
+	damage_dealt += dmg * cfg.zap_dmg_ratio
+	best.take_hit(dmg * cfg.zap_dmg_ratio, src.global_position, Enemy.DMG_ENERGY, player.peer_id)
 	var fx := LightningFx.new()
 	fx.points = [src.global_position, best.global_position]
 	player.get_parent().add_child(fx)
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_r * fuse_area()
+	var blade_r: float = cfg.blade_r * fuse_area()
 	for i in n:
 		var p := Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		draw_circle(p, blade_r, Color(0.6, 0.8, 1.0))

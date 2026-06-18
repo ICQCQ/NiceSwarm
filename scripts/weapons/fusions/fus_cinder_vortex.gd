@@ -12,33 +12,33 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(700.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.2
 		return
-	var r := (202.0 + 8.0 * (count_level() - 1)) * fuse_area()
-	var life := 2.8 * fuse_duration()
-	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var r: float = (cfg.radius_base + cfg.radius_per_count * (count_level() - 1)) * fuse_area()
+	var life: float = cfg.life * fuse_duration()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id
 	w.source_weapon = self
 	w.radius = r
-	w.damage = 0.9 * dmg
-	w.pull = 180.0
+	w.damage = cfg.well_dmg_ratio * dmg
+	w.pull = cfg.pull
 	w.life = life
 	w.position = target.global_position
 	player.get_parent().add_child(w)
 	var pud := VenomPuddle.new()
 	pud.source_pid = player.peer_id
 	pud.source_weapon = self
-	pud.radius = r * 0.85
-	pud.damage = 0.9 * dmg
+	pud.radius = r * cfg.pool_radius_ratio
+	pud.damage = cfg.pool_dmg_ratio * dmg
 	pud.max_life = life
 	pud.life = life
 	pud.fiery = true
-	pud.burn_dps = 0.9 * dmg
-	pud.burn_dur = 1.4 * fuse_duration()
+	pud.burn_dps = cfg.burn_dps_ratio * dmg
+	pud.burn_dur = cfg.burn_dur * fuse_duration()
 	pud.position = target.global_position
 	player.get_parent().add_child(pud)
 	Sfx.play("flame", target.global_position)
-	cooldown = 4.5 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

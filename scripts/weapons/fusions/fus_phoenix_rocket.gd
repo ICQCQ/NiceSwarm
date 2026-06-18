@@ -12,23 +12,23 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if player.nearest_enemy(800.0) == null:
+	if player.nearest_enemy(cfg.range) == null:
 		cooldown = 0.2
 		return
-	var count := 1 + count_level()
-	var dmg := 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var count: int = cfg.count_base + count_level()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for i in count:
 		var m := MissileProj.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
 		m.damage = dmg
-		m.splash = (75.0 + 10.0 * (level - 1)) * fuse_area()
-		m.life = 4.0 * fuse_duration()
-		m.velocity = Vector2.from_angle(randf() * TAU) * 280.0
-		m.fire_dps = 0.8 * fuse_damage() * (1.0 + 0.35 * (level - 1))
-		m.fire_radius = (60.0 + 8.0 * (level - 1)) * fuse_area()
-		m.fire_dur = 2.0 * fuse_duration()
+		m.splash = (cfg.splash + cfg.splash_per_level * (level - 1)) * fuse_area()
+		m.life = cfg.life * fuse_duration()
+		m.velocity = Vector2.from_angle(randf() * TAU) * cfg.speed
+		m.fire_dps = cfg.fire_dps * fuse_damage() * (1.0 + cfg.secondary_growth * (level - 1))
+		m.fire_radius = (cfg.fire_radius + cfg.fire_radius_per_level * (level - 1)) * fuse_area()
+		m.fire_dur = cfg.fire_dur * fuse_duration()
 		m.position = player.global_position
 		player.get_parent().add_child(m)
 	Sfx.play("missile", player.global_position)
-	cooldown = 2.6 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

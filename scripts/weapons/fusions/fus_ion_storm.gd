@@ -2,7 +2,6 @@
 class_name FusIonStorm
 extends WeaponBase
 
-const HIT_CD := 0.4
 var angle := 0.0
 var hit_cd := {}
 func _init() -> void:
@@ -12,7 +11,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + 2.8 / fuse_rate() * delta, TAU)
+	angle = fmod(angle + cfg.spin / fuse_rate() * delta, TAU)
 	queue_redraw()
 	var expired := []
 	for k in hit_cd:
@@ -21,9 +20,9 @@ func _physics_process(delta: float) -> void:
 			expired.append(k)
 	for k in expired:
 		hit_cd.erase(k)
-	var beams := 1 + count_level()
-	var length := (260.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var beams: int = cfg.beam_base + count_level()
+	var length: float = (cfg.length + cfg.length_per_count * (count_level() - 1)) * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -31,14 +30,14 @@ func _physics_process(delta: float) -> void:
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 			var along := clampf(rel.dot(dir), 0.0, length)
-			if (dir * along).distance_to(rel) <= 9.0 + e.radius:
+			if (dir * along).distance_to(rel) <= cfg.beam_width + e.radius:
 				damage_dealt += dmg
 				e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
-				hit_cd[e.get_instance_id()] = HIT_CD * fuse_rate()
+				hit_cd[e.get_instance_id()] = cfg.hit_cd * fuse_rate()
 				_zap(e, dmg)
 				break
 func _zap(src: Node2D, dmg: float) -> void:
-	var zap_range := 170.0 * fuse_area()
+	var zap_range: float = cfg.zap_range * fuse_area()
 	var best: Node2D = null
 	var bd := zap_range * zap_range
 	for e in Main.instance.enemies_in_radius(src.global_position, zap_range + 64.0):
@@ -50,17 +49,17 @@ func _zap(src: Node2D, dmg: float) -> void:
 			best = e
 	if best == null:
 		return
-	damage_dealt += dmg * 0.7
-	best.take_hit(dmg * 0.7, src.global_position, Enemy.DMG_ENERGY, player.peer_id)
-	hit_cd[best.get_instance_id()] = HIT_CD * fuse_rate()
+	damage_dealt += dmg * cfg.zap_dmg_ratio
+	best.take_hit(dmg * cfg.zap_dmg_ratio, src.global_position, Enemy.DMG_ENERGY, player.peer_id)
+	hit_cd[best.get_instance_id()] = cfg.hit_cd * fuse_rate()
 	var fx := LightningFx.new()
 	fx.points = [src.global_position, best.global_position]
 	player.get_parent().add_child(fx)
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var beams := 1 + count_level()
-	var length := (260.0 + 10.0 * (count_level() - 1)) * fuse_area()
+	var beams: int = cfg.beam_base + count_level()
+	var length: float = (cfg.length + cfg.length_per_count * (count_level() - 1)) * fuse_area()
 	for b in beams:
 		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(0.7, 0.6, 1.0, 0.22), 12.0)

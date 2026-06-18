@@ -6,6 +6,6 @@ func _init() -> void:
 	weapon_id = "fus_teslamine"
 	display_name = "Tesla Mine"
 func _load(m: MineNode) -> void:
-	m.chain_count = 2 + count_level()
-	m.chain_dmg = 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * level)
-	m.chain_range = 220.0 * fuse_area()
+	m.chain_count = cfg.chain_count_base + count_level()
+	m.chain_dmg = cfg.chain_dmg * fuse_damage() * (1.0 + cfg.chain_growth * level)
+	m.chain_range = cfg.chain_range * fuse_area()
