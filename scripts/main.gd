@@ -1314,12 +1314,12 @@ func _make_lobby_cycler(parent: Node, label: String, text: String, on_press: Cal
 	parent.add_child(row)
 	var l := Label.new()
 	l.text = label
-	l.add_theme_font_size_override("font_size", 18)
-	l.custom_minimum_size = Vector2(220, 38)
+	l.add_theme_font_size_override("font_size", 15)
+	l.custom_minimum_size = Vector2(200, 32)
 	row.add_child(l)
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(132, 38)
-	b.add_theme_font_size_override("font_size", 18)
+	b.custom_minimum_size = Vector2(120, 32)
+	b.add_theme_font_size_override("font_size", 15)
 	b.text = text
 	b.pressed.connect(on_press)
 	row.add_child(b)
@@ -1332,12 +1332,12 @@ func _make_config_label(parent: Node, label: String, value: String) -> void:
 	parent.add_child(row)
 	var l := Label.new()
 	l.text = label
-	l.add_theme_font_size_override("font_size", 18)
-	l.custom_minimum_size = Vector2(220, 38)
+	l.add_theme_font_size_override("font_size", 15)
+	l.custom_minimum_size = Vector2(200, 32)
 	row.add_child(l)
 	var v := Label.new()
 	v.text = value
-	v.add_theme_font_size_override("font_size", 18)
+	v.add_theme_font_size_override("font_size", 15)
 	v.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	row.add_child(v)
 
@@ -2483,15 +2483,12 @@ func _refresh_pings() -> void:
 			net_pings[pid] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
 
 
-## Clients: receive the host-measured pings; override the host's own entry with our local
-## round-trip to the host (peer 1), since the host's self-ping is 0.
+## Clients: use the host-measured pings as-is. Every row is that player's round-trip
+## to the host (the host measures each peer); the host's own row stays ~0ms on every
+## screen. (We deliberately do NOT override peer 1 with our local RTT — that made the
+## host's row show the viewer's own ping instead of the host's ~0.)
 func apply_pings(pings: Dictionary) -> void:
 	net_pings = pings
-	var peer := multiplayer.multiplayer_peer
-	if not is_host() and net.active and peer is ENetMultiplayerPeer:
-		var ep: ENetPacketPeer = (peer as ENetMultiplayerPeer).get_peer(1)
-		if ep != null:
-			net_pings[1] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
 
 
 func apply_player_hp(pid: int, hp_: int, max_: int, downed_: bool) -> void:

@@ -223,24 +223,24 @@ func _make_scroll_overlay(separation: int = 12) -> Array:
 func _section_label(text: String) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 15)
+	l.add_theme_font_size_override("font_size", 13)
 	l.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75))
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return l
 
 
 func _build_level_panel() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(8)
 	main.level_panel = parts[0]
 	var vbox: VBoxContainer = parts[1]
 	main.panel_title = Label.new()
-	main.panel_title.add_theme_font_size_override("font_size", 34)
+	main.panel_title.add_theme_font_size_override("font_size", 26)
 	main.panel_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.panel_title)
 	for i in Main.MAX_CHOICES:
 		var b := Button.new()
 		b.custom_minimum_size = Vector2(640, 56)
-		b.add_theme_font_size_override("font_size", 21)
+		b.add_theme_font_size_override("font_size", 17)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.clip_text = false
 		b.pressed.connect(main._choose_upgrade.bind(i))
@@ -277,14 +277,14 @@ func _build_async_panel() -> void:
 	vbox.add_theme_constant_override("separation", 6)
 	root.add_child(vbox)
 	main.async_panel_title = Label.new()
-	main.async_panel_title.add_theme_font_size_override("font_size", 17)
+	main.async_panel_title.add_theme_font_size_override("font_size", 14)
 	main.async_panel_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	main.async_panel_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(main.async_panel_title)
 	for i in Main.MAX_CHOICES:
 		var b := Button.new()
 		b.custom_minimum_size = Vector2(360, 0)
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 13)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.clip_text = false
 		b.focus_mode = Control.FOCUS_NONE  # don't steal arrow-key movement or auto-fire on Enter
@@ -294,15 +294,15 @@ func _build_async_panel() -> void:
 
 
 func _build_end_panel() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(8)
 	main.end_panel = parts[0]
 	var vbox: VBoxContainer = parts[1]
 	main.end_title = Label.new()
-	main.end_title.add_theme_font_size_override("font_size", 52)
+	main.end_title.add_theme_font_size_override("font_size", 40)
 	main.end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.end_title)
 	main.end_stats = Label.new()
-	main.end_stats.add_theme_font_size_override("font_size", 24)
+	main.end_stats.add_theme_font_size_override("font_size", 19)
 	main.end_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.end_stats)
 	main.scoreboard_box = GridContainer.new()
@@ -311,63 +311,63 @@ func _build_end_panel() -> void:
 	main.scoreboard_box.add_theme_constant_override("v_separation", 4)
 	vbox.add_child(main.scoreboard_box)
 	main.end_hint = Label.new()
-	main.end_hint.add_theme_font_size_override("font_size", 20)
+	main.end_hint.add_theme_font_size_override("font_size", 16)
 	main.end_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.end_hint)
 
 
 func _build_pause_panel() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(8)
 	main.pause_panel = parts[0]
 	var vbox: VBoxContainer = parts[1]
 	var l := Label.new()
 	l.text = "PAUSED"
-	l.add_theme_font_size_override("font_size", 40)
+	l.add_theme_font_size_override("font_size", 30)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(l)
 
 	var loadout_head := Label.new()
 	loadout_head.text = "YOUR LOADOUT"
-	loadout_head.add_theme_font_size_override("font_size", 20)
+	loadout_head.add_theme_font_size_override("font_size", 16)
 	loadout_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	loadout_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(loadout_head)
 	main.pause_loadout = Label.new()
-	main.pause_loadout.add_theme_font_size_override("font_size", 20)
+	main.pause_loadout.add_theme_font_size_override("font_size", 16)
 	main.pause_loadout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.pause_loadout)
 
 	var roster_head := Label.new()
 	roster_head.text = "ARSENAL"
-	roster_head.add_theme_font_size_override("font_size", 20)
+	roster_head.add_theme_font_size_override("font_size", 16)
 	roster_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	roster_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(roster_head)
 	main.pause_roster = Label.new()
-	main.pause_roster.add_theme_font_size_override("font_size", 17)
+	main.pause_roster.add_theme_font_size_override("font_size", 14)
 	main.pause_roster.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.pause_roster)
 
 	var foot := Label.new()
 	foot.text = "ESC resume  ·  M main menu"
-	foot.add_theme_font_size_override("font_size", 16)
+	foot.add_theme_font_size_override("font_size", 13)
 	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(foot)
 
 
 func _build_ingame_menu_panel() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(8)
 	main.ingame_menu_panel = parts[0]
 	var vbox: VBoxContainer = parts[1]
 	var l := Label.new()
 	l.text = "MENU"
-	l.add_theme_font_size_override("font_size", 40)
+	l.add_theme_font_size_override("font_size", 30)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(l)
 	# nav breadcrumb for the hub tabs (skill/monster codex, settings)
 	main.ingame_menu_hint = Label.new()
-	main.ingame_menu_hint.add_theme_font_size_override("font_size", 18)
+	main.ingame_menu_hint.add_theme_font_size_override("font_size", 15)
 	main.ingame_menu_hint.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	main.ingame_menu_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.ingame_menu_hint)
@@ -388,7 +388,7 @@ func _build_ingame_menu_panel() -> void:
 	_build_settings_rows(main.settings_panel, _ingame_setting_rows)
 	var foot := Label.new()
 	foot.text = "ESC resume   ·   C skill codex   ·   V monster codex   ·   O settings   ·   L leave game"
-	foot.add_theme_font_size_override("font_size", 16)
+	foot.add_theme_font_size_override("font_size", 13)
 	foot.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(foot)
@@ -482,7 +482,7 @@ func _build_countdown_panel() -> void:
 	var vbox: VBoxContainer = parts[1]
 	var head := Label.new()
 	head.text = "RESUMING"
-	head.add_theme_font_size_override("font_size", 24)
+	head.add_theme_font_size_override("font_size", 19)
 	head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(head)
@@ -538,12 +538,12 @@ func _make_cycler(parent: Node, label: String, get_text: Callable, advance: Call
 	parent.add_child(row)
 	var l := Label.new()
 	l.text = label
-	l.add_theme_font_size_override("font_size", 18)
-	l.custom_minimum_size = Vector2(220, 38)
+	l.add_theme_font_size_override("font_size", 15)
+	l.custom_minimum_size = Vector2(220, 32)
 	row.add_child(l)
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(132, 38)
-	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_font_size_override("font_size", 15)
 	b.text = get_text.call()
 	b.pressed.connect(func():
 		advance.call()
@@ -561,21 +561,21 @@ func _build_profile_panel(parent: Node) -> void:
 
 	var head := Label.new()
 	head.text = "PROFILE"
-	head.add_theme_font_size_override("font_size", 18)
+	head.add_theme_font_size_override("font_size", 15)
 	head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(head)
 
 	main.profile_preview_label = Label.new()
 	main.profile_preview_label.custom_minimum_size = Vector2(0, 64)
-	main.profile_preview_label.add_theme_font_size_override("font_size", 48)
+	main.profile_preview_label.add_theme_font_size_override("font_size", 36)
 	main.profile_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	main.profile_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	box.add_child(main.profile_preview_label)
 
 	main.profile_name_edit = LineEdit.new()
 	main.profile_name_edit.custom_minimum_size = Vector2(0, 44)
-	main.profile_name_edit.add_theme_font_size_override("font_size", 20)
+	main.profile_name_edit.add_theme_font_size_override("font_size", 16)
 	main.profile_name_edit.max_length = 16
 	main.profile_name_edit.text = main.profile_name
 	main.profile_name_edit.text_submitted.connect(func(_t): main._on_profile_appearance_changed())
@@ -590,14 +590,14 @@ func _build_profile_panel(parent: Node) -> void:
 	var color_btn := Button.new()
 	color_btn.text = "Color"
 	color_btn.custom_minimum_size = Vector2(100, 44)
-	color_btn.add_theme_font_size_override("font_size", 18)
+	color_btn.add_theme_font_size_override("font_size", 15)
 	color_btn.pressed.connect(main._on_profile_color_pressed)
 	btn_row.add_child(color_btn)
 
 	var shape_btn := Button.new()
 	shape_btn.text = "Shape"
 	shape_btn.custom_minimum_size = Vector2(100, 44)
-	shape_btn.add_theme_font_size_override("font_size", 18)
+	shape_btn.add_theme_font_size_override("font_size", 15)
 	shape_btn.pressed.connect(main._on_profile_shape_pressed)
 	btn_row.add_child(shape_btn)
 
@@ -623,7 +623,7 @@ func _build_menu() -> void:
 
 	var title := Label.new()
 	title.text = "NICESWARM"
-	title.add_theme_font_size_override("font_size", 48)
+	title.add_theme_font_size_override("font_size", 36)
 	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
@@ -634,7 +634,7 @@ func _build_menu() -> void:
 	# Gated on has_feature("template") so the editor — also is_debug_build() — isn't tagged.
 	if OS.has_feature("template") and OS.is_debug_build():
 		sub.text += "   ·   debug"
-	sub.add_theme_font_size_override("font_size", 20)
+	sub.add_theme_font_size_override("font_size", 16)
 	sub.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(sub)
@@ -646,7 +646,7 @@ func _build_menu() -> void:
 	vbox.add_child(main.update_banner)
 	var up_label := Label.new()
 	up_label.text = "⬆  A newer build is available on GitHub"
-	up_label.add_theme_font_size_override("font_size", 18)
+	up_label.add_theme_font_size_override("font_size", 15)
 	up_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	up_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	main.update_banner.add_child(up_label)
@@ -656,19 +656,19 @@ func _build_menu() -> void:
 	main.update_banner.add_child(up_row)
 	var up_get := Button.new()
 	up_get.text = "Get Update"
-	up_get.add_theme_font_size_override("font_size", 18)
+	up_get.add_theme_font_size_override("font_size", 15)
 	up_get.pressed.connect(main._on_update_get_pressed)
 	up_row.add_child(up_get)
 	var up_skip := Button.new()
 	up_skip.text = "Skip"
-	up_skip.add_theme_font_size_override("font_size", 18)
+	up_skip.add_theme_font_size_override("font_size", 15)
 	up_skip.pressed.connect(main._on_update_skip_pressed)
 	up_row.add_child(up_skip)
 
 	var solo := Button.new()
 	solo.text = "Play Solo"
-	solo.custom_minimum_size = Vector2(360, 50)
-	solo.add_theme_font_size_override("font_size", 22)
+	solo.custom_minimum_size = Vector2(360, 44)
+	solo.add_theme_font_size_override("font_size", 18)
 	solo.pressed.connect(main._on_solo_pressed)
 	vbox.add_child(solo)
 
@@ -677,7 +677,7 @@ func _build_menu() -> void:
 	var online_host := Button.new()
 	online_host.text = "Host Online — create join code"
 	online_host.custom_minimum_size = Vector2(360, 42)
-	online_host.add_theme_font_size_override("font_size", 18)
+	online_host.add_theme_font_size_override("font_size", 15)
 	online_host.pressed.connect(main._on_noray_host_pressed)
 	vbox.add_child(online_host)
 
@@ -687,12 +687,12 @@ func _build_menu() -> void:
 	main.oid_edit = LineEdit.new()
 	main.oid_edit.placeholder_text = "Paste join code"
 	main.oid_edit.custom_minimum_size = Vector2(272, 42)
-	main.oid_edit.add_theme_font_size_override("font_size", 18)
+	main.oid_edit.add_theme_font_size_override("font_size", 15)
 	oid_row.add_child(main.oid_edit)
 	var online_join := Button.new()
 	online_join.text = "Join"
 	online_join.custom_minimum_size = Vector2(80, 42)
-	online_join.add_theme_font_size_override("font_size", 18)
+	online_join.add_theme_font_size_override("font_size", 15)
 	online_join.pressed.connect(main._on_noray_join_pressed)
 	oid_row.add_child(online_join)
 
@@ -701,7 +701,7 @@ func _build_menu() -> void:
 	var host := Button.new()
 	host.text = "Host Co-op"
 	host.custom_minimum_size = Vector2(360, 42)
-	host.add_theme_font_size_override("font_size", 18)
+	host.add_theme_font_size_override("font_size", 15)
 	host.pressed.connect(main._on_host_pressed)
 	vbox.add_child(host)
 
@@ -711,12 +711,12 @@ func _build_menu() -> void:
 	main.ip_edit = LineEdit.new()
 	main.ip_edit.text = "127.0.0.1"
 	main.ip_edit.custom_minimum_size = Vector2(176, 42)
-	main.ip_edit.add_theme_font_size_override("font_size", 18)
+	main.ip_edit.add_theme_font_size_override("font_size", 15)
 	row.add_child(main.ip_edit)
 	var join := Button.new()
 	join.text = "Join"
 	join.custom_minimum_size = Vector2(80, 42)
-	join.add_theme_font_size_override("font_size", 18)
+	join.add_theme_font_size_override("font_size", 15)
 	join.pressed.connect(main._on_join_pressed)
 	row.add_child(join)
 	main.port_edit = LineEdit.new()
@@ -724,7 +724,7 @@ func _build_menu() -> void:
 	main.port_edit.placeholder_text = "Port"
 	main.port_edit.tooltip_text = "Port (direct host/join)"
 	main.port_edit.custom_minimum_size = Vector2(96, 42)
-	main.port_edit.add_theme_font_size_override("font_size", 18)
+	main.port_edit.add_theme_font_size_override("font_size", 15)
 	row.add_child(main.port_edit)
 
 	# --- Run options (apply to Solo and to a session you host) ---
@@ -739,12 +739,12 @@ func _build_menu() -> void:
 	var settings_btn := Button.new()
 	settings_btn.text = "Settings"
 	settings_btn.custom_minimum_size = Vector2(360, 40)
-	settings_btn.add_theme_font_size_override("font_size", 18)
+	settings_btn.add_theme_font_size_override("font_size", 15)
 	settings_btn.pressed.connect(main._on_settings_pressed)
 	vbox.add_child(settings_btn)
 
 	main.status_label = Label.new()
-	main.status_label.add_theme_font_size_override("font_size", 18)
+	main.status_label.add_theme_font_size_override("font_size", 15)
 	main.status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	main.status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.status_label)
@@ -754,20 +754,20 @@ func _build_menu() -> void:
 ## your name/color/shape, the roster of everyone in the session, the host's game
 ## config (read-only for clients, live-editable for the host), and start/leave.
 func _build_lobby_panel() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(8)
 	main.lobby_panel = parts[0]
 	main.lobby_panel.visible = false
 	var vbox: VBoxContainer = parts[1]
 
 	var title := Label.new()
 	title.text = "LOBBY"
-	title.add_theme_font_size_override("font_size", 48)
+	title.add_theme_font_size_override("font_size", 36)
 	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
 	main.lobby_status_label = Label.new()
-	main.lobby_status_label.add_theme_font_size_override("font_size", 18)
+	main.lobby_status_label.add_theme_font_size_override("font_size", 15)
 	main.lobby_status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	main.lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(main.lobby_status_label)
@@ -787,7 +787,7 @@ func _build_lobby_panel() -> void:
 
 	var players_head := Label.new()
 	players_head.text = "PLAYERS"
-	players_head.add_theme_font_size_override("font_size", 18)
+	players_head.add_theme_font_size_override("font_size", 15)
 	players_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	players_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	left.add_child(players_head)
@@ -802,7 +802,7 @@ func _build_lobby_panel() -> void:
 
 	var config_head := Label.new()
 	config_head.text = "GAME CONFIG"
-	config_head.add_theme_font_size_override("font_size", 18)
+	config_head.add_theme_font_size_override("font_size", 15)
 	config_head.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	config_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	right.add_child(config_head)
@@ -813,16 +813,16 @@ func _build_lobby_panel() -> void:
 
 	main.lobby_start_btn = Button.new()
 	main.lobby_start_btn.text = "Start Game"
-	main.lobby_start_btn.custom_minimum_size = Vector2(360, 52)
-	main.lobby_start_btn.add_theme_font_size_override("font_size", 22)
+	main.lobby_start_btn.custom_minimum_size = Vector2(360, 44)
+	main.lobby_start_btn.add_theme_font_size_override("font_size", 18)
 	main.lobby_start_btn.visible = false
 	main.lobby_start_btn.pressed.connect(main._on_start_pressed)
 	vbox.add_child(main.lobby_start_btn)
 
 	var leave_btn := Button.new()
 	leave_btn.text = "Leave Lobby"
-	leave_btn.custom_minimum_size = Vector2(360, 52)
-	leave_btn.add_theme_font_size_override("font_size", 22)
+	leave_btn.custom_minimum_size = Vector2(360, 44)
+	leave_btn.add_theme_font_size_override("font_size", 18)
 	leave_btn.pressed.connect(main._on_lobby_leave_pressed)
 	vbox.add_child(leave_btn)
 
@@ -830,13 +830,13 @@ func _build_lobby_panel() -> void:
 ## Main-menu settings overlay (own dim + Back button) so audio/display can be set
 ## before a run too. Same rows as the in-game hub tab, bound to the same GameSettings.
 func _build_settings_overlay() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(8)
 	main.settings_overlay = parts[0]
 	var vbox: VBoxContainer = parts[1]
 
 	var title := Label.new()
 	title.text = "SETTINGS"
-	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
@@ -848,8 +848,8 @@ func _build_settings_overlay() -> void:
 
 	var back := Button.new()
 	back.text = "Back"
-	back.custom_minimum_size = Vector2(360, 52)
-	back.add_theme_font_size_override("font_size", 22)
+	back.custom_minimum_size = Vector2(360, 44)
+	back.add_theme_font_size_override("font_size", 18)
 	back.pressed.connect(main._on_settings_back_pressed)
 	vbox.add_child(back)
 
@@ -879,12 +879,12 @@ func _make_setting_cycler(parent: Node, label: String, get_text: Callable, advan
 	parent.add_child(row)
 	var l := Label.new()
 	l.text = label
-	l.add_theme_font_size_override("font_size", 18)
-	l.custom_minimum_size = Vector2(220, 38)
+	l.add_theme_font_size_override("font_size", 15)
+	l.custom_minimum_size = Vector2(220, 32)
 	row.add_child(l)
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(132, 38)
-	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_font_size_override("font_size", 15)
 	b.text = get_text.call()
 	b.pressed.connect(func():
 		advance.call()
