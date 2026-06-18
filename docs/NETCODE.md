@@ -5,13 +5,14 @@ state is broadcast, **how** clients render it smoothly, and how to scale entity
 count without bandwidth blow-up. This is **orthogonal to transport** — it runs
 unchanged over direct-IP ENet or the Noray relay (see [`NORAY.md`](./NORAY.md)).
 
-Status: **partially applied (2026-06-18).** The safe structural half is live — see
-the ✅ tasks below: telegraphs promoted to the 20 Hz tick, and the cadence is now
-gated by physics-frame count (jitter-free). The enemy rate moved to **15 Hz**
-(`% 4`, the nearest clean divisor to the shipping 16) so the existing fixed-weight
-puppet lerp stays valid — the further drop to 10/12 Hz is **deliberately deferred**
-because it's coupled to time-based interpolation and is only verifiable by feel over
-a real (relayed) link. The interpolation/delta tuning pass remains pending.
+Status: **mostly applied (2026-06-18).** Live: telegraphs promoted to the 20 Hz
+tick; cadence gated by physics-frame count (jitter-free); enemies at **12 Hz**
+(`% 5`); and **`STATE_ENEMIES` delta compression** (only changed enemies per tick +
+explicit removals, full keyframe every ~1 s and on (re)connect). The **only**
+remaining item is **time-based snapshot interpolation** — the current puppet lerp is
+fixed-weight, so at 12 Hz (83 ms spacing) fast movers can look slightly steppy;
+that's a feel change only verifiable over a real relay, so it's deferred. 30 Hz
+physics stays off (CPU not proven the bottleneck).
 
 ## Current state (as shipped)
 
@@ -132,17 +133,19 @@ host is sim-bound. Revisit 30 Hz only with the two prerequisites handled.
       (`f % 3`, host-only). **Done 2026-06-18.**
 - [x] Replace the `t_*` accumulators in `_physics_process` with
       `Engine.get_physics_frames() % N` gating. **Done 2026-06-18** — player+telegraphs
-      `% 3` (20 Hz), world snapshots `% 4` (15 Hz), HUD `% 15` (4 Hz). Kept the
+      `% 3` (20 Hz), world snapshots `% 5` (12 Hz), HUD `% 15` (4 Hz). Kept the
       existing monotonic `tick_counter` as the de-dup stamp (no need to also switch
       the stamp to the frame counter — fewer moving parts).
-- [~] Enemies moved 16→**15 Hz** (`% 4`) — the jitter-free, feel-preserving step.
-      The doc's 10 Hz (`% 6`) / 12 Hz (`% 5`) drop is **deferred**: it needs the
-      time-based interpolation below + real-relay A/B (current lerp is fixed-weight
-      k=10/s, so 100 ms spacing would step). Gems/pickups now ride the 15 Hz tick.
+- [x] Enemies 16→**12 Hz** (`% 5`). **Done 2026-06-18.** Gems/pickups ride the same
+      tick. (Feel caveat: best paired with the time-based interpolation below at this
+      rate.)
 - [ ] Audit `player.gd` puppet lerp: make it time-based snapshot interpolation
-      with per-channel buffers (player ~100 ms, enemies ~150–200 ms).
-- [ ] Delta + 16-bit quantization for `STATE_ENEMIES`; keyframe every ~1 s + on
-      late-join.
+      with per-channel buffers (player ~100 ms, enemies ~150–200 ms). **Only remaining
+      item** — feel change, needs real-relay A/B.
+- [x] Delta + 16-bit quantization for `STATE_ENEMIES`; keyframe every ~1 s + on
+      (re)connect. **Done 2026-06-18** — positions were already 16-bit fixed-point;
+      added per-tick delta (only changed enemies) + explicit removals + keyframe
+      backstop. `_apply_enemy_state`/`_remove_enemy_puppet` decode it.
 - [ ] (If/when CPU-bound) evaluate 30 Hz physics — but only after raycast hit
       detection + `physics_interpolation` are confirmed.
 

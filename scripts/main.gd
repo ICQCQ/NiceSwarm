@@ -223,6 +223,11 @@ var _enemy_grid: Dictionary = {}  # Vector2i cell -> Array[Node]
 
 # sync buffers (world-state cadence is frame-count gated in _physics_process)
 var tick_counter := 0
+# STATE_ENEMIES delta compression (host-side): only changed enemies are sent each
+# tick; a full keyframe every ~1 s + on (re)connect resyncs over the unreliable
+# channel. _enemy_last_sent maps net_id -> packed(x16|y16<<16|f<<32) last broadcast.
+var _enemy_last_sent := {}
+var _enemy_keyframe_due := true
 var state_buffers := {}                       # kind -> {tick: {total, chunks}}
 var last_tick := {0: -1, 1: -1, 2: -1, 3: -1}
 
@@ -578,6 +583,8 @@ func _refresh_lobby_player_count() -> void:
 
 
 func on_peer_connected(id: int) -> void:
+	if is_host():
+		_enemy_keyframe_due = true  # a (re)connecting peer needs a full enemy keyframe, not a delta
 	if playing:
 		return
 	if is_host():
@@ -1415,6 +1422,8 @@ func _reset_run_state() -> void:
 	state_buffers = {}
 	last_tick = {0: -1, 1: -1, 2: -1, 3: -1}
 	tick_counter = 0
+	_enemy_last_sent = {}
+	_enemy_keyframe_due = true
 	level_panel.visible = false
 	end_panel.visible = false
 	pause_panel.visible = false
@@ -1644,7 +1653,7 @@ func _physics_process(delta: float) -> void:
 	# fast 20 Hz tick so a warn isn't up to ~125 ms stale before a client sees it.
 	if f % 3 == 0:  # 20 Hz — telegraphs (host-only)
 		_send_state(STATE_TELEGRAPHS)
-	if f % 4 == 0:  # 15 Hz — world snapshots (enemies the heavy one; gems/pickups ride along)
+	if f % 5 == 0:  # 12 Hz — world snapshots (enemies delta-compressed; gems/pickups ride along)
 		_send_state(STATE_ENEMIES)
 		_send_state(STATE_GEMS)
 		_send_state(STATE_PICKUPS)
@@ -2559,6 +2568,9 @@ func apply_world_state(kind: int, tick: int, chunk: int, total: int,
 
 
 func _apply_state(kind: int, data: PackedByteArray) -> void:
+	if kind == STATE_ENEMIES:
+		_apply_enemy_state(data)  # delta/keyframe-encoded — handled separately
+		return
 	var seen := {}
 	var buf := StreamPeerBuffer.new()
 	buf.data_array = data
@@ -2568,24 +2580,6 @@ func _apply_state(kind: int, data: PackedByteArray) -> void:
 		var f := buf.get_u16()
 		seen[id] = true
 		match kind:
-			STATE_ENEMIES:
-				var e = enemies_by_id.get(id)
-				if e != null and not is_instance_valid(e):
-					enemies_by_id.erase(id)
-					e = null
-				if e == null:
-					if enemies_by_id.is_empty() and OS.get_environment("NICESWARM_NET") != "":
-						print("[test] first enemy puppet id=%d at %s" % [id, str(pos)])
-					e = spawner.make_enemy_by_type(int(f) % 1000)
-					e.puppet = true
-					e.net_id = id
-					e.position = pos
-					enemies_by_id[id] = e
-					world.add_child(e)
-				e.net_target = pos
-				var status := int(f) / 1000
-				e.slow_timer = 0.5 if status == 1 or status == 3 else 0.0
-				e.freeze_timer = 0.5 if status == 2 or status == 3 else 0.0
 			STATE_GEMS:
 				var g = gems_by_id.get(id)
 				if g != null and not is_instance_valid(g):
@@ -2644,15 +2638,6 @@ func _apply_state(kind: int, data: PackedByteArray) -> void:
 		var node = dict[id]
 		if is_instance_valid(node):
 			match kind:
-				STATE_ENEMIES:
-					var pop := RingFx.new()
-					pop.position = node.global_position
-					pop.radius = node.radius * 0.5
-					pop.max_radius = node.radius * 2.0
-					pop.life = 0.25
-					pop.color = node.color
-					world.add_child(pop)
-					Sfx.play("kill", node.global_position, -6.0)
 				STATE_GEMS:
 					Sfx.play("gem", null, -8.0)
 				STATE_PICKUPS:
@@ -2670,19 +2655,105 @@ func _apply_state(kind: int, data: PackedByteArray) -> void:
 		dict.erase(id)
 
 
+## Client: decode a delta/keyframe STATE_ENEMIES packet. Header = [u8 keyframe]
+## [u16 removed_count][u32 removed_id...], then 10-byte records for changed (delta)
+## or all (keyframe) enemies. On a keyframe we also remove any puppet not present
+## (removal-by-diff); on a delta only the explicit removals are dropped — unchanged
+## enemies are left untouched. Dropped deltas self-heal: moving enemies resend next
+## tick, and the ~1 s keyframe re-syncs stationary/removed ones.
+func _apply_enemy_state(data: PackedByteArray) -> void:
+	var buf := StreamPeerBuffer.new()
+	buf.data_array = data
+	if buf.get_available_bytes() < 3:
+		return
+	var keyframe := buf.get_u8() != 0
+	var removed_count := buf.get_u16()
+	for _i in removed_count:
+		if buf.get_available_bytes() < 4:
+			return
+		_remove_enemy_puppet(buf.get_u32())
+	var seen := {}
+	while buf.get_available_bytes() >= ENT_BYTES:
+		var id := buf.get_u32()
+		var pos := Vector2(buf.get_16() / POS_SCALE, buf.get_16() / POS_SCALE)
+		var f := buf.get_u16()
+		seen[id] = true
+		var e = enemies_by_id.get(id)
+		if e != null and not is_instance_valid(e):
+			enemies_by_id.erase(id)
+			e = null
+		if e == null:
+			if enemies_by_id.is_empty() and OS.get_environment("NICESWARM_NET") != "":
+				print("[test] first enemy puppet id=%d at %s" % [id, str(pos)])
+			e = spawner.make_enemy_by_type(int(f) % 1000)
+			e.puppet = true
+			e.net_id = id
+			e.position = pos
+			enemies_by_id[id] = e
+			world.add_child(e)
+		e.net_target = pos
+		var status := int(f) / 1000
+		e.slow_timer = 0.5 if status == 1 or status == 3 else 0.0
+		e.freeze_timer = 0.5 if status == 2 or status == 3 else 0.0
+	if keyframe:
+		for id in enemies_by_id.keys():
+			if not seen.has(id):
+				_remove_enemy_puppet(id)
+
+
+## Client: drop an enemy puppet with the usual kill pop + sound. Safe if absent.
+func _remove_enemy_puppet(id: int) -> void:
+	var e = enemies_by_id.get(id)
+	if e == null:
+		return
+	if is_instance_valid(e):
+		var pop := RingFx.new()
+		pop.position = e.global_position
+		pop.radius = e.radius * 0.5
+		pop.max_radius = e.radius * 2.0
+		pop.life = 0.25
+		pop.color = e.color
+		world.add_child(pop)
+		Sfx.play("kill", e.global_position, -6.0)
+		e.queue_free()
+	enemies_by_id.erase(id)
+
+
 func _send_state(kind: int) -> void:
 	var buf := StreamPeerBuffer.new()
 	# NOTE: assignments below stay untyped — assigning a freed instance to a
 	# typed var raises before any is_instance_valid check could run
 	match kind:
 		STATE_ENEMIES:
+			# Delta/keyframe: header = [u8 keyframe][u16 removed_count][u32 removed_id...],
+			# then the 10-byte records for changed (delta) / all (keyframe) enemies.
+			var keyframe: bool = _enemy_keyframe_due or (Engine.get_physics_frames() % 60 == 0)
+			_enemy_keyframe_due = false
+			var cur := {}  # net_id -> enemy node (valid only)
 			for id in enemies_by_id.keys():
 				var e = enemies_by_id[id]
 				if not is_instance_valid(e) or e.is_queued_for_deletion():
 					enemies_by_id.erase(id)
 					continue
-				var status := (1 if e.slow_timer > 0.0 else 0) + (2 if e.freeze_timer > 0.0 else 0)
-				_put_entity(buf, id, e.global_position, e.type_id + status * 1000)
+				cur[id] = e
+			buf.put_u8(1 if keyframe else 0)
+			var removed := []
+			if not keyframe:
+				for id in _enemy_last_sent.keys():
+					if not cur.has(id):
+						removed.append(id)
+			buf.put_u16(removed.size())
+			for id in removed:
+				buf.put_u32(id)
+				_enemy_last_sent.erase(id)
+			if keyframe:
+				_enemy_last_sent.clear()
+			for id in cur:
+				var e = cur[id]
+				var packed: int = _enemy_packed(e)
+				if keyframe or _enemy_last_sent.get(id) != packed:
+					_put_entity(buf, id, e.global_position, _enemy_sync_f(e))
+					_enemy_last_sent[id] = packed
 		STATE_GEMS:
 			for id in gems_by_id.keys():
 				var g = gems_by_id[id]
@@ -2725,6 +2796,21 @@ func _put_entity(buf: StreamPeerBuffer, id: int, pos: Vector2, f: int) -> void:
 	buf.put_16(clampi(int(round(pos.x * POS_SCALE)), -32768, 32767))
 	buf.put_16(clampi(int(round(pos.y * POS_SCALE)), -32768, 32767))
 	buf.put_u16(clampi(f, 0, 65535))
+
+
+## Enemy sync `f` field: type id + status (slow/freeze) in the *1000 band (matches the decoder).
+func _enemy_sync_f(e) -> int:
+	var status := (1 if e.slow_timer > 0.0 else 0) + (2 if e.freeze_timer > 0.0 else 0)
+	return e.type_id + status * 1000
+
+
+## Packed (quantized x | y<<16 | f<<32) of an enemy's wire state, for delta diffing —
+## equals what _put_entity would actually transmit, so equal packed => nothing to send.
+func _enemy_packed(e) -> int:
+	var xq: int = clampi(int(round(e.global_position.x * POS_SCALE)), -32768, 32767) & 0xFFFF
+	var yq: int = clampi(int(round(e.global_position.y * POS_SCALE)), -32768, 32767) & 0xFFFF
+	var fv: int = clampi(_enemy_sync_f(e), 0, 65535) & 0xFFFF
+	return xq | (yq << 16) | (fv << 32)
 
 
 # --- input ---------------------------------------------------------------------
