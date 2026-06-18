@@ -18,10 +18,16 @@ const PEER_TIMEOUT_MS := 3000
 
 var main: Node
 var active := false  # true when an ENet peer (host or client) is set
+var noray_lobby: NorayLobby  # NAT-traversal lobby (Noray relay); direct-IP path stays default
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	noray_lobby = NorayLobby.new()
+	noray_lobby.name = "NorayLobby"
+	noray_lobby.net = self
+	noray_lobby.main = main
+	add_child(noray_lobby)
 	multiplayer.peer_connected.connect(func(id: int):
 		_tune_peer_timeouts()
 		main.on_peer_connected(id))
@@ -62,7 +68,21 @@ func join_game(ip: String, port: int = PORT) -> String:
 	return ""
 
 
+# --- Noray NAT-traversal lobby (thin delegators; async flow lives in NorayLobby) --
+# Unlike host_game/join_game these can't return an error synchronously (the Noray
+# handshake awaits), so callers listen on noray_lobby.host_ready / lobby_failed.
+
+func host_via_noray(noray_host := NorayLobby.DEFAULT_HOST) -> void:
+	noray_lobby.host(noray_host)
+
+
+func join_via_noray(oid: String, noray_host := NorayLobby.DEFAULT_HOST) -> void:
+	noray_lobby.join(oid, noray_host)
+
+
 func leave() -> void:
+	if noray_lobby != null:
+		noray_lobby.reset()
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()

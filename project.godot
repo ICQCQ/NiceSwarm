@@ -18,6 +18,8 @@ config/features=PackedStringArray("4.6")
 [autoload]
 
 Sfx="*res://scripts/core/sfx.gd"
+Noray="*res://addons/netfox.noray/noray.gd"
+PacketHandshake="*res://addons/netfox.noray/packet-handshake.gd"
 
 [display]
 

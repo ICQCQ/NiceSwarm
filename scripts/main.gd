@@ -297,6 +297,7 @@ var update_check: UpdateCheck
 var update_banner: Control      # menu "a newer build is available" notice (hidden until found)
 var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
 var ip_edit: LineEdit
+var oid_edit: LineEdit             # Noray join code (OID) entry for the online lobby
 var port_edit: LineEdit
 var status_label: Label
 var settings: GameSettings        # client-local prefs (audio/display/shake), persisted
@@ -363,6 +364,12 @@ func _ready() -> void:
 		"join":
 			ip_edit.text = "127.0.0.1"
 			_on_join_pressed()
+		"noray_host":
+			auto_start_on_join = true
+			_on_noray_host_pressed()
+		"noray_join":
+			oid_edit.text = OS.get_environment("NICESWARM_NORAY_OID")
+			_on_noray_join_pressed()
 	if OS.get_environment("NICESWARM_SIM") != "":
 		sim.start()
 	if OS.get_environment("NICESWARM_DMGTABLE") != "":
@@ -484,6 +491,51 @@ func _on_join_pressed() -> void:
 		return
 	lobby_port = port
 	status_label.text = "Connecting to %s:%d ..." % [ip_edit.text, port]
+
+
+# --- Noray online lobby (NAT traversal via the relay; direct IP/Port still works) ---
+
+## Resolve which Noray relay to use: NICESWARM_NORAY_HOST env override (for local /
+## container testing) else the production default baked into NorayLobby.
+func _noray_host_addr() -> String:
+	var h := OS.get_environment("NICESWARM_NORAY_HOST")
+	return h if h != "" else NorayLobby.DEFAULT_HOST
+
+
+func _on_noray_host_pressed() -> void:
+	if net.active:
+		net.leave()
+	_apply_menu_config()
+	status_label.text = "Reaching lobby server ..."
+	var lobby := net.noray_lobby
+	if not lobby.host_ready.is_connected(_on_noray_host_ready):
+		lobby.host_ready.connect(_on_noray_host_ready)
+	if not lobby.lobby_failed.is_connected(_on_noray_failed):
+		lobby.lobby_failed.connect(_on_noray_failed)
+	net.host_via_noray(_noray_host_addr())
+
+
+func _on_noray_host_ready(oid: String) -> void:
+	lobby_port = 0  # not a direct port; rejoin-by-port is N/A for Noray
+	print("[noray] host oid=%s" % oid)
+	_show_lobby("Online (NAT lobby)\nJoin code: %s\nPlayers: 1 (you)" % oid)
+
+
+func _on_noray_join_pressed() -> void:
+	if net.active:
+		net.leave()
+	var oid := oid_edit.text.strip_edges()
+	var lobby := net.noray_lobby
+	if not lobby.lobby_failed.is_connected(_on_noray_failed):
+		lobby.lobby_failed.connect(_on_noray_failed)
+	status_label.text = "Reaching lobby server ..."
+	# Connection completes async; on success the existing on_join_ok path takes over.
+	net.join_via_noray(oid, _noray_host_addr())
+
+
+func _on_noray_failed(reason: String) -> void:
+	print("[noray] failed: %s" % reason)
+	status_label.text = reason
 
 
 func _on_start_pressed() -> void:

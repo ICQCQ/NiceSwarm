@@ -656,6 +656,29 @@ func _build_menu() -> void:
 	join.pressed.connect(main._on_join_pressed)
 	row.add_child(join)
 
+	# Online (NAT) lobby via Noray — no port-forward needed; host shares a join code.
+	var online_host := Button.new()
+	online_host.text = "Host Online (NAT lobby)"
+	online_host.custom_minimum_size = Vector2(360, 44)
+	online_host.add_theme_font_size_override("font_size", 18)
+	online_host.pressed.connect(main._on_noray_host_pressed)
+	vbox.add_child(online_host)
+
+	var oid_row := HBoxContainer.new()
+	oid_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(oid_row)
+	main.oid_edit = LineEdit.new()
+	main.oid_edit.placeholder_text = "Join code"
+	main.oid_edit.custom_minimum_size = Vector2(252, 44)
+	main.oid_edit.add_theme_font_size_override("font_size", 18)
+	oid_row.add_child(main.oid_edit)
+	var online_join := Button.new()
+	online_join.text = "Join Code"
+	online_join.custom_minimum_size = Vector2(100, 44)
+	online_join.add_theme_font_size_override("font_size", 18)
+	online_join.pressed.connect(main._on_noray_join_pressed)
+	oid_row.add_child(online_join)
+
 	var port_row := HBoxContainer.new()
 	port_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(port_row)
