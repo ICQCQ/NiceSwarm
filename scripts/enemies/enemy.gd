@@ -101,6 +101,7 @@ var flash := 0.0
 var knockback := Vector2.ZERO
 var slow_timer := 0.0
 var slow_mult := 1.0
+var freeze_timer := 0.0  # >0: movement fully halted (Glacial Mine) — distinct from slow_mult, no floor
 var burn_dps := 0.0
 var burn_timer := 0.0
 var burn_tick := 0.0
@@ -143,6 +144,7 @@ var _last_sig := -1  # gate queue_redraw: only re-record _draw when the look cha
 func _physics_process(delta: float) -> void:
 	flash = maxf(flash - delta, 0.0)
 	slow_timer = maxf(slow_timer - delta, 0.0)
+	freeze_timer = maxf(freeze_timer - delta, 0.0)
 	if shield_cycle > 0.0:  # Sentinel: phase the shield on and off
 		shield_timer -= delta
 		if shield_timer <= 0.0:
@@ -152,7 +154,7 @@ func _physics_process(delta: float) -> void:
 	# cached _draw (the renderer applies the node transform regardless). This is
 	# the big late-game saver — most of the swarm is idle-looking circles.
 	var sig := _appearance_sig()
-	if burn_timer > 0.0 or sig != _last_sig:  # burn embers animate continuously
+	if burn_timer > 0.0 or freeze_timer > 0.0 or sig != _last_sig:  # burn embers / freeze shimmer animate continuously
 		_last_sig = sig
 		queue_redraw()
 	if puppet:
@@ -163,7 +165,7 @@ func _physics_process(delta: float) -> void:
 	if main_ref.debug_freeze_enemies:
 		return
 	var target: Node2D = main_ref.nearest_alive_player(global_position)
-	var spd := speed * (slow_mult if slow_timer > 0.0 else 1.0)
+	var spd := 0.0 if freeze_timer > 0.0 else speed * (slow_mult if slow_timer > 0.0 else 1.0)
 	if not bullet and age < SPAWN_RAMP_TIME:  # newborns accelerate up to full speed
 		age += delta
 		var t := clampf(age / SPAWN_RAMP_TIME, 0.0, 1.0)
@@ -409,6 +411,15 @@ func apply_slow(mult: float, duration: float) -> void:
 	slow_timer = maxf(slow_timer, duration)
 
 
+## Complete movement halt (Glacial Mine) — unlike apply_slow, there is no floor: speed
+## goes to zero for the duration. cc_immune (e.g. bouncer) is exempt like slow/push;
+## bosses are also exempt outright — a full stop would trivialize boss fights.
+func apply_freeze(duration: float) -> void:
+	if cc_immune or boss:
+		return
+	freeze_timer = maxf(freeze_timer, duration)
+
+
 ## Knockback impulse away from from_pos. Used both by take_hit's per-hit
 ## knockback and by nova-family blasts that add an extra "shockwave" push.
 func apply_push(from_pos: Vector2, strength: float) -> void:
@@ -505,6 +516,7 @@ func _appearance_sig() -> int:
 	if slow_timer > 0.0: s |= 2
 	if burn_timer > 0.0: s |= 4
 	if shielded: s |= 8
+	if freeze_timer > 0.0: s |= 16
 	if shape == "triangle" or shape == "diamond" or shape == "square" or shape == "hex" or shape == "star":
 		s |= int((heading.angle() + PI) * 6.0) << 4  # ~9.5-degree facing buckets
 	return s
@@ -521,6 +533,8 @@ func _draw() -> void:
 	var c := _muted(color)
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)
+	if freeze_timer > 0.0:  # solid ice — reads stronger than the slow tint
+		c = c.lerp(Color(0.75, 0.92, 1.0), 0.75)
 	if burn_timer > 0.0:
 		# bright yellow-white, not orange: enemy bodies now sit in the warm band, so an
 		# orange burn tint would vanish on red/orange enemies — this still pops on them.
@@ -551,6 +565,12 @@ func _draw() -> void:
 	if shielded:  # sentinel: an impenetrable bubble — wait it out
 		draw_circle(Vector2.ZERO, radius + 6.0, Color(0.5, 0.8, 1.0, 0.28))
 		draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 28, Color(0.7, 0.9, 1.0, 0.9), 2.5)
+	if freeze_timer > 0.0:  # glacial mine: a cracked ice shell — fully halted, not just slowed
+		draw_circle(Vector2.ZERO, radius + 5.0, Color(0.8, 0.95, 1.0, 0.35))
+		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 24, Color(0.85, 0.97, 1.0, 0.95), 2.5)
+		for i in 3:
+			var a := TAU * i / 3.0 + 0.4
+			draw_line(Vector2.ZERO, Vector2.from_angle(a) * (radius + 5.0), Color(0.9, 0.98, 1.0, 0.8), 1.5)
 
 
 ## Distinct silhouette per class so enemies read at a glance. Polygons point along

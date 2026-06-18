@@ -34,12 +34,18 @@ the universal Duration hook — reach for it before inventing a bespoke one.
 sources that should pile burn stacks on faster — Flame Cone's signature (`BURN_STACK_MULT`
 in `weapon_flame.gd`) is the only user so far.
 
-`Enemy` supports three status effects, all host-authoritative:
-- `apply_slow(mult, duration)` — frost/ice weapons
+`Enemy` supports four status effects, all host-authoritative:
+- `apply_slow(mult, duration)` — frost/ice weapons; deepened by `SLOW_POTENCY` and floored
+  at `SLOW_FLOOR_MULT` (never fully stops the enemy — see `apply_freeze` for that)
+- `apply_freeze(duration)` — complete movement halt (speed → 0, no floor); currently only
+  Glacial Mine (frost+mines); freeze duration scales with Duration, not damage. Bosses are
+  exempt outright (a full stop would trivialize boss fights) on top of the `cc_immune` check
 - `apply_burn(dps, duration)` — fire/energy weapons, via `ignite()`
 - `apply_push(from_pos, strength)` — knockback impulse away from `from_pos`; nova-family
   blasts call `WeaponBase.push(e, from_pos)` for a mild extra "shockwave" shove on top of
   `take_hit`'s normal hit knockback (skipped for `cc_immune` enemies, scales with Area)
+
+Both `apply_slow` and `apply_freeze` are no-ops on `cc_immune` enemies.
 
 ## Checklist for a NEW base weapon
 
@@ -104,7 +110,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | turret + missiles | **Missile Battery** | a deployed launcher firing homing salvos |
 | turret + laser | **Beam Sentry** | a deployed turret that sweeps a beam |
 | turret + frost | **Cryo Sentry** | a deployed turret firing slowing shots |
-| laser + nova | **Nova Beam** | sweeping beams that pulse a nova |
+| laser + nova | **Plasma Pulse** | drops a ring of light where it's emitted and grows outward — slow at first, then a fast burst past the halfway point; hits harder the farther out it catches a foe (2x base damage at the base max range, more if Area pushes it past that), and re-hits foes who linger in it (pulse rate + re-hit cadence scale with Haste, growth time with Duration, max range + thickness with Area) |
 | bolt + missiles | **Flak Battery** | rapid-fire homing flak shells that curve toward foes and burst into shrapnel |
 | nova + venom | **Toxic Nova** | a blast that leaves a poison pool |
 | turret + orbit/nova/glaive/lightning/flame/mines/gravity/venom | **Halo / Pulse / Glaive / Tesla / Flame / Mine Layer / Singularity / Toxic Turret** | a deployed sentry firing that weapon (TurretNode `mode`) |
@@ -123,14 +129,14 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | bolt + mines | **Sapper Round** | bolts that arm a proximity mine on impact |
 | bolt + venom | **Corrosive Round** | bolts that shatter into a corrosive splash on hit |
 | frost + laser | **Cryo Beam** | rotating ice beams that chill everything they sweep (slow scales with dmg) |
-| frost + mines | **Glacial Mine** | mines that detonate into a freezing blast (slow scales with dmg) |
+| frost + mines | **Glacial Mine** | mines that detonate into a total freeze, completely halting enemies in the blast (freeze duration scales with Duration) |
 | frost + missiles | **Cryo Missile** | homing missiles that slow all targets in the blast (slow scales with dmg) |
 | frost + venom | **Frostbite** | a pool that chills and poisons everything inside (slow scales with dmg) |
 | flame + gravity | **Cinder Vortex** | a vortex that drags enemies into a burning pool at its core |
 | gravity + laser | **Accretion Beam** | a vortex ringed by rotating energy beams |
 | gravity + lightning | **Storm Vortex** | a vortex that arcs lightning between everything it traps |
 | gravity + mines | **Implosion Mine** | a vortex that seeds mines around its collapsing core |
-| gravity + missiles | **Implosion Salvo** | a vortex that launches a salvo of homing missiles |
+| gravity + missiles | **Carpet Bombing** | marks a random foe's spot with a target zone, then calls in a missile barrage on random points inside it (wave rate scales with Haste, missiles per wave scale with level) |
 | glaive + mines | **Shrapnel Mine** | mines that burst into glaive shrapnel on blast |
 | laser + mines | **Beam Mine** | mines that leave a spinning laser array at the blast site |
 | lightning + mines | **Tesla Mine** | mines that chain lightning outward from the blast |

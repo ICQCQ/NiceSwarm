@@ -2497,7 +2497,9 @@ func _apply_state(kind: int, data: PackedByteArray) -> void:
 					enemies_by_id[id] = e
 					world.add_child(e)
 				e.net_target = pos
-				e.slow_timer = 0.5 if int(f) >= 1000 else 0.0
+				var status := int(f) / 1000
+				e.slow_timer = 0.5 if status == 1 or status == 3 else 0.0
+				e.freeze_timer = 0.5 if status == 2 or status == 3 else 0.0
 			STATE_GEMS:
 				var g = gems_by_id.get(id)
 				if g != null and not is_instance_valid(g):
@@ -2593,8 +2595,8 @@ func _send_state(kind: int) -> void:
 				if not is_instance_valid(e) or e.is_queued_for_deletion():
 					enemies_by_id.erase(id)
 					continue
-				_put_entity(buf, id, e.global_position,
-					e.type_id + (1000 if e.slow_timer > 0.0 else 0))
+				var status := (1 if e.slow_timer > 0.0 else 0) + (2 if e.freeze_timer > 0.0 else 0)
+				_put_entity(buf, id, e.global_position, e.type_id + status * 1000)
 		STATE_GEMS:
 			for id in gems_by_id.keys():
 				var g = gems_by_id[id]
