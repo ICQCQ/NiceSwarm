@@ -29,6 +29,7 @@ signal lobby_failed(reason: String)
 
 var net: Net
 var main: Node
+var force_relay := false  # skip the NAT punch, go straight to the relay (symmetric-NAT / 5G; diag hook)
 
 # Per-attempt role state so a retry (or the opposite role) starts clean.
 var _busy := false
@@ -89,7 +90,10 @@ func join(oid: String, noray_host := DEFAULT_HOST) -> void:
 	_client_cb = _on_client_connect
 	Noray.on_connect_nat.connect(_client_cb)
 	Noray.on_connect_relay.connect(_client_cb)
-	Noray.connect_nat(code)
+	if force_relay:
+		Noray.connect_relay(code)  # symmetric NAT (5G): the punch can't work, relay directly
+	else:
+		Noray.connect_nat(code)
 	_watch_join(attempt, code)  # NAT punch -> relay fallback -> clear error (no silent hang)
 
 
@@ -121,8 +125,8 @@ func reset() -> void:
 ## hanging on "Reaching lobby server". `attempt` guards against a stale run.
 func _watch_join(attempt: int, code: String) -> void:
 	await get_tree().create_timer(RELAY_FALLBACK_S).timeout
-	if _attempt == attempt and _busy and not _connected:
-		Noray.connect_relay(code)
+	if _attempt == attempt and _busy and not _connected and not force_relay:
+		Noray.connect_relay(code)  # NAT punch didn't land — try the relay (already relaying if forced)
 	await get_tree().create_timer(JOIN_TIMEOUT_S - RELAY_FALLBACK_S).timeout
 	if _attempt == attempt and _busy and not _connected:
 		lobby_failed.emit("Couldn't reach the host. Check the join code, that the host is online, and that host & client use the same lobby server.")

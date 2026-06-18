@@ -540,6 +540,9 @@ func _on_noray_join_pressed() -> void:
 	var oid := oid_edit.text.strip_edges().to_upper()
 	lobby_join_code = oid
 	var lobby := net.noray_lobby
+	# Diagnostic: NICESWARM_NORAY_RELAY=1 forces the relay path (skip the NAT punch) —
+	# the way a symmetric-NAT / 5G client connects.
+	lobby.force_relay = OS.get_environment("NICESWARM_NORAY_RELAY") != ""
 	if not lobby.lobby_failed.is_connected(_on_noray_failed):
 		lobby.lobby_failed.connect(_on_noray_failed)
 	status_label.text = "Reaching lobby server ..."

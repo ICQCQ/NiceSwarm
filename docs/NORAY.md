@@ -150,6 +150,21 @@ menu so host + joiner can point at the same reachable server (env `NICESWARM_NOR
 still overrides). The default is still `ns.javis.coffee` (CGNAT-blocked) — for LAN use,
 set both to the LAN IP.
 
+**5G / symmetric-NAT clients can't join (2026-06-19):** mobile/5G is CGNAT +
+**symmetric NAT**, which makes UDP hole-punching (`connect_nat`) impossible — those
+clients can ONLY connect via the **relay**. Verified the relay path works end-to-end
+(client + the fork's relay) on the LAN with a forced-relay join, so the **client code
+is fine**. When a real 5G client still fails, the cause is the relay being unreachable
+from its network: the home router must **forward UDP `49152-49199` → `192.168.1.36`**
+(the relay slots), not just `8890/tcp` + `8809/udp`. Registration + the punch *attempt*
+succeed on 8890/8809, but the relay handshake to the relay ports is dropped if they
+aren't forwarded → join times out. **Diagnostic:** set env `NICESWARM_NORAY_RELAY=1`
+to force the relay path (skip the punch) from any client — if a *normal* internet
+client can join with that set, the relay ports are reachable and 5G should auto-relay
+(the client falls back to relay ~5 s after the punch fails); if even that fails, the
+relay ports aren't reachable → fix the router forward (and confirm the home isn't
+CGNAT for that range).
+
 **Known follow-up (pre-existing, not Noray-specific):** when a co-op peer leaves
 mid-run it stays in `peer_ids` (for rejoin) but drops out of
 `multiplayer.get_peers()`, so `main._refresh_pings()` calls
