@@ -107,12 +107,25 @@ get a host/join, not a replacement. Direct-IP stays the fallback.
   check couldn't settle). The ENet socket-reuse "spike" is therefore covered by the
   full integration test — no separate spike needed.
 - [x] **Noray server deployed (persistent, LAN) — 2026-06-18.** Compose stack on
-  docker-server at `~/noray/` (`compose.yml` + `.env`), `image:
-  ghcr.io/foxssake/noray:main`, `restart: unless-stopped`, ports 8890/tcp · 8891/tcp
-  (metrics, LAN-only) · 8809/udp · 49152-49199/udp, `.env` =
-  NORAY_SOCKET_PORT/HTTP_PORT/UDP_REGISTRAR_PORT/UDP_RELAY_PORTS. Status: healthy.
+  docker-server at `~/noray/` (`compose.yml` + `.env`), `restart: unless-stopped`,
+  ports 8890/tcp · 8809/udp · 49152-49199/udp. Status: healthy.
   Manage with `cd ~/noray && docker compose {up -d|logs|down}`. Game reaches it on
   the LAN via `NICESWARM_NORAY_HOST=192.168.1.36` (or the lobby host field).
+- [x] **Swapped to hardened fork `noray:trirat` — 2026-06-18.** After a security
+  review (see `F:\ZalzerTriratInfraDoc\network\noray-security-review.md`) the
+  server now runs a **private fork** ([github.com/chawasit/noray](https://github.com/chawasit/noray),
+  `upstream` = foxssake/noray) instead of `ghcr.io/foxssake/noray:main`. Build
+  source on docker-server at `~/noray-src/` (`docker build -t noray:trirat .`;
+  re-ship with `git archive`). Fixes: **DoS-1** (a relay crossing a bandwidth/
+  lifetime/traffic cap no longer crashes the whole server — drops instead;
+  proven live), **DoS-2/3** (dynamic-relay exhaustion guard, per-connection host
+  cap + command rate limit), and **IL-2** (metrics bound to container loopback,
+  `8891` publish removed — no longer LAN-reachable; healthcheck still green).
+  Relay caps tuned generous for co-op (1mb/s · 24hr · 64gb) so the now-dropping
+  constraints don't silently desync relayed players. See the fork's `FORK.md`.
+  ⚠️ `NORAY_OID_LENGTH=6` kept (shareable join code) — fine for friends-code
+  co-op; raise to ≥10 before any internet exposure if host-IP/lobby disclosure
+  matters (rate-limiting does NOT stop distributed OID enumeration).
 - [ ] Public inbound unblocked (CGNAT decision: bridge ONT vs. VPS) — infra/owner.
   Until then the stack is LAN-only; `ns.javis.coffee` won't reach it from the internet.
 
