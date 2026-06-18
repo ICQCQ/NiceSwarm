@@ -2,11 +2,6 @@ class_name WeaponOrbit
 extends WeaponBase
 ## Blades orbiting the player; damage enemies they touch. Level = blades - 1.
 
-const BLADE_R := 10.0
-const ORBIT_R := 75.0
-const SPIN_SPEED := 3.2
-const HIT_COOLDOWN := 0.45  # per enemy
-
 var angle := 0.0
 var hit_cd := {}  # enemy instance id -> seconds until it can be hit again
 
@@ -20,7 +15,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + SPIN_SPEED / player.rate_mult * delta, TAU)  # Haste spins faster
+	angle = fmod(angle + cfg.spin / player.rate_mult * delta, TAU)  # Haste spins faster
 	queue_redraw()
 
 	var expired := []
@@ -32,9 +27,9 @@ func _physics_process(delta: float) -> void:
 		hit_cd.erase(k)
 
 	var n := count_level() + 1
-	var dmg := WeaponConfig.BASE.orbit.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.orbit.growth * (level - 1))
-	var orbit_r := ORBIT_R * player.area_mult
-	var blade_r := BLADE_R * player.area_mult
+	var dmg: float = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
+	var orbit_r: float = cfg.orbit_r * player.area_mult
+	var blade_r: float = cfg.blade_r * player.area_mult
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -45,7 +40,7 @@ func _physics_process(delta: float) -> void:
 				damage_dealt += dmg
 				e.take_hit(dmg, blade_pos, Enemy.DMG_PHYS, player.peer_id)
 				ignite(e, dmg)
-				hit_cd[e.get_instance_id()] = HIT_COOLDOWN * player.rate_mult
+				hit_cd[e.get_instance_id()] = cfg.cd * player.rate_mult  # cd = per-enemy re-hit
 				Sfx.play("orbit", blade_pos)
 				break
 
@@ -54,8 +49,8 @@ func _draw() -> void:
 	if player == null or player.downed:
 		return
 	var n := count_level() + 1
-	var orbit_r := ORBIT_R * player.area_mult
-	var blade_r := BLADE_R * player.area_mult
+	var orbit_r: float = cfg.orbit_r * player.area_mult
+	var blade_r: float = cfg.blade_r * player.area_mult
 	for i in n:
 		var p := Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		draw_circle(p, blade_r, Color(0.7, 0.9, 1.0))

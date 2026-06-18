@@ -16,19 +16,19 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if owned_in_group("mines") >= 3 + count_level():  # per-weapon cap, not a shared global count
+	if owned_in_group("mines") >= cfg.cap_base + count_level():  # per-weapon cap, not a shared global count
 		cooldown = 0.2
 		return
 	var m := MineNode.new()
 	m.source_pid = player.peer_id
 	m.source_weapon = self
 	m.owner_weapon_id = get_instance_id()
-	m.damage = WeaponConfig.BASE.mines.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.mines.growth * (level - 1))
-	m.blast_radius = (100.0 + 15.0 * (level - 1)) * player.area_mult
-	m.trigger_radius = 55.0 * player.area_mult
-	m.life = 12.0 * player.duration_mult
+	m.damage = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
+	m.blast_radius = (cfg.blast_radius_base + cfg.blast_radius_per_level * (level - 1)) * player.area_mult
+	m.trigger_radius = cfg.trigger_radius * player.area_mult
+	m.life = cfg.life * player.duration_mult
 	m.position = player.global_position \
 		+ Vector2(randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	player.get_parent().add_child(m)
 	Sfx.play("mine", player.global_position)
-	cooldown = WeaponConfig.BASE.mines.cd * player.rate_mult
+	cooldown = cfg.cd * player.rate_mult

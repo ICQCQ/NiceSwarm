@@ -10,8 +10,6 @@ extends WeaponBase
 func _beam_count() -> int:
 	return mini(1 + (count_level() - 1) / 2, 4)  # Lv1-2:1, Lv3-4:2, Lv5-6:3, Lv7:4
 
-const SPIN := 1.4
-const HIT_COOLDOWN := 0.3  # per enemy
 
 var angle := 0.0
 var hit_cd := {}
@@ -26,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + SPIN / player.rate_mult * delta, TAU)  # Haste sweeps faster
+	angle = fmod(angle + cfg.spin / player.rate_mult * delta, TAU)  # Haste sweeps faster
 	queue_redraw()
 
 	var expired := []
@@ -38,8 +36,8 @@ func _physics_process(delta: float) -> void:
 		hit_cd.erase(k)
 
 	var beams := _beam_count()
-	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
-	var dmg := WeaponConfig.BASE.laser.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.laser.growth * (level - 1))
+	var length: float = (cfg.length_base + cfg.length_per_level * (level - 1)) * player.area_mult
+	var dmg: float = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
 	# Broad-phase by beam length (grid); +64 margin covers the largest enemy radius (38) so
 	# an enemy grazed at the beam tip is never dropped. The per-beam line test is unchanged.
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
@@ -49,11 +47,11 @@ func _physics_process(delta: float) -> void:
 		for b in beams:
 			var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 			var along := clampf(rel.dot(dir), 0.0, length)
-			if (dir * along).distance_to(rel) <= 6.0 + e.radius:
+			if (dir * along).distance_to(rel) <= cfg.beam_width + e.radius:
 				damage_dealt += dmg
 				e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ENERGY, player.peer_id)
 				ignite(e, dmg)
-				hit_cd[e.get_instance_id()] = HIT_COOLDOWN * player.rate_mult
+				hit_cd[e.get_instance_id()] = cfg.cd * player.rate_mult  # cd = per-enemy re-hit
 				Sfx.play("laser", e.global_position)
 				break
 
@@ -62,7 +60,7 @@ func _draw() -> void:
 	if player == null or player.downed:
 		return
 	var beams := _beam_count()
-	var length := (240.0 + 30.0 * (level - 1)) * player.area_mult
+	var length: float = (cfg.length_base + cfg.length_per_level * (level - 1)) * player.area_mult
 	for b in beams:
 		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.3, 0.4, 0.25), 9.0)

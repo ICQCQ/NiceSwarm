@@ -3,8 +3,6 @@ extends WeaponBase
 ## Periodic blast damaging everything around the player. Level = radius + damage,
 ## and past Lv4 each pulse echoes: 1 extra shockwave at Lv5, 2 at Lv6, 3 at Lv7.
 
-const ECHO_GAP := 0.22  # seconds between a pulse and its echoes (x Haste)
-
 var cooldown := 1.5
 var echoes_left := 0
 var echo_cd := 0.0
@@ -24,23 +22,23 @@ func _physics_process(delta: float) -> void:
 		echo_cd -= delta
 		if echo_cd <= 0.0:
 			echoes_left -= 1
-			echo_cd = ECHO_GAP * player.rate_mult
+			echo_cd = cfg.echo_gap * player.rate_mult
 			_blast()
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
 	if _blast():
-		cooldown = WeaponConfig.BASE.nova.cd * player.rate_mult
+		cooldown = cfg.cd * player.rate_mult
 		echoes_left = maxi(0, count_level() - 4)  # Lv5:1, Lv6:2, Lv7:3
-		echo_cd = ECHO_GAP * player.rate_mult
+		echo_cd = cfg.echo_gap * player.rate_mult
 	else:
 		cooldown = 0.25  # nothing in range, retry soon
 
 
 ## One shockwave: damages everything in the blast radius. Returns whether it hit.
 func _blast() -> bool:
-	var radius := (130.0 + 30.0 * (level - 1)) * player.area_mult
-	var dmg := WeaponConfig.BASE.nova.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.nova.growth * (level - 1))
+	var radius: float = (cfg.radius_base + cfg.radius_per_level * (level - 1)) * player.area_mult
+	var dmg: float = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
 	var hit_any := false
 	# Broad-phase by blast radius (grid); +64 margin covers the largest enemy radius (38)
 	# so a grazing hit at radius+e.radius is never dropped. The precise test is unchanged.

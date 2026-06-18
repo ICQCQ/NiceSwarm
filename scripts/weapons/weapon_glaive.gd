@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(650.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.1
 		return
@@ -32,11 +32,11 @@ func _physics_process(delta: float) -> void:
 		g.source_pid = player.peer_id
 		g.source_weapon = self
 		g.player = player
-		g.velocity = base.rotated(deg_to_rad(25.0) * (i - (count - 1) / 2.0)) * (430.0 * (1.0 + 0.10 * (level - 1)))  # speed grows with level (range = v^2/2decel grows too)
-		g.damage = WeaponConfig.BASE.glaive.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.glaive.growth * (level - 1))
+		g.velocity = base.rotated(deg_to_rad(cfg.spread_deg) * (i - (count - 1) / 2.0)) * (cfg.speed * (1.0 + cfg.speed_growth * (level - 1)))  # speed grows with level (range = v^2/2decel grows too)
+		g.damage = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
 		g.burn_dps = g.damage * 0.3
-		g.hit_radius = 14.0 * player.area_mult
+		g.hit_radius = cfg.hit_radius * player.area_mult
 		g.position = player.global_position
 		player.get_parent().add_child(g)
 	Sfx.play("glaive", player.global_position)
-	cooldown = WeaponConfig.BASE.glaive.cd * player.rate_mult
+	cooldown = cfg.cd * player.rate_mult

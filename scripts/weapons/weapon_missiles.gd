@@ -16,19 +16,19 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	if player.nearest_enemy(800.0) == null:
+	if player.nearest_enemy(cfg.range) == null:
 		cooldown = 0.2
 		return
-	var count := 1 + count_level()
+	var count: int = cfg.count_base + count_level()
 	for i in count:
 		var m := MissileProj.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
-		m.damage = WeaponConfig.BASE.missiles.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.missiles.growth * (level - 1))
-		m.splash = 70.0 * player.area_mult
-		m.life = 4.0 * player.duration_mult
-		m.velocity = Vector2.from_angle(randf() * TAU) * 300.0
+		m.damage = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
+		m.splash = cfg.splash * player.area_mult
+		m.life = cfg.life * player.duration_mult
+		m.velocity = Vector2.from_angle(randf() * TAU) * cfg.speed
 		m.position = player.global_position
 		player.get_parent().add_child(m)
 	Sfx.play("missile", player.global_position)
-	cooldown = WeaponConfig.BASE.missiles.cd * player.rate_mult
+	cooldown = cfg.cd * player.rate_mult

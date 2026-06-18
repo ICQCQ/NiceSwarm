@@ -16,12 +16,12 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var first := player.nearest_enemy(520.0)
+	var first := player.nearest_enemy(cfg.range)
 	if first == null:
 		cooldown = 0.15
 		return
-	var dmg := WeaponConfig.BASE.lightning.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.lightning.growth * (level - 1))
-	var chains := 2 + count_level()
+	var dmg: float = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
+	var chains: int = cfg.chain_base + count_level()
 	var points: Array = [player.global_position]
 	var visited := {}
 	var current: Node2D = first
@@ -39,12 +39,12 @@ func _physics_process(delta: float) -> void:
 	fx.points = points
 	player.get_parent().add_child(fx)
 	Sfx.play("lightning", player.global_position)
-	cooldown = WeaponConfig.BASE.lightning.cd * player.rate_mult
+	cooldown = cfg.cd * player.rate_mult
 
 
 func _next_target(from: Vector2, visited: Dictionary) -> Node2D:
 	var best: Node2D = null
-	var jump := 200.0 * player.area_mult
+	var jump: float = cfg.jump * player.area_mult
 	var best_d := jump * jump
 	# Broad-phase by jump range around the last hit point (grid); +64 margin covers the
 	# largest enemy radius (38). The nearest-unvisited pick below is unchanged.

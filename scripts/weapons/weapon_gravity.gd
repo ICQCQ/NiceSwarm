@@ -17,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(700.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.2
 		return
@@ -31,17 +31,17 @@ func _physics_process(delta: float) -> void:
 	for pos in _well_positions(target, wells):
 		_spawn_well(pos)
 	Sfx.play("gravity", target.global_position)
-	cooldown = WeaponConfig.BASE.gravity.cd * player.rate_mult
+	cooldown = cfg.cd * player.rate_mult
 
 
 func _spawn_well(pos: Vector2) -> void:
 	var well := GravityWell.new()
 	well.source_pid = player.peer_id
 	well.source_weapon = self
-	well.radius = (120.0 + 10.0 * (level - 1)) * player.area_mult  # nerfed field size (was 160 + 15/lv)
-	well.damage = WeaponConfig.BASE.gravity.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.gravity.growth * (level - 1))
-	well.pull = 170.0 + 15.0 * (level - 1)
-	well.life = 2.5 * player.duration_mult
+	well.radius = (cfg.radius_base + cfg.radius_per_level * (level - 1)) * player.area_mult
+	well.damage = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
+	well.pull = cfg.pull_base + cfg.pull_per_level * (level - 1)
+	well.life = cfg.life * player.duration_mult
 	well.position = pos
 	player.get_parent().add_child(well)
 
@@ -54,7 +54,7 @@ func _well_positions(primary: Node2D, n: int) -> Array:
 		return out
 	# Any distinct nearby foes work as extra drop points; the grid query is already
 	# locality-ordered, so take the first distinct ones without a full sort.
-	for e in Main.instance.enemies_in_radius(player.global_position, 700.0):
+	for e in Main.instance.enemies_in_radius(player.global_position, cfg.range):
 		if out.size() >= n:
 			break
 		if e == primary:
@@ -62,5 +62,5 @@ func _well_positions(primary: Node2D, n: int) -> Array:
 		out.append(e.global_position)
 	while out.size() < n:
 		var ang := TAU * out.size() / float(n)
-		out.append(primary.global_position + Vector2.from_angle(ang) * 120.0 * player.area_mult)
+		out.append(primary.global_position + Vector2.from_angle(ang) * cfg.radius_base * player.area_mult)
 	return out

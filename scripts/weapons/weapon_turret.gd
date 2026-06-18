@@ -29,10 +29,10 @@ func _physics_process(delta: float) -> void:
 	t.owner_weapon_id = get_instance_id()
 	t.source_pid = player.peer_id
 	t.source_weapon = self
-	t.life = (5.0 + 0.5 * level) * player.duration_mult
-	t.damage = WeaponConfig.BASE.turret.dmg * player.damage_mult * (1.0 + WeaponConfig.BASE.turret.growth * (level - 1))
-	t.target_range = 480.0 * player.area_mult
-	t.proj_radius = 5.0 * player.area_mult
+	t.life = (cfg.life_base + cfg.life_per_level * level) * player.duration_mult
+	t.damage = cfg.dmg * player.damage_mult * (1.0 + cfg.growth * (level - 1))
+	t.target_range = cfg.target_range * player.area_mult
+	t.proj_radius = cfg.proj_radius * player.area_mult
 	t.fire_mult = player.rate_mult
 	t.position = player.global_position
 	player.get_parent().add_child(t)
@@ -40,4 +40,4 @@ func _physics_process(delta: float) -> void:
 	# Spread deploys over base.cd / cap so the field actually fills to max_turrets.
 	# base.cd (~6.5s) ~= a turret's life, so a flat cd let each turret expire right
 	# as the next deployed -- only ever ~1 alive even when the cap allows more.
-	cooldown = WeaponConfig.BASE.turret.cd * player.rate_mult / max_turrets
+	cooldown = cfg.cd * player.rate_mult / max_turrets

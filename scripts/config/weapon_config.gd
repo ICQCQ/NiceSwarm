@@ -1,26 +1,30 @@
 class_name WeaponConfig
 extends RefCounted
-## Base tuning for the 13 base weapons. Each weapon reads `WeaponConfig.BASE[weapon_id]`
-## for its core numbers — tune damage / growth / cadence here.
+## Base tuning for the 13 base weapons. Each weapon reads its `WeaponConfig.BASE[weapon_id]`
+## entry (cached as `cfg` in WeaponBase._ready) for ALL its numbers — damage, cadence, AND
+## spatial sizes / projectile counts / ranges. Tune everything here.
 ##   dmg    = base damage at level 1
 ##   growth = per-level damage bonus (damage = dmg * (1 + growth*(level-1)))
 ##   cd     = recurring cooldown / tick / re-hit interval (×Haste at runtime)
-## Spatial sizes, projectile counts, and per-weapon extras stay in each weapon_*.gd.
+##   range/speed/radius/life/spread_deg/*_base/*_per_level/... = spatial & projectile tuning,
+##     read via cfg.<key> (multiplied by player.area_mult / duration_mult / rate_mult at use).
+## Only initial-cooldown state vars + no-target retry delays + cosmetic _draw() numbers stay
+## inline in each weapon_*.gd (same as the fusions).
 
 const BASE := {
-	"bolt":      {"dmg": 2.5, "growth": 0.345, "cd": 0.8},
-	"orbit":     {"dmg": 2.0, "growth": 0.46, "cd": 0.45},  # cd = per-enemy re-hit
-	"nova":      {"dmg": 2.5, "growth": 0.575, "cd": 3.5},
-	"glaive":    {"dmg": 2.5, "growth": 0.345, "cd": 1.6},
-	"lightning": {"dmg": 2.0, "growth": 0.46, "cd": 2.2},
-	"flame":     {"dmg": 0.75, "growth": 0.46, "cd": 0.15},  # cd = tick interval
-	"mines":     {"dmg": 6.0, "growth": 0.575, "cd": 2.0},
-	"missiles":  {"dmg": 3.0, "growth": 0.345, "cd": 2.4},
-	"laser":     {"dmg": 1.2, "growth": 0.46, "cd": 0.3},   # cd = per-enemy re-hit
-	"frost":     {"dmg": 1.5, "growth": 0.345, "cd": 1.8},
-	"gravity":   {"dmg": 4, "growth": 0.575, "cd": 6.0},
-	"turret":    {"dmg": 2.2, "growth": 0.46, "cd": 6.5},
-	"venom":     {"dmg": 1.4, "growth": 0.46, "cd": 0.35},  # cd = puddle drop interval
+	"bolt":      {"dmg": 2.5, "growth": 0.345, "cd": 0.8, "range": 650.0, "speed": 520.0, "radius": 5.0, "life": 1.6, "burst_gap": 0.07},
+	"orbit":     {"dmg": 2.0, "growth": 0.46, "cd": 0.45, "orbit_r": 75.0, "blade_r": 10.0, "spin": 3.2},  # cd = per-enemy re-hit
+	"nova":      {"dmg": 2.5, "growth": 0.575, "cd": 3.5, "radius_base": 130.0, "radius_per_level": 30.0, "echo_gap": 0.22},
+	"glaive":    {"dmg": 2.5, "growth": 0.345, "cd": 1.6, "range": 650.0, "spread_deg": 25.0, "speed": 430.0, "speed_growth": 0.10, "hit_radius": 14.0},
+	"lightning": {"dmg": 2.0, "growth": 0.46, "cd": 2.2, "range": 520.0, "chain_base": 2, "jump": 200.0},
+	"flame":     {"dmg": 0.75, "growth": 0.46, "cd": 0.15, "reach_base": 150.0, "reach_per_level": 12.0, "half_angle": 0.61, "widen_per_level": 0.12, "burn_stack": 1.6},  # cd = tick interval
+	"mines":     {"dmg": 6.0, "growth": 0.575, "cd": 2.0, "cap_base": 3, "blast_radius_base": 100.0, "blast_radius_per_level": 15.0, "trigger_radius": 55.0, "life": 12.0},
+	"missiles":  {"dmg": 3.0, "growth": 0.345, "cd": 2.4, "range": 800.0, "count_base": 1, "splash": 70.0, "life": 4.0, "speed": 300.0},
+	"laser":     {"dmg": 1.2, "growth": 0.46, "cd": 0.3, "length_base": 240.0, "length_per_level": 30.0, "spin": 1.4, "beam_width": 6.0},   # cd = per-enemy re-hit
+	"frost":     {"dmg": 1.5, "growth": 0.345, "cd": 1.8, "range": 650.0, "count_base": 2, "spread_deg": 8.0, "speed": 480.0, "hit_radius": 7.0, "life": 1.4, "slow_dur": 1.5},
+	"gravity":   {"dmg": 4, "growth": 0.575, "cd": 6.0, "range": 700.0, "radius_base": 120.0, "radius_per_level": 10.0, "pull_base": 170.0, "pull_per_level": 15.0, "life": 2.5},
+	"turret":    {"dmg": 2.2, "growth": 0.46, "cd": 6.5, "life_base": 5.0, "life_per_level": 0.5, "target_range": 480.0, "proj_radius": 5.0},
+	"venom":     {"dmg": 1.4, "growth": 0.46, "cd": 0.35, "radius_base": 45.0, "radius_per_level": 5.0, "life": 3.0, "lane_gap": 36.0},  # cd = puddle drop interval
 	# Deployed turret fusions (turret + X, see Fusions._Sentry). Lv1 dmg ==
 	# a Lv3 base "turret"'s damage, so fusing doesn't feel like a downgrade.
 	# life_base/life_per_level/target_range/proj_radius are the shared deployment
