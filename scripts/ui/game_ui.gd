@@ -191,6 +191,44 @@ func _make_overlay() -> Array:
 	return [root, vbox]
 
 
+## Like _make_overlay, but the content sits inside a ScrollContainer so a tall menu
+## can never clip off the bottom of the window (it scrolls instead). The inner
+## CenterContainer has both expand flags, so the content is centered when it fits the
+## viewport and only starts scrolling once it's taller than the screen.
+func _make_scroll_overlay(separation: int = 12) -> Array:
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.visible = false
+	main.ui.add_child(root)
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.65)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(dim)
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	root.add_child(scroll)
+	var center := CenterContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.add_child(center)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", separation)
+	center.add_child(vbox)
+	return [root, vbox]
+
+
+## Small dim section header for grouping menu rows.
+func _section_label(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 15)
+	l.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75))
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return l
+
+
 func _build_level_panel() -> void:
 	var parts := _make_overlay()
 	main.level_panel = parts[0]
@@ -567,7 +605,7 @@ func _build_profile_panel(parent: Node) -> void:
 
 
 func _build_menu() -> void:
-	var parts := _make_overlay()
+	var parts := _make_scroll_overlay(10)
 	main.menu_panel = parts[0]
 	main.menu_panel.visible = true
 	var vbox: VBoxContainer = parts[1]
@@ -585,7 +623,7 @@ func _build_menu() -> void:
 
 	var title := Label.new()
 	title.text = "NICESWARM"
-	title.add_theme_font_size_override("font_size", 64)
+	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
@@ -629,37 +667,16 @@ func _build_menu() -> void:
 
 	var solo := Button.new()
 	solo.text = "Play Solo"
-	solo.custom_minimum_size = Vector2(360, 52)
+	solo.custom_minimum_size = Vector2(360, 50)
 	solo.add_theme_font_size_override("font_size", 22)
 	solo.pressed.connect(main._on_solo_pressed)
 	vbox.add_child(solo)
 
-	var host := Button.new()
-	host.text = "Host Co-op"
-	host.custom_minimum_size = Vector2(360, 52)
-	host.add_theme_font_size_override("font_size", 22)
-	host.pressed.connect(main._on_host_pressed)
-	vbox.add_child(host)
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	vbox.add_child(row)
-	main.ip_edit = LineEdit.new()
-	main.ip_edit.text = "127.0.0.1"
-	main.ip_edit.custom_minimum_size = Vector2(252, 52)
-	main.ip_edit.add_theme_font_size_override("font_size", 20)
-	row.add_child(main.ip_edit)
-	var join := Button.new()
-	join.text = "Join"
-	join.custom_minimum_size = Vector2(100, 52)
-	join.add_theme_font_size_override("font_size", 22)
-	join.pressed.connect(main._on_join_pressed)
-	row.add_child(join)
-
-	# Online (NAT) lobby via Noray — no port-forward needed; host shares a join code.
+	# --- Online co-op (Noray NAT lobby): no port-forwarding; host shares a join code ---
+	vbox.add_child(_section_label("ONLINE  ·  no port-forwarding"))
 	var online_host := Button.new()
-	online_host.text = "Host Online (NAT lobby)"
-	online_host.custom_minimum_size = Vector2(360, 44)
+	online_host.text = "Host Online — create join code"
+	online_host.custom_minimum_size = Vector2(360, 42)
 	online_host.add_theme_font_size_override("font_size", 18)
 	online_host.pressed.connect(main._on_noray_host_pressed)
 	vbox.add_child(online_host)
@@ -668,32 +685,50 @@ func _build_menu() -> void:
 	oid_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(oid_row)
 	main.oid_edit = LineEdit.new()
-	main.oid_edit.placeholder_text = "Join code"
-	main.oid_edit.custom_minimum_size = Vector2(252, 44)
+	main.oid_edit.placeholder_text = "Paste join code"
+	main.oid_edit.custom_minimum_size = Vector2(272, 42)
 	main.oid_edit.add_theme_font_size_override("font_size", 18)
 	oid_row.add_child(main.oid_edit)
 	var online_join := Button.new()
-	online_join.text = "Join Code"
-	online_join.custom_minimum_size = Vector2(100, 44)
+	online_join.text = "Join"
+	online_join.custom_minimum_size = Vector2(80, 42)
 	online_join.add_theme_font_size_override("font_size", 18)
 	online_join.pressed.connect(main._on_noray_join_pressed)
 	oid_row.add_child(online_join)
 
-	var port_row := HBoxContainer.new()
-	port_row.add_theme_constant_override("separation", 8)
-	vbox.add_child(port_row)
-	var port_label := Label.new()
-	port_label.text = "Port"
-	port_label.add_theme_font_size_override("font_size", 20)
-	port_label.custom_minimum_size = Vector2(100, 40)
-	port_row.add_child(port_label)
+	# --- Direct co-op (LAN / known IP) ---
+	vbox.add_child(_section_label("DIRECT  ·  LAN / IP"))
+	var host := Button.new()
+	host.text = "Host Co-op"
+	host.custom_minimum_size = Vector2(360, 42)
+	host.add_theme_font_size_override("font_size", 18)
+	host.pressed.connect(main._on_host_pressed)
+	vbox.add_child(host)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	vbox.add_child(row)
+	main.ip_edit = LineEdit.new()
+	main.ip_edit.text = "127.0.0.1"
+	main.ip_edit.custom_minimum_size = Vector2(176, 42)
+	main.ip_edit.add_theme_font_size_override("font_size", 18)
+	row.add_child(main.ip_edit)
+	var join := Button.new()
+	join.text = "Join"
+	join.custom_minimum_size = Vector2(80, 42)
+	join.add_theme_font_size_override("font_size", 18)
+	join.pressed.connect(main._on_join_pressed)
+	row.add_child(join)
 	main.port_edit = LineEdit.new()
 	main.port_edit.text = str(Net.PORT)
-	main.port_edit.custom_minimum_size = Vector2(252, 40)
-	main.port_edit.add_theme_font_size_override("font_size", 20)
-	port_row.add_child(main.port_edit)
+	main.port_edit.placeholder_text = "Port"
+	main.port_edit.tooltip_text = "Port (direct host/join)"
+	main.port_edit.custom_minimum_size = Vector2(96, 42)
+	main.port_edit.add_theme_font_size_override("font_size", 18)
+	row.add_child(main.port_edit)
 
-	# difficulty config cyclers (used by Solo and Host)
+	# --- Run options (apply to Solo and to a session you host) ---
+	vbox.add_child(_section_label("GAME OPTIONS"))
 	_make_cycler(vbox, "Options / level-up", func(): return str(Main.CHOICES_OPTS[main.cfg_choices_i]),
 		func(): main.cfg_choices_i = (main.cfg_choices_i + 1) % Main.CHOICES_OPTS.size())
 	_make_cycler(vbox, "XP rate", func(): return str(Main.XP_OPTS[main.cfg_xp_i]) + "x",
@@ -703,8 +738,8 @@ func _build_menu() -> void:
 
 	var settings_btn := Button.new()
 	settings_btn.text = "Settings"
-	settings_btn.custom_minimum_size = Vector2(360, 44)
-	settings_btn.add_theme_font_size_override("font_size", 20)
+	settings_btn.custom_minimum_size = Vector2(360, 40)
+	settings_btn.add_theme_font_size_override("font_size", 18)
 	settings_btn.pressed.connect(main._on_settings_pressed)
 	vbox.add_child(settings_btn)
 

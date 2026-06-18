@@ -986,7 +986,9 @@ func _load_rejoin_state() -> void:
 	if data.has("ip"):
 		ip_edit.text = str(data["ip"])
 	if data.has("port"):
-		port_edit.text = str(int(data["port"]))
+		var saved_port := int(data["port"])  # ignore an invalid/stale port (keep the default)
+		if saved_port >= 1 and saved_port <= 65535:
+			port_edit.text = str(saved_port)
 
 
 func _clear_rejoin_state() -> void:
@@ -998,6 +1000,10 @@ func _clear_rejoin_state() -> void:
 ## Remember the address/port a client just successfully connected to, so the
 ## join fields are prefilled with it next launch.
 func _save_last_join_address(ip: String, port: int) -> void:
+	# A Noray (NAT-lobby) session has no direct port (lobby_port == 0); don't let that
+	# overwrite the remembered direct host/join port — fall back to the default.
+	if port < 1 or port > 65535:
+		port = Net.PORT
 	var f := FileAccess.open(LAST_JOIN_SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_var({"ip": ip, "port": port})
@@ -1019,7 +1025,9 @@ func _load_last_join_address() -> void:
 	if data.has("ip"):
 		ip_edit.text = str(data["ip"])
 	if data.has("port"):
-		port_edit.text = str(int(data["port"]))
+		var saved_port := int(data["port"])  # ignore an invalid/stale port (keep the default)
+		if saved_port >= 1 and saved_port <= 65535:
+			port_edit.text = str(saved_port)
 
 
 ## Save the main-menu profile (name/color/shape) so it persists across launches.
