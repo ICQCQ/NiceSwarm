@@ -994,3 +994,30 @@ Two reported balance bugs, both rooted in the 3→7 weapon-cap rise not being fo
   tests). build_version.gd restored to `dev` defaults after the probe.
 - **Next:** push to `publish` so CI publishes the first `VERSION.txt` (launcher game-version line stays
   blank until then); manually dispatch `build-launcher.yml` to ship a version-stamped launcher.
+
+### 2026-06-18 — Session 15: async level-up UX, config refactor, Noray NAT lobby
+- **Async level-up UX** (commit `ab22a6a`): non-modal bottom-right panel that auto-opens while a player has
+  banked upgrade credits, instead of a screen-blocking centered dialog; fixed the chest pickup pausing/opening
+  the dialog for all players (now host-authoritative credit banking). Plus config tweaks (MAX_WEAPONS 5→4,
+  STAT_CAP_DURATION 2.5→2.0, MAX_TELEGRAPHS 7→5) + a `NICESWARM_DMGTABLE` per-weapon damage/min sim hook.
+- **Config refactor** (commit `3f0105a`): moved all 13 base-weapon tuning literals into `WeaponConfig.BASE`
+  (spatial/lifetime params alongside dmg/growth/cd); each `weapon_*.gd` now reads `cfg.*`. Fusion params were
+  already config-driven. cfg-derived locals need explicit `: float`/`: int` (cfg is Variant, breaks `:=`).
+- **Noray NAT lobby** (commit `2c0f2d4`, milestone **M7.6**): online co-op without port-forwarding. Vendored the
+  proven `netfox.noray` client (`addons/netfox.noray/` — `noray.gd`/`packet-handshake.gd`/`protocol-handler.gd`
+  + a `NetfoxLogger` stub so no netfox rollback core is needed; autoloads `Noray`+`PacketHandshake`). All async
+  flow in one file `scripts/core/noray_lobby.gd` (`NorayLobby`): bootstrap → host (ENet server bound to
+  `Noray.local_port`, punch on incoming connect) / client (handshake over local_port → `create_client` reusing
+  it). `net.gd` got thin `host_via_noray`/`join_via_noray` delegators (direct IP/Port untouched as fallback);
+  `main.gd`/`game_ui.gd` got an OID-join-code menu + `NICESWARM_NET=noray_host`/`noray_join` headless hooks.
+  Full plan + the CGNAT inbound blocker in [docs/NORAY.md](NORAY.md).
+- **Verified:** 1112 unit tests pass; headless import/boot clean. **Live rendezvous PASS** — ran
+  `ghcr.io/foxssake/noray:main` (throwaway `--rm`) on docker-server `192.168.1.36`; two headless instances
+  connected by OID through the relay (`start_game peers=[1, <id>]` both sides, joiner received world-state +
+  enemy puppets), proving the ENet socket-reuse handoff. Throwaway container removed.
+- **Known follow-up (pre-existing, not Noray):** a peer that leaves mid-run lingers in `peer_ids` but drops from
+  `multiplayer.get_peers()`, so `_refresh_pings()` → `get_peer(ghosted_id)` logs `!peers.has(p_id)` (cosmetic
+  ping HUD). Cheap fix: intersect before `get_peer`. Affects direct-IP co-op too.
+- **Next:** persistent Noray server deploy (compose + `.env` + healthcheck) on docker-server; resolve the public
+  inbound/CGNAT question (read the home router WAN IP → bridge ONT vs. public VPS) before `ns.javis.coffee` can
+  serve real internet players; wire the OID join code into the launcher / add copy-to-clipboard in the lobby UI.

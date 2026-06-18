@@ -92,10 +92,27 @@ get a host/join, not a replacement. Direct-IP stays the fallback.
 ## Status
 
 - [x] Infra contract + blocker captured (this doc).
-- [ ] ENet socket-reuse spike.
-- [ ] `netfox.noray` client ported (minimal, no rollback core).
-- [ ] `host_via_noray` / `join_via_noray` in `net.gd`.
-- [ ] Menu wiring (OID-based host/join, direct-IP kept as fallback).
-- [ ] Verified against a local Noray container.
-- [ ] Noray server deployed (container + `.env` + healthcheck) — separate task.
+- [x] `netfox.noray` client vendored (`addons/netfox.noray/`, 3 files + `NetfoxLogger`
+  stub, no rollback core). Autoloads `Noray` + `PacketHandshake` in `project.godot`.
+- [x] `host_via_noray` / `join_via_noray` in `net.gd` → `NorayLobby`
+  (`scripts/core/noray_lobby.gd`); direct-IP `host_game`/`join_game` kept as fallback.
+- [x] Menu wiring (OID join code) + `NICESWARM_NET=noray_host`/`noray_join` headless
+  hooks (`NICESWARM_NORAY_HOST`/`NICESWARM_NORAY_OID`).
+- [x] **Verified against a live Noray server (2026-06-18).** Ran `ghcr.io/foxssake/noray:main`
+  on docker-server (`192.168.1.36`, throwaway `--rm`); two headless instances
+  rendezvoused: host advertised OID, joiner connected by OID, both hit
+  `start_game peers=[1, <id>]`, joiner received world-state + enemy puppets. This
+  proves the ENet socket-reuse handoff over `Noray.local_port` (the one risk a parse
+  check couldn't settle). The ENet socket-reuse "spike" is therefore covered by the
+  full integration test — no separate spike needed.
+- [ ] Noray server deployed for real (persistent container + `.env` + healthcheck on
+  docker-server) — separate task; the throwaway test container was removed.
 - [ ] Public inbound unblocked (CGNAT decision: bridge ONT vs. VPS) — infra/owner.
+
+**Known follow-up (pre-existing, not Noray-specific):** when a co-op peer leaves
+mid-run it stays in `peer_ids` (for rejoin) but drops out of
+`multiplayer.get_peers()`, so `main._refresh_pings()` calls
+`ENetMultiplayerPeer.get_peer(ghosted_id)` and the engine logs
+`Condition "!peers.has(p_id)" is true`. Cosmetic (ping HUD). Cheap fix: intersect
+`peer_ids` with `multiplayer.get_peers()` before `get_peer`. Affects direct-IP co-op
+too — out of scope for this change.
