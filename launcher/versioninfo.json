@@ -1,0 +1,24 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": { "Major": 0, "Minor": 9, "Patch": 0, "Build": 0 },
+    "ProductVersion": { "Major": 0, "Minor": 9, "Patch": 0, "Build": 0 },
+    "FileFlagsMask": "3f",
+    "FileFlags": "00",
+    "FileOS": "040004",
+    "FileType": "01",
+    "FileSubType": "00"
+  },
+  "StringFileInfo": {
+    "CompanyName": "Trirat Service Part., Ltd.",
+    "FileDescription": "NiceSwarm co-op launcher and auto-updater",
+    "FileVersion": "0.9.0",
+    "InternalName": "NiceSwarm-Launcher",
+    "LegalCopyright": "Copyright Trirat Service Part., Ltd.",
+    "OriginalFilename": "NiceSwarm-Launcher.exe",
+    "ProductName": "NiceSwarm Launcher",
+    "ProductVersion": "0.9.0"
+  },
+  "VarFileInfo": {
+    "Translation": { "LangID": "0409", "CharsetID": "04B0" }
+  }
+}

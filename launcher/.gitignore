@@ -3,3 +3,4 @@
 /build/
 *.exe
 NiceSwarm-Launcher
+*.syso          # generated in CI by goversioninfo (Windows version resource)

@@ -59,6 +59,13 @@ jobs:
           # the split avoids go tool link splitting an "-X main.version=Publish v. 220" value on
           # the space. Shown in the launcher window by launcherVersion().
           VER="-X main.verBranch=${GITHUB_REF_NAME} -X main.verCount=$(git rev-list --count HEAD)"
+          # Embed Windows PE version metadata (CompanyName/ProductName/FileVersion/...).
+          # A bare cross-compiled Go GUI exe with NO version resource is a classic
+          # antivirus false-positive trigger; proper metadata makes it present as a
+          # normal app. The .syso is gated by filename to windows/amd64 (the flagged
+          # build); the arm64 build ignores it. goversioninfo is a pure-Go tool.
+          go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.1 \
+            -64 -o versioninfo_windows_amd64.syso versioninfo.json
           # -H=windowsgui: GUI subsystem, so no console window flashes beside the Gio window.
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H=windowsgui ${VER}" -o dist/NiceSwarm-Launcher.exe .
           GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -H=windowsgui ${VER}" -o dist/NiceSwarm-Launcher-arm64.exe .
