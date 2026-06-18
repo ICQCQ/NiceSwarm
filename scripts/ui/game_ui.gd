@@ -93,25 +93,6 @@ func build() -> void:
 	main.hint_label = _make_label(Vector2(16, 690), 16, Color(0.5, 0.55, 0.65))
 	main.hint_label.text = Main.HINT_COOP
 
-	# Async level-up pending indicator: bottom-right, blinks when picks are banked.
-	# Parented to main.ui directly (not hud_root) and added below, right after
-	# _build_level_panel() — that puts it above the level-up overlay's full-rect
-	# dim layer (which has the default mouse_filter=STOP and would otherwise eat
-	# the click), so pressing it while the panel is open actually closes it, but
-	# still below the end/pause/ingame-menu/countdown overlays built after it.
-	main.unspent_label = Button.new()
-	main.unspent_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	main.unspent_label.offset_left = -300.0
-	main.unspent_label.offset_right = -16.0
-	main.unspent_label.offset_top = -52.0
-	main.unspent_label.offset_bottom = -20.0
-	main.unspent_label.add_theme_font_size_override("font_size", 22)
-	main.unspent_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	main.unspent_label.add_theme_color_override("font_color_hover", Color(1.0, 1.0, 0.6))
-	main.unspent_label.flat = true
-	main.unspent_label.visible = false
-	main.unspent_label.pressed.connect(func(): main._toggle_async_panel())
-
 	main.banner_label = _make_label(Vector2.ZERO, 46, Color.WHITE)
 	main.banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	main.banner_label.offset_top = 90.0  # centered, just below the difficulty/threat readout (not over the left HUD list)
@@ -126,7 +107,7 @@ func build() -> void:
 
 	_build_rank_panel()
 	_build_level_panel()
-	main.ui.add_child(main.unspent_label)
+	_build_async_panel()
 	_build_end_panel()
 	_build_pause_panel()
 	_build_ingame_menu_panel()
@@ -227,6 +208,51 @@ func _build_level_panel() -> void:
 		b.pressed.connect(main._choose_upgrade.bind(i))
 		vbox.add_child(b)
 		main.choice_buttons.append(b)
+
+
+func _build_async_panel() -> void:
+	# Async level-up: a small, NON-modal pick panel pinned bottom-right. Unlike the modal
+	# level_panel it never dims or pauses the game and leaves the screen centre clear, so the
+	# player keeps moving/fighting while choosing. main auto-shows it while upgrade credits
+	# remain (_open_async_panel / _process). Built right after level_panel so the modal
+	# end/pause/menu/countdown overlays (added later) still render above it.
+	var root := PanelContainer.new()
+	root.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	root.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	root.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	root.offset_left = -400.0
+	root.offset_top = -392.0
+	root.offset_right = -16.0
+	root.offset_bottom = -16.0
+	root.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.06, 0.10, 0.92)
+	sb.set_corner_radius_all(8)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(1.0, 0.85, 0.3, 0.5)
+	sb.set_content_margin_all(12)
+	root.add_theme_stylebox_override("panel", sb)
+	main.async_panel = root
+	main.ui.add_child(root)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	root.add_child(vbox)
+	main.async_panel_title = Label.new()
+	main.async_panel_title.add_theme_font_size_override("font_size", 17)
+	main.async_panel_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	main.async_panel_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(main.async_panel_title)
+	for i in Main.MAX_CHOICES:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(360, 0)
+		b.add_theme_font_size_override("font_size", 15)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.clip_text = false
+		b.focus_mode = Control.FOCUS_NONE  # don't steal arrow-key movement or auto-fire on Enter
+		b.pressed.connect(main._choose_upgrade.bind(i))
+		vbox.add_child(b)
+		main.async_choice_buttons.append(b)
 
 
 func _build_end_panel() -> void:

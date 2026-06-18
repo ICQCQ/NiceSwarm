@@ -95,10 +95,10 @@ func update() -> void:
 	if main.stats_panel != null and main.stats_panel.visible:
 		_update_stats_panel(me)
 	_update_rank_panel()
-	# Blink the unspent-points button so it draws the player's eye.
-	if main.unspent_label != null and main.unspent_label.visible:
+	# Pulse the async pick panel's header so banked upgrade credits draw the player's eye.
+	if main.async_panel != null and main.async_panel.visible and main.async_panel_title != null:
 		var t := Time.get_ticks_msec() / 1000.0
-		main.unspent_label.modulate.a = 0.55 + 0.45 * sin(t * TAU * 1.2)
+		main.async_panel_title.modulate.a = 0.6 + 0.4 * sin(t * TAU * 1.2)
 
 
 ## Live damage ranking panel: shows all players sorted by damage on the left side.

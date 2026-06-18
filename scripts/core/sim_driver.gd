@@ -238,3 +238,204 @@ func ff_census() -> String:
 			parts.append("%s=%d" % [k, counts[k]])
 	var phys := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
 	return "nodes=%d phys=%.2fms | %s" % [total, phys, ", ".join(parts)]
+
+
+# --- NICESWARM_DMGTABLE: per-weapon full-swarm damage/min reference table -----
+## NICESWARM_DMGTABLE=1: boot solo, build a STATIC immortal enemy disc around the player,
+## then equip each weapon (13 base + every signature fusion) at each level 1..MAX one at a
+## time and measure total damage dealt to the swarm over DMG_WINDOW game-seconds — direct
+## (via take_hit -> _score) + burn DoT (via add_burn_damage -> _burn_total). Prints one
+## "[dmg] base|<id>|L<n>|<dpm>|<name>" / "[dmg] fus|<a|b>|L<n>|<dpm>|<name>" line per cell.
+## Party level held at 1 and all stat mults at baseline so each row is the weapon's intrinsic
+## scaling. Field is uniform (stated density) — every AoE number scales ~linearly with it.
+const DMG_FIELD_RADIUS := 360.0   # uniform immortal disc around the player (covers near-player AoE)
+const DMG_FIELD_SPACING := 45.0   # ~1.6 enemy-diameters (enemy radius 14) — a dense but un-stacked pack
+const DMG_BASE_WEAPONS := ["bolt", "orbit", "nova", "glaive", "lightning", "flame",
+	"mines", "missiles", "laser", "frost", "gravity", "turret", "venom"]
+
+
+## Field enemy that tallies EVERY hit at the one universal chokepoint (enemy.take_hit) —
+## so the measurement is independent of each weapon's source_pid / damage_dealt plumbing
+## (some credit _score, some credit damage_dealt, burn DoT routes a take_hit(DMG_FIRE) too).
+## Capturing the raw `amount` here counts all of it exactly once.
+class DmgDummy extends Enemy:
+	static var total: float = 0.0
+	func take_hit(amount: float, from_pos: Variant = null, dtype: int = Enemy.DMG_PHYS, source_pid: int = -1) -> void:
+		total += amount
+		super(amount, from_pos, dtype, source_pid)
+
+var _dmg_window := 60.0    # game-seconds per cell (override: NICESWARM_DMGW=<sec>)
+var _dmg_active := false
+var _dmg_cells: Array = []  # each: {"kind": "base"/"fus", "a": id, "b": id, "lvl": int}
+var _dmg_i := -1
+var _dmg_t := 0.0
+var _dmg_phase := 0         # 0 = equip+reset, 1 = accumulate window, 2 = clear+settle then advance
+var _dmg_p: Player
+var _dmg_w: WeaponBase
+var _dmg_center := Vector2.ZERO  # field anchor; the player orbits this so movement-gated
+var _dmg_clock := 0.0            # weapons (venom trail) fire and moving-origin weapons stay centered
+
+
+func run_dmg_table() -> void:
+	main.local_id = 1
+	main.start_game([1])
+	seed(424242)                          # deterministic spread/mine-offset RNG
+	var wenv := OS.get_environment("NICESWARM_DMGW")
+	if wenv != "":
+		_dmg_window = maxf(wenv.to_float(), 1.0)
+	# Fast-forward WITHOUT tunneling: per-tick delta = time_scale / physics_ticks_per_second.
+	# At the stock 60/60 that's delta=1.0, so a 520 px/s bolt jumps 520 px/tick and flies clean
+	# past the 45 px-spaced field (every moving-hit-volume weapon — bolt/glaive/missiles/frost/
+	# turret projectiles — reads 0). Raising the tick rate in lockstep keeps delta at the normal
+	# 1/60 (projectiles step ~9 px/tick, collisions register) while still advancing `time_scale`
+	# game-seconds per real second. Fixed-radius weapons (nova/orbit/flame/...) are step-agnostic.
+	var tsenv := OS.get_environment("NICESWARM_DMGTS")
+	var ts := maxf(tsenv.to_float(), 1.0) if tsenv != "" else 30.0
+	Engine.time_scale = ts
+	Engine.physics_ticks_per_second = int(60.0 * ts)  # -> delta stays 1/60
+	Engine.max_physics_steps_per_frame = 100000
+	Engine.max_fps = 0
+	main.cfg_win_time = 1.0e12            # never enter the final stage during the sweep
+	main.debug_no_spawn = true            # only our static field — no organic spawns
+	main.debug_immortal_enemies = true    # hp resets to max each hit -> full damage credited
+	main.level = 1                        # party level 1: isolate the weapon's OWN level
+	_dmg_p = main.players[1]
+	_dmg_p.debug_god = true
+	_dmg_p.bot = true            # bot drives real movement (move_and_slide) -> nonzero velocity for venom
+	_dmg_p.power_stat = 1.0
+	_dmg_p.area_mult = 1.0
+	_dmg_p.rate_mult = 1.0
+	_dmg_p.duration_mult = 1.0
+	for w in _dmg_p.weapons.duplicate():  # drop the auto-granted starter loadout
+		w.queue_free()
+	_dmg_p.weapons.clear()
+	_dmg_center = _dmg_p.global_position
+	_dmg_build_field(_dmg_p)
+	for wid in DMG_BASE_WEAPONS:
+		for lvl in range(1, GameConfig.MAX_WEAPON_LEVEL + 1):
+			_dmg_cells.append({"kind": "base", "a": wid, "b": "", "lvl": lvl})
+	for key in Fusions.INFO.keys():
+		var pair: PackedStringArray = key.split("|")
+		for lvl in range(1, GameConfig.MAX_WEAPON_LEVEL + 1):
+			_dmg_cells.append({"kind": "fus", "a": pair[0], "b": pair[1], "lvl": lvl})
+	await get_tree().physics_frame        # register the field in the spatial grid before measuring
+	var field_n: int = get_tree().get_nodes_in_group("enemies").size()
+	print("[dmg] FIELD radius=%.0f spacing=%.0f count=%d window=%.0fs cells=%d party_level=1 stats=baseline" \
+		% [DMG_FIELD_RADIUS, DMG_FIELD_SPACING, field_n, _dmg_window, _dmg_cells.size()])
+	_dmg_phase = 2                        # advance into the first cell on the next physics tick
+	_dmg_active = true
+
+
+## Fast-forwarded measurement state machine, driven at the time-scaled physics rate (like FF
+## mode). Stepping via _physics_process — NOT `await physics_frame` — is what lets time_scale
+## actually fast-forward: an await coroutine resumes only once per rendered frame (~real-time),
+## while _physics_process is called on every (scaled) physics tick.
+func _physics_process(delta: float) -> void:
+	if not _dmg_active:
+		return
+	if _dmg_i <= 0 and OS.get_environment("NICESWARM_DMGDBG") == "1":
+		print("[dmg] DBG delta=%.5f phys_ticks=%d time_scale=%.1f" % [delta, Engine.physics_ticks_per_second, Engine.time_scale])
+	# Keep the player near the field center but always MOVING (real velocity), so trail weapons
+	# (venom) that only drop while moving still fire. The bot drives velocity via move_and_slide
+	# (input-driven velocity gets zeroed each tick — see player._physics_process); we just tug it
+	# back toward center if the kite wanders out of the dense disc.
+	if _dmg_p.global_position.distance_to(_dmg_center) > DMG_FIELD_RADIUS * 0.4:
+		_dmg_p.global_position = _dmg_center
+	match _dmg_phase:
+		0:  # equip the cell's weapon at its level, reset the damage accumulators
+			_dmg_equip(_dmg_cells[_dmg_i])
+			DmgDummy.total = 0.0           # tallies all damage to the swarm via take_hit
+			_dmg_t = 0.0
+			_dmg_phase = 1
+		1:  # accumulate one window of game-time, then record + tear down
+			_dmg_t += delta
+			if _dmg_t >= _dmg_window:
+				var cell: Dictionary = _dmg_cells[_dmg_i]
+				var dpm: float = DmgDummy.total * (60.0 / _dmg_window)  # normalize to damage-per-minute
+				var nm := "?" if _dmg_w == null else _dmg_w.display_name
+				if OS.get_environment("NICESWARM_DMGDBG") == "1":
+					var nsp := 0
+					for c in main.world.get_children():
+						if not (c is Player) and not c.is_in_group("enemies"):
+							nsp += 1
+					print("[dmg]   DIAG spawned=%d egrid=%d wlevel=%d" % [nsp, EnemyGrid.all().size(), main.level])
+				if cell.kind == "base":
+					print("[dmg] base|%s|L%d|%.1f|%s" % [cell.a, cell.lvl, dpm, nm])
+				else:
+					print("[dmg] fus|%s|%s|L%d|%.1f|%s" % [cell.a, cell.b, cell.lvl, dpm, nm])
+				_dmg_clear()
+				_dmg_phase = 2
+		2:  # one settle tick (queued frees flush) then advance to the next cell / finish
+			_dmg_i += 1
+			if _dmg_i >= _dmg_cells.size():
+				print("[dmg] DONE")
+				_dmg_active = false
+				get_tree().quit(0)
+				return
+			_dmg_phase = 0
+
+
+## Equip the single weapon for `cell` (a fresh signature fusion is built exactly as
+## player.merge_weapons does: tier 1 + born_dmg + born_count_floor).
+func _dmg_equip(cell: Dictionary) -> void:
+	if cell.kind == "base":
+		_dmg_p.add_weapon(cell.a)
+		_dmg_w = _dmg_p.weapons[_dmg_p.weapons.size() - 1]
+		_dmg_w.level = cell.lvl
+		return
+	var f: WeaponBase = Fusions.make(cell.a, cell.b)
+	_dmg_w = f
+	if f == null:
+		return
+	f.tier = 1
+	f.born_dmg = GameConfig.FUSION_BORN_DMG
+	f.born_count_floor = GameConfig.FUSION_BORN_COUNT_FLOOR
+	f.level = cell.lvl
+	_dmg_p.add_child(f)
+	_dmg_p.weapons.append(f)
+
+
+## Uniform immortal, stationary enemy disc centered on the player.
+func _dmg_build_field(p: Player) -> void:
+	var r2 := DMG_FIELD_RADIUS * DMG_FIELD_RADIUS
+	var s := DMG_FIELD_SPACING
+	var n := int(DMG_FIELD_RADIUS / s) + 1
+	for ix in range(-n, n + 1):
+		for iy in range(-n, n + 1):
+			var off := Vector2(ix * s, iy * s)
+			var d2 := off.length_squared()
+			if d2 > r2 or d2 < 400.0:          # inside the disc, but not on top of the player
+				continue
+			var e := DmgDummy.new()
+			e.main_ref = main
+			e.type_id = 0
+			e.max_hp = 1.0e9
+			e.hp = 1.0e9
+			e.radius = 14.0
+			e.speed = 0.0                      # stationary (velocity = move*0 + knockback)
+			e.move_mode = 0
+			e.life = 0.0                       # no expiry
+			e.cc_immune = true                 # no slow/knockback drift...
+			e.knockback_immune = true          # ...so the field geometry stays fixed...
+			e.pull_immune = true               # ...even under gravity wells
+			e.color = Color(0.8, 0.3, 0.3)
+			e.add_to_group("enemies")
+			e.global_position = p.global_position + off
+			main.world.add_child(e)
+
+
+## Remove the measured weapon + every spawned node it left in the world, and clear any
+## residual burn/slow timers, so nothing bleeds into the next cell's measurement.
+func _dmg_clear() -> void:
+	if _dmg_w != null:
+		_dmg_p.weapons.erase(_dmg_w)
+		_dmg_w.queue_free()
+		_dmg_w = null
+	for c in main.world.get_children():
+		if c is Player or c.is_in_group("enemies"):
+			continue
+		c.queue_free()                         # projectiles, mines, wells, puddles, turrets, fx
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.burn_timer = 0.0
+		e.burn_dps = 0.0
+		e.slow_timer = 0.0

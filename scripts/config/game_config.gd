@@ -6,7 +6,7 @@ extends RefCounted
 # --- core run ---
 const ARENA := Rect2(-1500, -1500, 3000, 3000)
 const WIN_TIME := 600.0          # survive this long (s) to win
-const MAX_WEAPONS := 5           # weapon slots per player per run
+const MAX_WEAPONS := 4           # weapon slots per player per run
 const MAX_WEAPON_LEVEL := 7      # per-weapon cap before it can be merged (was 3 — longer grind to fusion)
 const MAX_FUSION_TIER := 3       # legacy; merge rule is same-kind only (Fusions.can_merge): base+base->signature(T1), signature+signature->amalgam(T2, terminal)
 const MAX_CHOICES := 6           # max upgrade options offered per level-up
@@ -14,14 +14,14 @@ const MAX_CHOICES := 6           # max upgrade options offered per level-up
 # --- player stat-upgrade caps: a pick stops being offered, and its value is clamped, here ---
 const STAT_CAP_POWER := 3        # power_stat (pick-driven damage multiplier)
 const STAT_CAP_AREA := 1.5         # area_mult
-const STAT_CAP_DURATION := 2.5     # duration_mult
+const STAT_CAP_DURATION := 2.0     # duration_mult
 const STAT_CAP_RATE := 1.0 / 2.0   # rate_mult floor → caps Haste at 2x faster
 const STAT_CAP_SPEED := 396.0      # move_speed cap (1.8x base 220)
 const STAT_CAP_MAGNET := 270.0     # pickup_range cap (3x base 90)
 const STAT_CAP_MAX_HP := 15        # max_hp cap from Vitality
 const ENEMY_CAP := 300           # hard limit on live enemies
 const TELEGRAPH_WARN := 1.5      # seconds to dodge a telegraphed strike
-const MAX_TELEGRAPHS := 7        # cap simultaneous danger zones so the arena can't be blanketed
+const MAX_TELEGRAPHS := 5        # cap simultaneous danger zones so the arena can't be blanketed
 const NET_PORT := 24565          # default co-op port
 
 # --- weapon progression ---

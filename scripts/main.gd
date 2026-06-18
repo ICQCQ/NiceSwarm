@@ -170,8 +170,7 @@ var picked_ids := {}            # host: peers that picked this round
 var choice_history := {}        # peer_id -> Array[String] of upgrade ids applied, in order
                                  # (lets a rejoining client replay its way back to its old loadout)
 var i_chose := false
-var unspent_points := 0         # async mode: banked levelup picks waiting to be opened
-var _async_saved_choices: Array = []  # async: choices preserved when panel is closed mid-pick
+var unspent_points := 0         # async mode: banked levelup credits waiting to be picked
 var paused_menu := false        # client-side: a host pause froze us (remote "PAUSED" indicator)
 var ingame_menu := false        # our own in-game menu/hub is open (opening it pauses the whole run for everyone)
 var menu_open_pids := {}         # host-only: pids whose in-game menu is open — the run stays paused while non-empty
@@ -259,7 +258,6 @@ var burn_dps_val: float = 0.0
 var _burn_dps_timer: float = 1.0
 var _burn_dps_history: Array[float] = []   # rolling burn DPS over WeaponBase.DPS_WINDOW seconds
 var hint_label: Label
-var unspent_label: Button        # async mode HUD: pending levelup points indicator
 var xp_bar: ProgressBar
 var arrows: Control
 var hud_root: Control
@@ -267,6 +265,11 @@ var level_panel: Control
 var panel_title: Label
 var choice_buttons: Array[Button] = []
 var current_choices: Array = []
+# Async level-up: a small NON-modal bottom-right pick panel with its own choice buttons, used
+# for every async pick except the modal start-of-run starter pick. Driven by unspent_points.
+var async_panel: Control
+var async_panel_title: Label
+var async_choice_buttons: Array[Button] = []
 var end_panel: Control
 var end_title: Label
 var end_stats: Label
@@ -362,6 +365,8 @@ func _ready() -> void:
 			_on_join_pressed()
 	if OS.get_environment("NICESWARM_SIM") != "":
 		sim.start()
+	if OS.get_environment("NICESWARM_DMGTABLE") != "":
+		sim.run_dmg_table()
 
 
 func is_host() -> bool:
@@ -1318,8 +1323,9 @@ func _reset_run_state() -> void:
 	choice_history = {}
 	i_chose = false
 	unspent_points = 0
-	_async_saved_choices.clear()
 	_update_unspent_label()
+	if async_panel != null:
+		async_panel.visible = false
 	paused_menu = false
 	menu_open_pids = {}
 	_force_close_ingame_menu()
@@ -1398,7 +1404,7 @@ func _register_player(p: Player) -> void:
 ## starting weapons" choice (host-triggered, broadcast like any level-up).
 func _grant_starters() -> void:
 	var test := OS.get_environment("NICESWARM_TEST")
-	var headless := test != "" or OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_SIM") != ""
+	var headless := test != "" or OS.get_environment("NICESWARM_NET") != "" or OS.get_environment("NICESWARM_SIM") != "" or OS.get_environment("NICESWARM_DMGTABLE") != ""
 	if not headless:
 		if is_host():
 			_trigger_picks(true, true)  # free + starter
@@ -1521,6 +1527,15 @@ func _process(delta: float) -> void:
 			_run_revives(delta)
 		if Engine.time_scale > 1.0:  # NICESWARM_FF: log progress at each game-minute
 			sim.ff_minute_log()
+	# Async mode: keep the bottom-right pick panel open whenever credits are banked, and tear it
+	# down when something must take over the screen (menu / remote pause / game over). Gated on
+	# `not leveling` for open so it doesn't re-roll every frame; runs locally on every peer.
+	if cfg_async_levelup:
+		var blocked := ingame_menu or paused_menu or game_over or get_tree().paused
+		if leveling and not picks_starter and blocked:
+			_dismiss_async_panel()
+		elif not leveling and unspent_points > 0 and playing and not blocked:
+			_open_async_panel()
 	# Headless: auto-resolve level-up picks (sim-aware; else the first level-up pauses forever).
 	if leveling and (sim.active or Engine.time_scale > 1.0):
 		if sim.active:
@@ -1780,12 +1795,11 @@ func _on_pickup_taken(kind: String, by: Node2D, pickup: Pickup) -> void:
 					gems_by_id.erase(id)
 		"chest":
 			Sfx.play("chest", by.global_position)
-			if cfg_async_levelup:
-				unspent_points += 1
-				_update_unspent_label()
-			else:
-				pending_chests += 1
-				_maybe_open_picks()
+			# Team reward: route through the normal pick broadcast so EVERY player gets it.
+			# In sync that opens the modal pick; in async open_picks(free=true) banks a credit
+			# per peer instead (never pauses) — see open_picks + _trigger_picks.
+			pending_chests += 1
+			_maybe_open_picks()
 
 
 func _bomb_fx(pos: Vector2) -> void:
@@ -1874,8 +1888,11 @@ func _trigger_picks(free: bool, starter: bool = false) -> void:
 func open_picks(free: bool, starter: bool = false) -> void:
 	if not playing:
 		return  # a not-yet-rejoined client on the menu shouldn't see the host's run events
-	# Async mode: bank the point; player opens the panel manually when ready.
-	if cfg_async_levelup and not starter and not free:
+	# Async mode: bank a credit (level-up OR treasure) instead of pausing. The bottom-right
+	# pick panel opens itself while credits remain (see _process / _open_async_panel). Only the
+	# start-of-run starter pick stays modal. Runs on every peer (this is broadcast), so a team
+	# treasure correctly banks one credit per player.
+	if cfg_async_levelup and not starter:
 		unspent_points += 1
 		_update_unspent_label()
 		Sfx.play("point_banked")
@@ -1899,50 +1916,50 @@ func open_picks(free: bool, starter: bool = false) -> void:
 	level_panel.visible = true
 
 
-## Async mode: toggle the pick panel (ENTER / HUD button). Closes if open, opens if not.
-func _toggle_async_panel() -> void:
-	if leveling and not picks_starter and not free_choice:
-		_close_async_panel_mid_pick()
-	else:
-		_open_async_panel()
+## Async mode uses the small non-modal bottom-right pick panel for everything except the
+## start-of-run starter pick (which stays modal). Banked credits (unspent_points) drive it.
+func _is_async_pick() -> bool:
+	return cfg_async_levelup and not picks_starter
 
 
+## The choice Button set currently in play: the async panel's buttons while an async pick is
+## open, otherwise the modal level_panel's. Lets the shared pick logic target either panel.
+func _active_choice_buttons() -> Array:
+	return async_choice_buttons if (cfg_async_levelup and leveling and not picks_starter) else choice_buttons
+
+
+## Async mode: show the small NON-modal bottom-right pick panel (auto-called from _process
+## while the player has banked credits). Rolls a fresh choice set; picking chains via
+## _choose_upgrade until the credits run out.
 func _open_async_panel() -> void:
-	if unspent_points <= 0 or leveling or game_over or not playing:
-		return
-	if ingame_menu:
+	if unspent_points <= 0 or leveling or game_over or not playing or ingame_menu:
 		return
 	leveling = true
 	free_choice = false
 	picks_starter = false
 	i_chose = false
-	Sfx.play("levelup")
-	panel_title.text = "LEVEL UP — pick an upgrade  (⬆ %d pending)" % unspent_points
-	if not _async_saved_choices.is_empty():
-		current_choices = _async_saved_choices.duplicate()
-		_async_saved_choices.clear()
-		_display_choices()
-	else:
-		_roll_choices()
-	level_panel.visible = true
+	_update_unspent_label()
+	_roll_choices()
+	async_panel.visible = true
 
 
-## Async mode: close the panel without consuming a point; preserve choices for next open.
-func _close_async_panel_mid_pick() -> void:
-	_async_saved_choices = current_choices.duplicate()
-	i_chose = false
+## Hide the async pick panel WITHOUT consuming a credit (e.g. to open the in-game menu, or
+## when a remote pause/menu arrives). The banked credits remain; _process re-opens it once
+## nothing is blocking.
+func _dismiss_async_panel() -> void:
 	leveling = false
-	level_panel.visible = false
+	i_chose = false
+	if async_panel != null:
+		async_panel.visible = false
+	for b in async_choice_buttons:
+		b.release_focus()
 
 
+## Refresh the async panel's banked-credit header (the only async pending indicator now).
 func _update_unspent_label() -> void:
-	if unspent_label == null:
+	if async_panel_title == null:
 		return
-	if unspent_points > 0:
-		unspent_label.text = "  ⬆ %d   ENTER  " % unspent_points
-		unspent_label.visible = true
-	else:
-		unspent_label.visible = false
+	async_panel_title.text = "LEVEL UP  ·  pick an upgrade   (%d⬆ banked)" % unspent_points
 
 
 func _build_choice_pool(p: Player) -> Array:
@@ -2059,17 +2076,18 @@ func _roll_choices() -> void:
 
 
 func _display_choices() -> void:
-	for i in choice_buttons.size():
+	var btns := _active_choice_buttons()
+	for i in btns.size():
 		if i < current_choices.size():
 			var u: Dictionary = current_choices[i]
-			choice_buttons[i].text = "%d.  %s" % [i + 1, u.name]
+			btns[i].text = "%d.  %s" % [i + 1, u.name]
 			var col: Color = CAT_COLORS.get(u.get("cat", "stat"), Color.WHITE)
-			choice_buttons[i].add_theme_color_override("font_color", col)
-			choice_buttons[i].add_theme_color_override("font_color_hover", col.lightened(0.2))
-			choice_buttons[i].add_theme_color_override("font_color_pressed", col)
-			choice_buttons[i].visible = true
+			btns[i].add_theme_color_override("font_color", col)
+			btns[i].add_theme_color_override("font_color_hover", col.lightened(0.2))
+			btns[i].add_theme_color_override("font_color_pressed", col)
+			btns[i].visible = true
 		else:
-			choice_buttons[i].visible = false
+			btns[i].visible = false
 
 
 func _auto_pick_weighted() -> void:
@@ -2097,22 +2115,20 @@ func _choose_upgrade(index: int) -> void:
 		return
 	i_chose = true
 	Sfx.play("click")
-	for b in choice_buttons:
+	for b in _active_choice_buttons():
 		b.visible = false
-		b.release_focus()  # async picks reuse these Buttons — don't let a hidden one keep GUI focus and auto-fire on the next Enter
+		b.release_focus()
 	net.submit_choice(local_id, current_choices[index].id)
-	# Async mode: no waiting for anyone. If more points remain, stay open with fresh choices.
-	if cfg_async_levelup and not picks_starter and not free_choice:
-		_async_saved_choices.clear()
+	# Async mode: no waiting for anyone. If more credits remain, re-roll and stay open; else close.
+	if _is_async_pick():
 		unspent_points = maxi(unspent_points - 1, 0)
 		_update_unspent_label()
 		if unspent_points > 0:
 			i_chose = false
-			panel_title.text = "LEVEL UP — pick an upgrade  (⬆ %d pending)" % unspent_points
 			_roll_choices()
 		else:
 			leveling = false
-			level_panel.visible = false
+			async_panel.visible = false
 		return
 	if peer_ids.size() > 1:
 		panel_title.text = "Waiting for your allies to pick..."
@@ -2163,8 +2179,8 @@ func apply_choice(pid: int, id: String, replay: bool = false) -> void:
 		# Track stat picks for the on-screen icons (runs on every peer via call_local).
 		p.stat_levels[id] = int(p.stat_levels.get(id, 0)) + 1
 	if is_host() and not replay:
-		# Async XP level-up picks are independent per player — no "all picked" tracking.
-		if not (cfg_async_levelup and not picks_starter and not free_choice):
+		# Async picks are independent per player — no "all picked" / resume tracking.
+		if not _is_async_pick():
 			picked_ids[pid] = true
 			_check_all_picked()
 
@@ -2660,14 +2676,12 @@ func _input(event: InputEvent) -> void:
 	elif leveling:
 		if key >= KEY_1 and key < KEY_1 + MAX_CHOICES:  # 1..6 select dynamically
 			_choose_upgrade(key - KEY_1)
-		elif cfg_async_levelup and not picks_starter and not free_choice:
-			if key == KEY_ENTER or key == KEY_KP_ENTER or key == KEY_ESCAPE:
-				_close_async_panel_mid_pick()
-				# Swallow the key so Godot's default ui_accept/ui_cancel GUI dispatch
-				# doesn't also re-activate a choice Button that kept focus from a
-				# previous pick — without this, reopening with Enter could
-				# immediately auto-fire that stale-focused button's `pressed`.
-				get_viewport().set_input_as_handled()
+		elif _is_async_pick() and key == KEY_ESCAPE:
+			# Async pick is non-modal: ESC stashes the panel and opens the in-game menu
+			# (credits stay banked; _process re-opens the panel when the menu closes).
+			_dismiss_async_panel()
+			_open_ingame_menu()
+			get_viewport().set_input_as_handled()
 	elif ingame_menu:  # our own in-run menu/hub is open
 		if key == KEY_ESCAPE:
 			if codex_view != "":
@@ -2691,9 +2705,6 @@ func _input(event: InputEvent) -> void:
 		if stats_panel != null:
 			stats_mode = (stats_mode + 1) % 3
 			stats_panel.visible = stats_mode != 0
-	elif (key == KEY_ENTER or key == KEY_KP_ENTER) and cfg_async_levelup:
-		_toggle_async_panel()
-		get_viewport().set_input_as_handled()  # see comment above — same stale-focus hazard on open
 	elif key == KEY_ESCAPE:
 		_open_ingame_menu()  # ESC opens the in-game menu — pauses the whole run for every player
 
