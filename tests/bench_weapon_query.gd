@@ -54,8 +54,11 @@ func _ready() -> void:
 	player.position = Vector2.ZERO       # center of the swarm
 	world.add_child(player)
 
-	# Base weapons + three representative fusion archetypes (orbit-blade halo, sweeping
-	# beam, burn cone) — all per-frame scanners, instantiated as nested Fusions classes.
+	# Base weapons + a representative fusion archetype (orbit-blade halo) — all
+	# per-frame scanners, instantiated as nested Fusions classes. (Plasma Pulse and
+	# Plasma Storm used to be in this set too, but their redesigns moved the hot
+	# per-frame scan off the weapon and onto a spawned node — PlasmaRing / PlasmaCloud
+	# — so they no longer fit what this benchmark isolates.)
 	var specs := [
 		{"id": "flame", "node": WeaponFlame.new(), "dtype": Enemy.DMG_FIRE},
 		{"id": "laser", "node": WeaponLaser.new(), "dtype": Enemy.DMG_ENERGY},
@@ -124,9 +127,3 @@ func _arm(w, id: String) -> void:
 			w.cooldown = -1.0
 		"fus:teslahalo":
 			w.hit_cd.clear()              # blade scan runs every frame; clearing keeps it live
-		"fus:novabeam":
-			w.hit_cd.clear()
-			w.nova_cd = 999.0             # bench the per-frame beam scan, skip the nova sub-pulse
-		"fus:plasmastorm":
-			w.tick = -1.0                 # fire the cone scan
-			w.bolt_cd = 999.0             # skip the chain-bolt sub-attack

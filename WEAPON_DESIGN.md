@@ -34,7 +34,7 @@ the universal Duration hook — reach for it before inventing a bespoke one.
 sources that should pile burn stacks on faster — Flame Cone's signature (`BURN_STACK_MULT`
 in `weapon_flame.gd`) is the only user so far.
 
-`Enemy` supports four status effects, all host-authoritative:
+`Enemy` supports five status effects, all host-authoritative:
 - `apply_slow(mult, duration)` — frost/ice weapons; deepened by `SLOW_POTENCY` and floored
   at `SLOW_FLOOR_MULT` (never fully stops the enemy — see `apply_freeze` for that)
 - `apply_freeze(duration)` — complete movement halt (speed → 0, no floor); currently only
@@ -44,8 +44,6 @@ in `weapon_flame.gd`) is the only user so far.
 - `apply_push(from_pos, strength)` — knockback impulse away from `from_pos`; nova-family
   blasts call `WeaponBase.push(e, from_pos)` for a mild extra "shockwave" shove on top of
   `take_hit`'s normal hit knockback (skipped for `cc_immune` enemies, scales with Area)
-
-Both `apply_slow` and `apply_freeze` are no-ops on `cc_immune` enemies.
 
 ## Checklist for a NEW base weapon
 
@@ -98,14 +96,14 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | frost + gravity | **Glacier** | a slow, huge vortex that freezes everything inside |
 | glaive + lightning | **Storm Disc** | boomerangs that arc lightning to nearby foes |
 | flame + mines | **Napalm Mine** | mines that leave a burning pool on blast |
-| missiles + nova | **Cluster Warhead** | rockets whose splash is a mini-nova |
+| missiles + nova | **Cluster Warhead** | straight-flying (non-homing) warheads that explode into a heavy shockwave, shoving everything in the blast outward (push distance scales with Duration) |
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |
 | orbit + venom | **Toxic Halo** | orbiting blades that poison on contact and paint a rotating ring of toxic ground |
 | nova + orbit | **Pulsar** | orbiting blades that each breathe — independently pulsing their own mini-nova as they spin |
 | bolt + frost | **Frost Lance** | a piercing volley of chilling lances; a lance that strikes an already-frozen foe shatters into an icy burst |
-| lightning + venom | **Plague Arc** | a chain that poisons every link |
+| lightning + venom | **Ground Current** | drops a crackling field on a random foe within the player's screen (Duration stretches that leash); every enemy caught inside it becomes its own lightning source and chains out to nearby foes, re-zapping on an interval for as long as the field lasts (hop count scales with level + every Duration power-up picked) |
 | lightning + orbit | **Tesla Halo** | orbiting blades that zap nearby foes |
-| flame + lightning | **Plasma Storm** | a searing cone that crackles with chained bolts |
+| flame + lightning | **Plasma Storm** | emits a red cloud that drifts in a straight line (aimed at whatever's nearest when it spawns, then locked) until it covers its max travel distance, continuously burning anything it touches and periodically arcing lightning to nearby foes (max travel distance + lifespan scale with Duration, cloud size with Area) |
 | glaive + nova | **Cyclone** | whirling glaives around a pulsing core |
 | turret + missiles | **Missile Battery** | a deployed launcher firing homing salvos |
 | turret + laser | **Beam Sentry** | a deployed turret that sweeps a beam |
@@ -154,7 +152,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | laser + missiles | **Beam Battery** | harmless rotating beams paint targets; on cooldown a homing missile volley strikes every painted enemy |
 | laser + venom | **Acid Ray** | rotating beams that corrode foes and seed toxic pools |
 | lightning + missiles | **EMP Missile** | homing rockets that chain lightning on impact |
-| missiles + orbit | **Rocket Halo** | orbiting blades that tag whatever they strike, then a homing missile locks onto the marked target |
+| missiles + orbit | **Concorde** | a paper-plane missile, small at first and growing to full size over 3s, that flies a dead-straight line and warps to a random *other* side of the arena (re-aimed at the player) instead of dying at the border — pierces, never stops for a hit, and both its damage and speed climb the whole time it's airborne. Very long cooldown, no population cap; lifetime scales hugely with Duration, max size with Area |
 | missiles + venom | **Plague Rocket** | homing rockets that burst into a toxic cloud |
 
 The five mine fusions above all share one pattern (`_MineFusion` in

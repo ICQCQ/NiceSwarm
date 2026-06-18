@@ -26,6 +26,11 @@
 > (orbit-blade halos gain most — they ran a nested enemy×blade loop every frame).
 > **Remaining follow-ups:** throttle continuous scanners to ~10–15 Hz; the `queue_redraw()`
 > cleanup (step 4).
+>
+> **Update (2026-06-18): the one remaining unbounded scan is gone.** Rocket Halo (the
+> tag-lock search this section called out) was redesigned into Concorde, which has no
+> global enemy scan at all — each missile only does a local `EnemyGrid.near()` query
+> against its own current radius every tick.
 
 `n` = live enemy count, hard-capped at **`ENEMY_CAP = 220`** (`scripts/config/game_config.gd:12`).
 The arena is 2400×2400; enemies spawn off-screen in a ring and converge on the player, so

@@ -32,6 +32,7 @@ const STYLES := {
 	"cluster":   {"prio": ["mines", "missiles"], "fuse": ["mines", "missiles"]},
 	"storm":     {"prio": ["glaive", "lightning"], "fuse": ["glaive", "lightning"]},
 	"frostbite": {"prio": ["frost", "venom"], "fuse": ["frost", "venom"]},
+	"groundcurrent": {"prio": ["lightning", "venom"], "fuse": ["lightning", "venom"]},
 	"greedy":    {"prio": ["bolt", "orbit", "nova", "flame", "frost"], "fuse": []},
 }
 
