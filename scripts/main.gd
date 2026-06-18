@@ -221,11 +221,7 @@ const GRID_CELL := 128.0
 var _enemy_list: Array[Node] = []   # typed so callers keep Node inference (matches get_nodes_in_group)
 var _enemy_grid: Dictionary = {}  # Vector2i cell -> Array[Node]
 
-# sync timers / buffers
-var t_player := 0.0
-var t_enemy := 0.0
-var t_items := 0.0
-var t_hud := 0.0
+# sync buffers (world-state cadence is frame-count gated in _physics_process)
 var tick_counter := 0
 var state_buffers := {}                       # kind -> {tick: {total, chunks}}
 var last_tick := {0: -1, 1: -1, 2: -1, 3: -1}
@@ -1632,28 +1628,27 @@ func _physics_process(delta: float) -> void:
 	_rebuild_enemy_grid()
 	if not net.active:
 		return
-	t_player += delta
-	if t_player >= 0.05:
-		t_player = 0.0
+	# World-state cadence is gated by PHYSICS-FRAME COUNT (not time accumulators), so
+	# every send phase-locks to the 60 Hz sim with zero drift/jitter. Channels are
+	# tiered by latency sensitivity (see docs/NETCODE.md). `tick_counter` (bumped in
+	# _send_state) remains the monotonic de-dup stamp.
+	var f := Engine.get_physics_frames()
+	if f % 3 == 0:  # 20 Hz — local player pos/facing/dash (latency-sensitive)
 		var lp: Player = players.get(local_id)
 		if lp != null:
 			net.send_player_state(local_id, lp.global_position, lp.facing,
 				lp.dash_active > 0.0)
 	if not is_host():
 		return
-	t_enemy += delta
-	if t_enemy >= 1.0 / 16.0:   # server netcode tickrate: 16 Hz world-state snapshots
-		t_enemy = 0.0
+	# Telegraphs are dodge-critical: promoted off the old 8 Hz items bucket onto the
+	# fast 20 Hz tick so a warn isn't up to ~125 ms stale before a client sees it.
+	if f % 3 == 0:  # 20 Hz — telegraphs (host-only)
+		_send_state(STATE_TELEGRAPHS)
+	if f % 4 == 0:  # 15 Hz — world snapshots (enemies the heavy one; gems/pickups ride along)
 		_send_state(STATE_ENEMIES)
-	t_items += delta
-	if t_items >= 1.0 / 8.0:
-		t_items = 0.0
 		_send_state(STATE_GEMS)
 		_send_state(STATE_PICKUPS)
-		_send_state(STATE_TELEGRAPHS)
-	t_hud += delta
-	if t_hud >= 0.25:
-		t_hud = 0.0
+	if f % 15 == 0:  # 4 Hz — HUD / pings / rank
 		net.send_hud_state(elapsed, xp, _xp_needed(), level, kills, spawner.heat_cur, spawner.difficulty)
 		_refresh_pings()
 		net.send_pings(net_pings)

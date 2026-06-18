@@ -64,7 +64,8 @@ get a host/join, not a replacement. Direct-IP stays the fallback.
    autoloads, do NOT use the editor plugin). The **only** netfox dependency is
    `NetfoxLogger` in `noray.gd` (static `_for_noray(name)` + `info/debug/error/trace
    (fmt, args[])`) — stub it in ~10 lines or strip the calls. Do **not** pull the
-   netfox rollback core; NiceSwarm keeps its own host-authoritative snapshot netcode.
+   netfox rollback core; NiceSwarm keeps its own host-authoritative snapshot netcode
+   (tick rates / channels / interpolation tuning live in [`NETCODE.md`](./NETCODE.md)).
 
    **API:** `await Noray.connect_to_host(host, 8890)` → `Noray.register_host()` →
    `await Noray.on_pid` → `await Noray.register_remote(8809)` sets `Noray.local_port`.
