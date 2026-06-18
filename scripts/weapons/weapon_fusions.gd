@@ -11,10 +11,10 @@ extends RefCounted
 const INFO := {
 	"bolt|nova": {"name": "Plasma Burst", "desc": "slugs that erupt into a blast on impact"},
 	"frost|lightning": {"name": "Cryoshock", "desc": "a chain that freezes and burns every link"},
-	"flame|venom": {"name": "Toxic Pyre", "desc": "a trail of burning toxic pools"},
+	"flame|venom": {"name": "Purgatory", "desc": "an eerie field that burns and marks foes inside it -- marked enemies take extra damage, slow harder, and can't burn out"},
 	"gravity|nova": {"name": "Singularity", "desc": "a vortex that collapses into a detonation"},
 	"mines|missiles": {"name": "Cluster Bomb", "desc": "mines that spray homing rockets on blast"},
-	"laser|orbit": {"name": "Prism Halo", "desc": "rotating beam-spokes orbiting you"},
+	"laser|orbit": {"name": "Prism Halo", "desc": "prisms drop around you, linked to you and each other by damage beams"},
 	"frost|glaive": {"name": "Glacial Edge", "desc": "boomerangs that freeze and bleed"},
 	"bolt|lightning": {"name": "Railgun", "desc": "a piercing rail-shot that electrifies its whole line"},
 	"flame|nova": {"name": "Supernova", "desc": "a huge blast that leaves a burning field"},
@@ -25,7 +25,7 @@ const INFO := {
 	"missiles|nova": {"name": "Cluster Warhead", "desc": "straight-flying warheads that erupt into a heavy shockwave, shoving everything in the blast outward"},
 	"gravity|venom": {"name": "Black Bog", "desc": "a vortex that leaves a toxic pool where it forms"},
 	"orbit|venom": {"name": "Toxic Halo", "desc": "orbiting blades that poison on contact and paint a rotating ring of toxic ground"},
-	"nova|orbit": {"name": "Pulsar", "desc": "orbiting blades that each breathe, pulsing their own mini-nova as they spin"},
+	"nova|orbit": {"name": "Pulsar", "desc": "orbiting balls that periodically swarm a random foe, ring around it, then rush in and detonate"},
 	"bolt|frost": {"name": "Frost Lance", "desc": "a piercing volley of chilling lances that shatter already-frozen foes"},
 	"lightning|venom": {"name": "Ground Current", "desc": "a crackling field where every enemy caught inside becomes its own lightning source, chaining to nearby foes"},
 	"lightning|orbit": {"name": "Tesla Halo", "desc": "orbiting blades that zap nearby foes"},
@@ -51,7 +51,7 @@ const INFO := {
 	"gravity|orbit": {"name": "Event Horizon", "desc": "blades that hold enemies in a crushing ring"},
 	"glaive|gravity": {"name": "Vortex Blade", "desc": "glaives that drop a small pulling vortex on every hit"},
 	"lightning|nova": {"name": "Thunderclap", "desc": "a blast that forks lightning out of every hit"},
-	"mines|orbit": {"name": "Mine Halo", "desc": "orbiting blades that fling proximity mines"},
+	"mines|orbit": {"name": "Bouncy Grenade", "desc": "a barrage of grenades that bounce between enemies, exploding hardest on the final hop"},
 	"bolt|flame": {"name": "Incendiary Rounds", "desc": "bolts that ignite the ground on impact, leaving a burning field"},
 	"bolt|orbit": {"name": "Scatter Shot", "desc": "a ring of bolts fired in all directions"},
 	"bolt|glaive": {"name": "Ricochet", "desc": "bolts that arc to the next enemy on every hit"},
@@ -79,7 +79,7 @@ const INFO := {
 	"flame|orbit": {"name": "Blaze Halo", "desc": "orbiting blades that ignite on contact and pulse a ring of fire"},
 	"glaive|laser": {"name": "Photon Disc", "desc": "boomerangs that fire a piercing beam from every hit"},
 	"glaive|missiles": {"name": "Rotor Missile", "desc": "homing rockets that burst into glaive shrapnel"},
-	"glaive|orbit": {"name": "Blade Tempest", "desc": "a ring of blades where one periodically breaks off, strikes as a glaive, and rejoins the ring"},
+	"glaive|orbit": {"name": "Halo Comet", "desc": "orbiting balls that periodically spurt outward like a comet's tail, hitting harder while extended"},
 	"glaive|venom": {"name": "Plague Blade", "desc": "boomerangs that poison foes and leave toxic pools where they strike"},
 	"laser|lightning": {"name": "Ion Storm", "desc": "rotating beams that arc lightning to nearby foes"},
 	"laser|missiles": {"name": "Beam Battery", "desc": "harmless rotating beams paint targets; on cooldown, every painted enemy takes a homing, fire-bursting missile"},
@@ -117,7 +117,7 @@ static func make(a: String, b: String) -> WeaponBase:
 	match key(a, b):
 		"bolt|nova": return FusPlasmaBurst.new()
 		"frost|lightning": return FusCryoshock.new()
-		"flame|venom": return FusToxicPyre.new()
+		"flame|venom": return FusPurgatory.new()
 		"gravity|nova": return FusSingularity.new()
 		"mines|missiles": return FusClusterBomb.new()
 		"laser|orbit": return FusPrismHalo.new()
@@ -157,7 +157,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"gravity|orbit": return FusEventHorizon.new()
 		"glaive|gravity": return FusVortexBlade.new()
 		"lightning|nova": return FusThunderclap.new()
-		"mines|orbit": return FusMineHalo.new()
+		"mines|orbit": return FusBouncyGrenade.new()
 		"bolt|flame": return FusIncendiaryRounds.new()
 		"bolt|orbit": return FusScatterShot.new()
 		"bolt|glaive": return FusRicochet.new()
@@ -185,7 +185,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"flame|orbit": return FusBlazeHalo.new()
 		"glaive|laser": return FusPhotonDisc.new()
 		"glaive|missiles": return FusRotorMissile.new()
-		"glaive|orbit": return FusBladeTempest.new()
+		"glaive|orbit": return FusHaloComet.new()
 		"glaive|venom": return FusPlagueBlade.new()
 		"laser|lightning": return FusIonStorm.new()
 		"laser|missiles": return FusBeamBattery.new()

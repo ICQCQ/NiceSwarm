@@ -114,6 +114,8 @@ var burn_dps := 0.0
 var burn_timer := 0.0
 var burn_tick := 0.0
 var burn_source_pid: int = -1
+var vuln_timer := 0.0    # Purgatory mark: extra dmg taken, slows hit harder, burn can't fade
+var vuln_dmg_mult := 1.0
 
 var main_ref: Node  # set by main.gd (host); null on puppets
 var puppet := false
@@ -154,6 +156,7 @@ func _physics_process(delta: float) -> void:
 	flash = maxf(flash - delta, 0.0)
 	slow_timer = maxf(slow_timer - delta, 0.0)
 	freeze_timer = maxf(freeze_timer - delta, 0.0)
+	vuln_timer = maxf(vuln_timer - delta, 0.0)
 	if shield_cycle > 0.0:  # Sentinel: phase the shield on and off
 		shield_timer -= delta
 		if shield_timer <= 0.0:
@@ -163,7 +166,7 @@ func _physics_process(delta: float) -> void:
 	# cached _draw (the renderer applies the node transform regardless). This is
 	# the big late-game saver — most of the swarm is idle-looking circles.
 	var sig := _appearance_sig()
-	if burn_timer > 0.0 or freeze_timer > 0.0 or sig != _last_sig:  # burn embers / freeze shimmer animate continuously
+	if burn_timer > 0.0 or freeze_timer > 0.0 or vuln_timer > 0.0 or sig != _last_sig:  # burn embers / freeze shimmer / purgatory wisps animate continuously
 		_last_sig = sig
 		queue_redraw()
 	if puppet:
@@ -355,7 +358,8 @@ func _physics_process(delta: float) -> void:
 	# burn DoT (host-authoritative) — Duration extends it, Power feeds its dps.
 	# Re-igniting an active burn stacks onto it: hotter (dps) AND longer (time).
 	if burn_timer > 0.0:
-		burn_timer -= delta
+		if vuln_timer <= 0.0:  # Purgatory mark: an active burn can't tick down while marked
+			burn_timer -= delta
 		burn_tick -= delta
 		if burn_tick <= 0.0:
 			burn_tick = 0.3
@@ -376,6 +380,8 @@ func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, so
 		eff_resist = clampf(resist + enrage_resist * (1.0 - hp / max_hp), 0.0, 0.9)
 	if eff_resist > 0.0:  # Warden armor / enrage reduces every hit (shown + applied consistently)
 		amount *= 1.0 - eff_resist
+	if vuln_timer > 0.0:  # Purgatory mark: extra damage from every source while marked
+		amount *= vuln_dmg_mult
 	if puppet:
 		# cosmetic only: real damage happens on the host
 		flash = 0.12
@@ -424,7 +430,9 @@ func apply_slow(mult: float, duration: float) -> void:
 	# speed factor (mult, <1) by SLOW_POTENCY and clamp to SLOW_FLOOR_MULT. The 0.5 base
 	# frost slow becomes 0.2 speed (an 80% slow) — frost/freeze really bites. Bosses/tier-3
 	# are included (still slowable); only cc_immune enemies are exempt (returned above).
-	var deep := 1.0 - (1.0 - mult) * GameConfig.SLOW_POTENCY
+	# Purgatory mark: doubles the potency, so a slow applied while marked bites twice as hard.
+	var potency := GameConfig.SLOW_POTENCY * (2.0 if vuln_timer > 0.0 else 1.0)
+	var deep := 1.0 - (1.0 - mult) * potency
 	slow_mult = maxf(deep, GameConfig.SLOW_FLOOR_MULT)
 	slow_timer = maxf(slow_timer, duration)
 
@@ -535,6 +543,16 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid
 		burn_timer = duration
 
 
+## Purgatory mark: while active, this enemy takes dmg_mult extra damage from
+## every source (take_hit), any slow applied to it bites twice as hard
+## (apply_slow), and an active burn's remaining time stops ticking down (it
+## can't fade out while marked). Not gated on cc_immune -- it's a damage
+## debuff, not crowd control.
+func apply_vuln(dmg_mult: float, duration: float) -> void:
+	vuln_dmg_mult = dmg_mult
+	vuln_timer = maxf(vuln_timer, duration)
+
+
 ## A cheap discrete signature of the enemy's current appearance. _physics_process
 ## only re-records the draw when this changes (or burn is animating), so idle
 ## movers stop re-running _draw every frame. Heading only matters for directional
@@ -546,6 +564,7 @@ func _appearance_sig() -> int:
 	if burn_timer > 0.0: s |= 4
 	if shielded: s |= 8
 	if freeze_timer > 0.0: s |= 16
+	if vuln_timer > 0.0: s |= 32
 	if shape == "triangle" or shape == "diamond" or shape == "square" or shape == "hex" or shape == "star":
 		s |= int((heading.angle() + PI) * 6.0) << 4  # ~9.5-degree facing buckets
 	return s
@@ -568,6 +587,8 @@ func _draw() -> void:
 		# bright yellow-white, not orange: enemy bodies now sit in the warm band, so an
 		# orange burn tint would vanish on red/orange enemies — this still pops on them.
 		c = c.lerp(Color(1.0, 0.8, 0.3), 0.55)
+	if vuln_timer > 0.0:  # purgatory mark: a sickly violet pall over the body
+		c = c.lerp(Color(0.55, 0.2, 0.7), 0.4)
 	_draw_body(Color.WHITE if flash > 0.0 else c)
 	if burn_timer > 0.0:  # flickering embers — driven by global time, no per-enemy state
 		var t := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.07
@@ -576,6 +597,14 @@ func _draw() -> void:
 			var p := Vector2.from_angle(a) * radius * 0.5 + Vector2(0.0, -radius * 0.4)
 			var s := 1.6 + 1.3 * (0.5 + 0.5 * sin(t * 14.0 + i * 3.0))
 			draw_circle(p, s, Color(1.0, 0.6, 0.15, 0.85))
+	if vuln_timer > 0.0:  # purgatory mark: a slow-pulsing violet aura with drifting spirit motes
+		var vt := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.05
+		var pulse := 0.5 + 0.5 * sin(vt * 3.0)
+		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 22, Color(0.6, 0.25, 0.75, 0.35 + 0.25 * pulse), 2.0)
+		for i in 3:
+			var va := vt * 1.4 + TAU * i / 3.0
+			var vp := Vector2.from_angle(va) * (radius + 7.0)
+			draw_circle(vp, 1.8, Color(0.8, 0.55, 0.95, 0.8))
 	if elite:
 		draw_arc(Vector2.ZERO, radius + 4.0, 0.0, TAU, 24, Color(1.0, 0.85, 0.3), 3.0)
 	if boss:  # boss: an outer crimson ring of menace

@@ -118,6 +118,8 @@ func _make_sounds() -> void:
 	_synth("turret_deploy", 0.09, 320.0, 190.0, W_SQUARE, 0.1, 0.005, 0.5)
 	_synth("turret", 0.06, 700.0, 380.0, W_SQUARE, 0.0, 0.003, 0.35)    # smaller pew
 	_synth("venom", 0.1, 230.0, 85.0, W_SINE, 0.2, 0.01, 0.5)           # blub
+	_synth("prism", 0.16, 1300.0, 2200.0, W_TRI, 0.04, 0.008, 0.4, 1.8, 0.06)  # crystalline chime, rising
+	_synth("pulsar", 0.32, 110.0, 480.0, W_SINE, 0.12, 0.01, 0.85, 1.2, 0.06)  # rising surge that snaps -- swarm detonation
 	# world / UI
 	_synth("boom", 0.4, 130.0, 42.0, W_SINE, 0.35, 0.005, 0.95)         # explosions
 	_synth("bomb", 0.55, 100.0, 36.0, W_SINE, 0.4, 0.005, 1.0)          # screen bomb

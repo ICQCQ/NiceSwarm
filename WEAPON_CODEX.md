@@ -95,7 +95,7 @@ current build's Power/Haste/Area/Duration multipliers — for base weapons *and*
 | **Frost Shards** | `frost` | 1.5 | 0.345 | 1.8 | Ice | piercing shards that chill enemies · +1 shard, more damage |
 | **Gravity Well** | `gravity` | 1.0 | 0.575 | 6.0 | Energy | vortex drags the swarm together · wider, stronger pull; **+1 simultaneous well at Lv4 & Lv6** (up to 3) |
 | **Sentry Turret** | `turret` | 1.5 | 0.46 | 6.5 | Phys | deployable turret fights for you · longer uptime; 2nd turret at Lv3 |
-| **Venom Trail** | `venom` | 1.2 | 0.46 | 0.35ᵈ | Phys | leave toxic puddles as you move · bigger, deadlier puddles; **wider carpet past Lv3** (2nd puddle Lv3, 3rd Lv6) |
+| **Venom Trail** | `venom` | 1.2 | 0.46 | 0.5ᵈ | Phys | leave toxic puddles as you move · bigger, deadlier puddles; **wider carpet past Lv3** (2nd puddle Lv3, 3rd Lv6) |
 
 ʳ `cd` = per-enemy re-hit interval · ᵗ `cd` = tick interval · ᵈ `cd` = puddle-drop interval.
 
@@ -136,7 +136,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | laser + mines | **Beam Mine** | mines that leave a spinning laser array at the blast site |
 | laser + turret | **Beam Sentry** | a deployed turret that sweeps a beam |
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |
-| glaive + orbit | **Blade Tempest** | a ring of blades where one periodically breaks off, strikes as a glaive, and rejoins the ring |
+| glaive + orbit | **Halo Comet** | orbiting balls that periodically spurt outward like a comet's tail, hitting harder while extended |
 | flame + orbit | **Blaze Halo** | orbiting blades that ignite on contact and pulse a ring of fire |
 | bolt + laser | **Charge Round** | charges up a heavy piercing round that punches through every enemy in its path; charge time shortens with Haste, range and bullet size scale with Duration and Area |
 | flame + gravity | **Cinder Vortex** | a vortex that drags enemies into a burning pool |
@@ -167,7 +167,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | bolt + flame | **Incendiary Rounds** | bolts that ignite the ground on impact, leaving a burning field |
 | flame + glaive | **Inferno Blade** | boomerangs that ignite foes and leave fire pools where they strike |
 | laser + lightning | **Ion Storm** | rotating beams that arc lightning to nearby foes |
-| mines + orbit | **Mine Halo** | orbiting blades that fling proximity mines |
+| mines + orbit | **Bouncy Grenade** | a barrage of grenades that bounce between enemies, exploding hardest on the final hop |
 | mines + turret | **Mine Layer** | a deployed turret seeding proximity mines |
 | missiles + turret | **Missile Battery** | a deployed launcher firing homing salvos |
 | flame + mines | **Napalm Mine** | mines that leave a burning pool on blast |
@@ -180,8 +180,8 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | missiles + venom | **Plague Rocket** | homing rockets that burst into a toxic cloud |
 | bolt + nova | **Plasma Burst** | slugs that erupt into a blast on impact |
 | flame + lightning | **Plasma Storm** | a drifting red cloud that burns on contact and arcs lightning to nearby foes |
-| laser + orbit | **Prism Halo** | rotating beam-spokes orbiting you |
-| nova + orbit | **Pulsar** | orbiting blades that each breathe, pulsing their own mini-nova as they spin |
+| laser + orbit | **Prism Halo** | prisms drop around you, linked to you and each other by damage beams |
+| nova + orbit | **Pulsar** | orbiting balls that periodically swarm a random foe, ring around it, then rush in and detonate |
 | nova + turret | **Pulse Turret** | a deployed turret that pulses novas |
 | bolt + lightning | **Railgun** | a piercing rail-shot that electrifies its whole line |
 | bolt + glaive | **Ricochet** | bolts that arc to the next enemy on every hit |
@@ -204,7 +204,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | orbit + venom | **Toxic Halo** | orbiting blades that poison on contact and paint a rotating ring of toxic ground |
 | mines + venom | **Toxic Mine** | mines that leave a toxic pool on blast |
 | nova + venom | **Toxic Nova** | a blast that leaves a poison pool |
-| flame + venom | **Toxic Pyre** | a trail of burning toxic pools |
+| flame + venom | **Purgatory** | an eerie field that burns and marks foes inside it -- marked enemies take extra damage, slow harder, and can't burn out |
 | turret + venom | **Toxic Turret** | a deployed turret pooling venom around it |
 | glaive + gravity | **Vortex Blade** | glaives that drop a small pulling vortex on every hit |
 

@@ -8,7 +8,7 @@ var source_weapon: WeaponBase
 var damage := 0.8   # per tick
 var max_life := 3.0
 var life := 3.0
-var burn_dps := 0.0  # fused Toxic Pyre: ignites enemies in the puddle
+var burn_dps := 0.0  # >0: ignites enemies standing in the puddle (several fire fusions)
 var burn_dur := 0.0
 var fiery := false   # draw orange instead of green
 var freeze_slow := 0.0  # >0: slow enemies in puddle (Frostbite); duration scales with damage

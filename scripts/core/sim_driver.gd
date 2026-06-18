@@ -26,7 +26,7 @@ const STYLES := {
 	"supernova": {"prio": ["flame", "nova"], "fuse": ["flame", "nova"]},
 	"glacier":   {"prio": ["frost", "gravity"], "fuse": ["frost", "gravity"]},
 	"prism":     {"prio": ["laser", "orbit"], "fuse": ["laser", "orbit"]},
-	"toxicpyre": {"prio": ["flame", "venom"], "fuse": ["flame", "venom"]},
+	"purgatory": {"prio": ["flame", "venom"], "fuse": ["flame", "venom"]},
 	"warhead":   {"prio": ["missiles", "nova"], "fuse": ["missiles", "nova"]},
 	"singular":  {"prio": ["gravity", "nova"], "fuse": ["gravity", "nova"]},
 	"cluster":   {"prio": ["mines", "missiles"], "fuse": ["mines", "missiles"]},
