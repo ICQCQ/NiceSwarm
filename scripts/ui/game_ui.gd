@@ -259,7 +259,11 @@ func _build_async_panel() -> void:
 	root.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	root.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	root.offset_left = -400.0
-	root.offset_top = -392.0
+	# Height is CONTENT-DRIVEN: top offset == bottom offset gives the anchor rect zero
+	# height, so the PanelContainer takes its content's minimum height and grows UP
+	# (GROW_DIRECTION_BEGIN) from the bottom-right corner. Unused choice buttons are
+	# hidden, so the panel is exactly as tall as the live choices (was a fixed 392 px).
+	root.offset_top = -16.0
 	root.offset_right = -16.0
 	root.offset_bottom = -16.0
 	root.visible = false
