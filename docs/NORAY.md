@@ -105,9 +105,21 @@ get a host/join, not a replacement. Direct-IP stays the fallback.
   proves the ENet socket-reuse handoff over `Noray.local_port` (the one risk a parse
   check couldn't settle). The ENet socket-reuse "spike" is therefore covered by the
   full integration test — no separate spike needed.
-- [ ] Noray server deployed for real (persistent container + `.env` + healthcheck on
-  docker-server) — separate task; the throwaway test container was removed.
+- [x] **Noray server deployed (persistent, LAN) — 2026-06-18.** Compose stack on
+  docker-server at `~/noray/` (`compose.yml` + `.env`), `image:
+  ghcr.io/foxssake/noray:main`, `restart: unless-stopped`, ports 8890/tcp · 8891/tcp
+  (metrics, LAN-only) · 8809/udp · 49152-49199/udp, `.env` =
+  NORAY_SOCKET_PORT/HTTP_PORT/UDP_REGISTRAR_PORT/UDP_RELAY_PORTS. Status: healthy.
+  Manage with `cd ~/noray && docker compose {up -d|logs|down}`. Game reaches it on
+  the LAN via `NICESWARM_NORAY_HOST=192.168.1.36` (or the lobby host field).
 - [ ] Public inbound unblocked (CGNAT decision: bridge ONT vs. VPS) — infra/owner.
+  Until then the stack is LAN-only; `ns.javis.coffee` won't reach it from the internet.
+
+**Healthcheck gotcha:** the image is Debian-based and runs via `pnpm start:prod` —
+`node` is NOT on the exec PATH and there's no `nc`/`wget`, so a node/nc TCP
+healthcheck fails ("unhealthy" while the server is actually fine). `curl` IS present;
+the working check is `curl -fsS http://127.0.0.1:8891/metrics` (returns 200; `/`
+404s).
 
 **Known follow-up (pre-existing, not Noray-specific):** when a co-op peer leaves
 mid-run it stays in `peer_ids` (for rejoin) but drops out of
