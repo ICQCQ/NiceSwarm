@@ -1912,21 +1912,23 @@ func _run_revives(delta: float) -> void:
 	for p in players.values():
 		if not p.downed:
 			continue
-		var helper: Player = null
+		var helpers: Array = []  # every living ally standing close enough to channel
 		for q in players.values():
 			if q != p and not q.downed \
 					and q.global_position.distance_to(p.global_position) <= 70.0:
-				helper = q
-				break
-		if helper != null:
-			p.revive_progress += delta / 3.0
+				helpers.append(q)
+		if not helpers.is_empty():
+			# Each nearby ally adds a full revive rate, so more helpers rescue faster:
+			# 1 helper = 3 s, 2 = 1.5 s, 3 = 1 s. Rewards rushing in together.
+			p.revive_progress += delta / 3.0 * helpers.size()
 		else:
-			# decay very slowly — progress is mostly kept if the helper steps away
+			# decay very slowly — progress is mostly kept if helpers step away
 			# briefly, so an ally doesn't have to hover the whole time
 			p.revive_progress = maxf(p.revive_progress - delta * 0.07, 0.0)
 		if p.revive_progress >= 1.0:
-			if helper != null and _score.has(helper.peer_id):
-				_score[helper.peer_id].revives += 1  # credit the reviver
+			for h in helpers:
+				if _score.has(h.peer_id):
+					_score[h.peer_id].revives += 1  # credit every reviver present
 			p.revive()  # emits health_changed -> broadcast
 		else:
 			net.send_revive(p.peer_id, p.revive_progress)
