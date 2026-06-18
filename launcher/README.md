@@ -71,3 +71,28 @@ macOS universal `.app` requires cgo (AppKit/Metal), is built + ad-hoc-signed on 
 `macos-latest` runner, and is **also published** to the `launcher` tag (its sidecar hashes
 the inner Mach-O *after* signing) — CI-compiled but runtime-unverified on physical Apple
 hardware, so treat it as beta. Trigger: changes under `launcher/**` or manual dispatch.
+
+## Windows code signing (antivirus / SmartScreen)
+
+The build embeds a **PE version resource** (`versioninfo.json` → `goversioninfo` →
+`.syso`) so the bare Go GUI exe presents as a normal app — this lowers the AV
+false-positive rate but is not a guaranteed fix.
+
+The build **optionally code-signs** the Windows exes when two repo Secrets are set
+(Settings → Secrets and variables → Actions). Absent them, signing is skipped and the
+build still passes:
+
+| Secret | Value |
+|--------|-------|
+| `WINDOWS_CERT_BASE64` | the code-signing `.pfx`, base64-encoded |
+| `WINDOWS_CERT_PASSWORD` | the `.pfx` export password |
+
+Encode the cert: `base64 -w0 cert.pfx` (Linux) / `[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))` (PowerShell) → paste as `WINDOWS_CERT_BASE64`.
+CI signs with `osslsigncode` + an RFC3161 timestamp (so signatures stay valid after the
+cert expires).
+
+⚠️ **Only a CA-issued OV/EV certificate** actually clears Defender/SmartScreen. A
+**self-signed** cert will sign here but Windows doesn't trust it, so it won't help end
+users (and can read as malware faking a publisher). For a fast free win on a specific
+flag, also submit the exe to Microsoft's false-positive portal
+(`microsoft.com/wdsi/filesubmission`).

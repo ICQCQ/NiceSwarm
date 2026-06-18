@@ -53,6 +53,11 @@ jobs:
       - name: Cross-compile Windows binaries + checksums
         env:
           CGO_ENABLED: "0" # Gio's Windows backend is pure-Go; no cgo needed
+          # Code-signing cert (optional): base64-encoded .pfx + its password. Set these
+          # as repo Secrets (Settings -> Secrets and variables -> Actions). When absent
+          # (forks, no cert yet) the signing step is skipped and the build still passes.
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           mkdir -p dist
           # Stamp the launcher's own build version (branch + commit count) via two -X vars —
@@ -69,6 +74,28 @@ jobs:
           # -H=windowsgui: GUI subsystem, so no console window flashes beside the Gio window.
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H=windowsgui ${VER}" -o dist/NiceSwarm-Launcher.exe .
           GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -H=windowsgui ${VER}" -o dist/NiceSwarm-Launcher-arm64.exe .
+          # Code-sign (optional): if the WINDOWS_CERT_* secrets are set, sign both exes
+          # with osslsigncode (Linux) + an RFC3161 timestamp. Gated on the secret so
+          # forks / no-cert builds still pass. Must run BEFORE the sha256 below so the
+          # launcher's self-update hash matches the signed bytes it downloads. NOTE: only
+          # a CA-issued OV/EV cert clears AV/SmartScreen — a self-signed cert signs fine
+          # here but won't help end users.
+          if [ -n "${WINDOWS_CERT_BASE64}" ]; then
+            echo "Code-signing Windows binaries..."
+            sudo apt-get update -qq && sudo apt-get install -y -qq osslsigncode
+            echo "${WINDOWS_CERT_BASE64}" | base64 -d > "${RUNNER_TEMP}/cert.pfx"
+            for exe in dist/NiceSwarm-Launcher.exe dist/NiceSwarm-Launcher-arm64.exe; do
+              osslsigncode sign -pkcs12 "${RUNNER_TEMP}/cert.pfx" -pass "${WINDOWS_CERT_PASSWORD}" \
+                -n "NiceSwarm Launcher" -i "https://hh.coffee" \
+                -ts http://timestamp.sectigo.com \
+                -in "$exe" -out "$exe.signed"
+              mv "$exe.signed" "$exe"
+            done
+            rm -f "${RUNNER_TEMP}/cert.pfx"
+            echo "Signed."
+          else
+            echo "WINDOWS_CERT_BASE64 secret not set — skipping code signing (unsigned build)."
+          fi
           # SHA256 sidecars the launcher reads to detect that IT is outdated. sha256sum's
           # "<hash>  <filename>" output is exactly the sidecar format the launcher parses.
           ( cd dist && sha256sum NiceSwarm-Launcher.exe > NiceSwarm-Launcher.exe.sha256 )
