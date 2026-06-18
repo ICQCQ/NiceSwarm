@@ -22,14 +22,14 @@ const INFO := {
 	"frost|gravity": {"name": "Glacier", "desc": "a slow, huge vortex that freezes everything inside"},
 	"glaive|lightning": {"name": "Storm Disc", "desc": "boomerangs that arc lightning to nearby foes"},
 	"flame|mines": {"name": "Napalm Mine", "desc": "mines that leave a burning pool on blast"},
-	"missiles|nova": {"name": "Cluster Warhead", "desc": "rockets whose splash is a mini-nova"},
+	"missiles|nova": {"name": "Cluster Warhead", "desc": "straight-flying warheads that erupt into a heavy shockwave, shoving everything in the blast outward"},
 	"gravity|venom": {"name": "Black Bog", "desc": "a vortex that leaves a toxic pool where it forms"},
 	"orbit|venom": {"name": "Toxic Halo", "desc": "orbiting blades that poison on contact and paint a rotating ring of toxic ground"},
 	"nova|orbit": {"name": "Pulsar", "desc": "orbiting blades that each breathe, pulsing their own mini-nova as they spin"},
 	"bolt|frost": {"name": "Frost Lance", "desc": "a piercing volley of chilling lances that shatter already-frozen foes"},
-	"lightning|venom": {"name": "Plague Arc", "desc": "a chain that poisons every link"},
+	"lightning|venom": {"name": "Ground Current", "desc": "a crackling field where every enemy caught inside becomes its own lightning source, chaining to nearby foes"},
 	"lightning|orbit": {"name": "Tesla Halo", "desc": "orbiting blades that zap nearby foes"},
-	"flame|lightning": {"name": "Plasma Storm", "desc": "a searing cone that crackles with chained bolts"},
+	"flame|lightning": {"name": "Plasma Storm", "desc": "a drifting cloud that burns on contact and arcs lightning to nearby foes"},
 	"glaive|nova": {"name": "Cyclone", "desc": "whirling glaives around a pulsing core"},
 	"missiles|turret": {"name": "Missile Battery", "desc": "a deployed launcher firing homing salvos"},
 	"laser|turret": {"name": "Beam Sentry", "desc": "a deployed turret that sweeps a beam"},
@@ -85,7 +85,7 @@ const INFO := {
 	"laser|missiles": {"name": "Beam Battery", "desc": "harmless rotating beams paint targets; on cooldown, every painted enemy takes a homing, fire-bursting missile"},
 	"laser|venom": {"name": "Acid Ray", "desc": "rotating beams that corrode foes and seed toxic pools"},
 	"lightning|missiles": {"name": "EMP Missile", "desc": "homing rockets that chain lightning on impact"},
-	"missiles|orbit": {"name": "Rocket Halo", "desc": "orbiting blades tag whatever they strike for a homing missile to finish"},
+	"missiles|orbit": {"name": "Concorde", "desc": "a growing paper-plane missile that warps to the far side of the arena instead of dying at the border, flying until a very long lifetime runs out"},
 	"missiles|venom": {"name": "Plague Rocket", "desc": "homing rockets that burst into a toxic cloud"},
 }
 
@@ -133,7 +133,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"orbit|venom": return FusToxicHalo.new()
 		"nova|orbit": return FusPulsar.new()
 		"bolt|frost": return FusFrostLance.new()
-		"lightning|venom": return FusPlagueArc.new()
+		"lightning|venom": return FusGroundCurrent.new()
 		"lightning|orbit": return FusTeslaHalo.new()
 		"flame|lightning": return FusPlasmaStorm.new()
 		"glaive|nova": return FusCyclone.new()
@@ -191,7 +191,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"laser|missiles": return FusBeamBattery.new()
 		"laser|venom": return FusAcidRay.new()
 		"lightning|missiles": return FusEMPMissile.new()
-		"missiles|orbit": return FusRocketHalo.new()
+		"missiles|orbit": return FusConcorde.new()
 		"missiles|venom": return FusPlagueRocket.new()
 	return null
 

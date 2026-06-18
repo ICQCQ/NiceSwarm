@@ -26,6 +26,12 @@ const FLEE_RANGE := 220.0
 # out instead of stacking on one point without the O(n^2) contact-solver cost.
 const SEPARATION_STRENGTH := 0.9
 
+# Heavy blast push (Cluster Warhead): a forced displacement, separate from the
+# normal knockback/apply_push impulse (which is capped at 280 px/s — too short
+# a leash for a "heavy shove" to read as heavy). Speed is fixed; how FAR it
+# travels is the tunable (apply_blast_push's `distance` param).
+const BLAST_PUSH_SPEED := 480.0
+
 var age := 0.0   # seconds alive (host sim only); drives the spawn speed ramp
 var hp := 2.0
 var speed := 90.0
@@ -102,6 +108,8 @@ var knockback := Vector2.ZERO
 var slow_timer := 0.0
 var slow_mult := 1.0
 var freeze_timer := 0.0  # >0: movement fully halted (Glacial Mine) — distinct from slow_mult, no floor
+var blast_push_dist := 0.0  # remaining distance to travel (Cluster Warhead's heavy shove)
+var blast_push_dir := Vector2.ZERO
 var burn_dps := 0.0
 var burn_timer := 0.0
 var burn_tick := 0.0
@@ -266,8 +274,13 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		if velocity.length() > 1.0:
 			heading = velocity.normalized()
-		if move_mode == 4:  # flee: knockback can still shove it past the edge — clamp back in
-			global_position = global_position.clamp(arena.position + Vector2(radius, radius), arena.end - Vector2(radius, radius))
+	if blast_push_dist > 0.0:
+		var step: float = minf(BLAST_PUSH_SPEED * delta, blast_push_dist)
+		global_position += blast_push_dir * step
+		blast_push_dist -= step
+	# Push/pull effects (knockback, gravity wells, the blast push above) must never
+	# let an enemy leave the arena — clamp every mover, manual or physics-driven.
+	global_position = global_position.clamp(arena.position + Vector2(radius, radius), arena.end - Vector2(radius, radius))
 	if target != null \
 			and global_position.distance_to(target.global_position) <= radius + Player.HURT_RADIUS:
 		target.take_damage(dmg)
@@ -428,6 +441,17 @@ func apply_push(from_pos: Vector2, strength: float) -> void:
 	var kbr := 0.3 if radius >= 20.0 else 1.0
 	knockback += (global_position - from_pos).normalized() * strength * kbr
 	knockback = knockback.limit_length(280.0)
+
+
+## A heavy forced shove away from from_pos, covering `distance` px at a fixed
+## speed (BLAST_PUSH_SPEED) — separate from apply_push's capped knockback impulse,
+## so a "heavy push" effect (Cluster Warhead) can actually read as heavy. Same
+## immunity gate as apply_push. Re-triggering keeps the longer of the two distances.
+func apply_blast_push(from_pos: Vector2, distance: float) -> void:
+	if cc_immune or knockback_immune:
+		return
+	blast_push_dir = (global_position - from_pos).normalized()
+	blast_push_dist = maxf(blast_push_dist, distance)
 
 
 ## Boids-style separation steering: a unit-capped push away from every neighbor

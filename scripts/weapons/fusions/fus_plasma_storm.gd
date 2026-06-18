@@ -1,69 +1,43 @@
-# --- flame + lightning -------------------------------------------------------
+# --- flame + lightning: emits a drifting cloud that burns on contact and ------
+# arcs lightning to nearby enemies ------------------------------------------------
 class_name FusPlasmaStorm
 extends WeaponBase
 
-var tick := 0.0
-var bolt_cd := 0.0
+var spawn_timer := 0.0
 func _init() -> void:
 	weapon_id = "fus_plasmastorm"
 	display_name = "Plasma Storm"
 func _physics_process(delta: float) -> void:
-	queue_redraw()
 	if player == null or player.downed:
 		return
-	var reach: float = (cfg.reach + cfg.reach_per_level * (level - 1)) * fuse_area()
-	tick -= delta
-	if tick <= 0.0:
-		tick = cfg.tick * fuse_rate()
-		var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
-		for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
-			var to: Vector2 = e.global_position - player.global_position
-			if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= cfg.half_angle:
-				damage_dealt += dmg
-				e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
-				ignite(e, dmg)
-		Sfx.play("flame", player.global_position)
-	bolt_cd -= delta
-	if bolt_cd <= 0.0:
-		var first := player.nearest_enemy(reach + 60.0)
-		if first != null:
-			var bdmg: float = cfg.bolt_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
-			var chains: int = cfg.chain_base + count_level()
-			var pts: Array = [player.global_position]
-			var visited := {}
-			var cur: Node2D = first
-			while cur != null and chains > 0:
-				visited[cur.get_instance_id()] = true
-				pts.append(cur.global_position)
-				damage_dealt += bdmg
-				cur.take_hit(bdmg, null, Enemy.DMG_ENERGY, player.peer_id)
-				chains -= 1
-				cur = _next(pts[pts.size() - 1], visited)
-			var fx := LightningFx.new()
-			fx.points = pts
-			player.get_parent().add_child(fx)
-			Sfx.play("lightning", player.global_position)
-			bolt_cd = cfg.bolt_cd * fuse_rate()
-		else:
-			bolt_cd = 0.2
-func _next(from: Vector2, visited: Dictionary) -> Node2D:
-	var best: Node2D = null
-	var bd: float = cfg.chain_range * cfg.chain_range
-	for e in Main.instance.enemies_in_radius(from, cfg.chain_range + 64.0):
-		if visited.has(e.get_instance_id()):
-			continue
-		var d: float = from.distance_squared_to(e.global_position)
-		if d < bd:
-			bd = d
-			best = e
-	return best
-func _draw() -> void:
-	if player == null or player.downed:
+	spawn_timer -= delta
+	if spawn_timer > 0.0:
 		return
-	var reach: float = (cfg.reach + cfg.reach_per_level * (level - 1)) * fuse_area()
-	var base_a := player.facing.angle()
-	for i in 7:
-		var ang := base_a + randf_range(-cfg.half_angle * 0.8, cfg.half_angle * 0.8)
-		var dist := randf_range(reach * 0.25, reach)
-		draw_circle(Vector2.from_angle(ang) * dist, randf_range(4.0, 10.0),
-			Color(0.7, 0.6, 1.0, randf_range(0.3, 0.6)))
+	if get_tree().get_nodes_in_group("plasma_clouds").size() >= cfg.cap_base + count_level():
+		spawn_timer = 0.2
+		return
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var ldmg: float = cfg.lightning_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	# Aim once at whatever's nearest right now — the cloud locks that angle and
+	# drifts in a straight line afterward, it never re-tracks the target.
+	var target := player.nearest_enemy(cfg.aim_range)
+	var dir := Vector2.from_angle(randf() * TAU)
+	if target != null:
+		dir = (target.global_position - player.global_position).normalized()
+	var cloud := PlasmaCloud.new()
+	cloud.source_pid = player.peer_id
+	cloud.source_weapon = self
+	cloud.radius = cfg.radius * fuse_area()             # Area: cloud size
+	cloud.max_dist = cfg.max_dist * fuse_duration()      # Duration: max travel distance
+	cloud.life = cfg.life * fuse_duration()              # Duration: total lifespan
+	cloud.max_life = cloud.life
+	cloud.dps = dmg
+	cloud.lightning_interval = cfg.lightning_cd * fuse_rate()  # Haste: lightning cadence
+	cloud.lightning_dmg = ldmg
+	cloud.chain_count = cfg.chain_base + count_level()
+	cloud.chain_range = cfg.chain_range * fuse_area()
+	cloud.velocity = dir * cfg.speed
+	cloud.position = player.global_position
+	player.get_parent().add_child(cloud)
+	Sfx.play("flame", player.global_position)
+	spawn_timer = cfg.spawn_cd * fuse_rate()  # Haste: time between cloud emissions

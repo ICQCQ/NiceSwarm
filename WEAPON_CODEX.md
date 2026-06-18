@@ -141,7 +141,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | bolt + laser | **Charge Round** | charges up a heavy piercing round that punches through every enemy in its path; charge time shortens with Haste, range and bullet size scale with Duration and Area |
 | flame + gravity | **Cinder Vortex** | a vortex that drags enemies into a burning pool |
 | mines + missiles | **Cluster Bomb** | mines that spray homing rockets on blast |
-| missiles + nova | **Cluster Warhead** | rockets whose splash is a mini-nova |
+| missiles + nova | **Cluster Warhead** | straight-flying warheads that erupt into a heavy shockwave, shoving everything in the blast outward |
 | bolt + venom | **Corrosive Round** | bolts that shatter into a corrosive splash on hit |
 | frost + laser | **Cryo Beam** | rotating ice beams that chill everything they sweep |
 | frost + missiles | **Cryo Missile** | homing missiles that slow all targets in the blast |
@@ -175,17 +175,17 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | mines + nova | **Nova Mine** | mines that pulse a second energy blast on detonation |
 | flame + missiles | **Phoenix Rocket** | homing rockets that leave a burning crater on impact |
 | glaive + laser | **Photon Disc** | boomerangs that fire a piercing beam from every hit |
-| lightning + venom | **Plague Arc** | a chain that poisons every link |
+| lightning + venom | **Ground Current** | a crackling field where every enemy caught inside becomes its own lightning source, chaining to nearby foes |
 | glaive + venom | **Plague Blade** | boomerangs that poison foes and leave toxic pools where they strike |
 | missiles + venom | **Plague Rocket** | homing rockets that burst into a toxic cloud |
 | bolt + nova | **Plasma Burst** | slugs that erupt into a blast on impact |
-| flame + lightning | **Plasma Storm** | a searing cone that crackles with chained bolts |
+| flame + lightning | **Plasma Storm** | a drifting red cloud that burns on contact and arcs lightning to nearby foes |
 | laser + orbit | **Prism Halo** | rotating beam-spokes orbiting you |
 | nova + orbit | **Pulsar** | orbiting blades that each breathe, pulsing their own mini-nova as they spin |
 | nova + turret | **Pulse Turret** | a deployed turret that pulses novas |
 | bolt + lightning | **Railgun** | a piercing rail-shot that electrifies its whole line |
 | bolt + glaive | **Ricochet** | bolts that arc to the next enemy on every hit |
-| missiles + orbit | **Rocket Halo** | orbiting blades tag whatever they strike for a homing missile to finish |
+| missiles + orbit | **Concorde** | a growing paper-plane missile that warps to the far side of the arena instead of dying at the border, flying until a very long lifetime runs out |
 | glaive + missiles | **Rotor Missile** | homing rockets that burst into glaive shrapnel |
 | bolt + mines | **Sapper Round** | bolts that arm a proximity mine on impact |
 | bolt + orbit | **Scatter Shot** | a ring of bolts fired in all directions |

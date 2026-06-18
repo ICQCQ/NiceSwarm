@@ -11,6 +11,7 @@ var radius := 1.5  # scaled by the firing weapon's Area stat
 var explode_radius := 0.0  # >0: burst into an AoE on hit (fused Plasma Burst)
 var explode_damage := 0.0
 var push_strength := 0.0   # >0: shockwave push on the explosion (fused Plasma Burst)
+var blast_push_dist := 0.0  # >0: heavy forced shove on the explosion (fused Cluster Warhead)
 var fire_puddle_radius := 0.0   # >0: drop a burning puddle on hit (Incendiary Rounds)
 var fire_puddle_damage := 0.0
 var fire_puddle_life := 0.0
@@ -24,6 +25,7 @@ var homing_turn := 0.0   # >0: fused Flak Battery curves toward the nearest enem
 var homing_range := 0.0
 var pierce := false       # >0: passes through enemies (tracks already-hit ids)
 var max_dist := 0.0       # >0: free after traveling this many pixels (for piercing shots)
+var missile_look := false  # draw a rocket silhouette + flame instead of a plain slug (Cluster Warhead)
 
 var _pierce_hits := {}
 var _dist_traveled := 0.0
@@ -56,6 +58,8 @@ func _physics_process(delta: float) -> void:
 			var ang := cur.angle_to(desired)
 			ang = clampf(ang, -homing_turn * delta, homing_turn * delta)
 			velocity = cur.rotated(ang) * speed
+	if missile_look:
+		rotation = velocity.angle()
 	var step := velocity * delta
 	position += step
 	if max_dist > 0.0:
@@ -107,6 +111,8 @@ func _explode() -> void:
 			e.take_hit(explode_damage, global_position, Enemy.DMG_PHYS, source_pid)
 			if push_strength > 0.0:
 				e.apply_push(global_position, push_strength)
+			if blast_push_dist > 0.0:
+				e.apply_blast_push(global_position, blast_push_dist)
 
 
 func _drop_fire_puddle() -> void:
@@ -125,4 +131,16 @@ func _drop_fire_puddle() -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, radius, color)
+	if missile_look:
+		# Body is a fixed gunmetal color regardless of `color` — that field is the
+		# explosion-flash tint (_explode()'s RingFx), kept independent so the warhead
+		# always reads as a metal rocket even when its blast color is fiery orange.
+		var nose := radius * 1.5
+		var half_w := radius * 0.85
+		draw_polygon(
+			PackedVector2Array([Vector2(nose, 0.0), Vector2(-half_w, -half_w), Vector2(-half_w, half_w)]),
+			PackedColorArray([Color(0.8, 0.82, 0.85)])
+		)
+		draw_circle(Vector2(-half_w * 1.3, 0.0), radius * 0.4, Color(1.0, 0.6, 0.2, randf_range(0.5, 1.0)))
+	else:
+		draw_circle(Vector2.ZERO, radius, color)

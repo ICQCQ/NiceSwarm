@@ -25,7 +25,7 @@ var sounds := {}
 var throttle := {
 	"orbit": 0.09, "laser": 0.08, "flame": 0.12, "gem": 0.06, "kill": 0.05,
 	"venom": 0.25, "bolt": 0.05, "turret": 0.06, "frost": 0.08, "boom": 0.06,
-	"chaingun_charge": 1.5, "chaingun_fire": 0.15, "plasma_pulse": 0.3,
+	"chaingun_charge": 1.5, "chaingun_fire": 0.15, "plasma_pulse": 0.3, "concorde": 0.5,
 }
 var last_play := {}
 var pool_2d: Array = []
@@ -108,6 +108,7 @@ func _make_sounds() -> void:
 	_synth("flame", 0.09, 420.0, 180.0, W_SINE, 0.85, 0.02, 0.35)       # fire puff
 	_synth("mine", 0.05, 750.0, 700.0, W_SQUARE, 0.0, 0.002, 0.4)       # arm click
 	_synth("missile", 0.18, 650.0, 200.0, W_SINE, 0.6, 0.02, 0.5)       # launch fshh
+	_synth("concorde", 0.9, 1000.0, 220.0, W_SINE, 0.78, 0.35, 0.6, 1.1, 0.15)  # plane flyby whoosh
 	_synth("laser", 0.05, 1900.0, 1750.0, W_SINE, 0.0, 0.002, 0.3)      # beam tick
 	_synth("chaingun_charge", 0.9, 80.0, 1400.0, W_SAW, 0.05, 0.12, 0.55, 0.6, 0.05)  # rising power-up whine
 	_synth("chaingun_fire", 0.28, 1600.0, 60.0, W_SQUARE, 0.45, 0.003, 0.85, 0.9, 0.04)  # heavy discharge crack
