@@ -114,9 +114,10 @@ get a host/join, not a replacement. Direct-IP stays the fallback.
 - [x] **Swapped to hardened fork `noray:trirat` — 2026-06-18.** After a security
   review (see `F:\ZalzerTriratInfraDoc\network\noray-security-review.md`) the
   server now runs a **private fork** ([github.com/chawasit/noray](https://github.com/chawasit/noray),
-  `upstream` = foxssake/noray) instead of `ghcr.io/foxssake/noray:main`. Build
-  source on docker-server at `~/noray-src/` (`docker build -t noray:trirat .`;
-  re-ship with `git archive`). Fixes: **DoS-1** (a relay crossing a bandwidth/
+  `upstream` = foxssake/noray) instead of `ghcr.io/foxssake/noray:main`. Image
+  published to **private GHCR** `ghcr.io/chawasit/noray:trirat` (compose pulls it
+  → self-healing); build source on docker-server at `~/noray-src/`
+  (`docker build -t noray:trirat .` → tag/push to GHCR; re-ship with `git archive`). Fixes: **DoS-1** (a relay crossing a bandwidth/
   lifetime/traffic cap no longer crashes the whole server — drops instead;
   proven live), **DoS-2/3** (dynamic-relay exhaustion guard, per-connection host
   cap + command rate limit), and **IL-2** (metrics bound to container loopback,
