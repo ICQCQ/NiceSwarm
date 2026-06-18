@@ -15,8 +15,8 @@ func _physics_process(delta: float) -> void:
 	# Ring = nova's body, so size it from the MAXED nova ring (Lv7 = 310) and retain it at
 	# birth: count_level() is born-floored, so a fresh fusion opens at ~310 (>=300), not 140.
 	# Per-hit damage still climbs with the real `level` (the leveling reward).
-	var radius := (170.0 + 28.0 * (count_level() - 1)) * fuse_area()  # born 310 (cl6), max 338 (cl7)
-	var dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # ring = nova @L7 (13.35 eff)
+	var radius: float = (cfg.radius + cfg.radius_per_count * (count_level() - 1)) * fuse_area()  # born 310 (cl6), max 338 (cl7)
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))  # ring = nova @L7 (13.35 eff)
 	var hits: Array = []
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
@@ -37,16 +37,16 @@ func _physics_process(delta: float) -> void:
 	hits.shuffle()
 	# Forks = lightning's body: born firing near-max chains (count_level floored) ~= maxed
 	# lightning's 9 chains, each at dmg*0.6 (~7.2) ~= maxed lightning per-hit (7.52).
-	for h in hits.slice(0, 3 + count_level()):
-		var nb := _nearest_beyond(h.global_position, radius * 1.6)
+	for h in hits.slice(0, cfg.fork_count_base + count_level()):
+		var nb := _nearest_beyond(h.global_position, radius * cfg.fork_range_ratio)
 		if nb != null:
-			damage_dealt += dmg * 0.6
-			nb.take_hit(dmg * 0.6, null, Enemy.DMG_ENERGY, player.peer_id)
+			damage_dealt += dmg * cfg.fork_dmg_ratio
+			nb.take_hit(dmg * cfg.fork_dmg_ratio, null, Enemy.DMG_ENERGY, player.peer_id)
 			var lf := LightningFx.new()
 			lf.points = [h.global_position, nb.global_position]
 			player.get_parent().add_child(lf)
 	Sfx.play("lightning", global_position)
-	cooldown = 2.2 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()
 func _nearest_beyond(from: Vector2, rng: float) -> Node2D:
 	var best: Node2D = null
 	var bd := rng * rng

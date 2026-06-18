@@ -12,8 +12,8 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var radius := (270.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # ring = nova @L7 (13.35 eff)
+	var radius: float = (cfg.radius + cfg.radius_per_count * (count_level() - 1)) * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))  # ring = nova @L7 (13.35 eff)
 	var hit_any := false
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
@@ -35,14 +35,14 @@ func _physics_process(delta: float) -> void:
 	var pud := VenomPuddle.new()
 	pud.source_pid = player.peer_id
 	pud.source_weapon = self
-	pud.radius = radius * 0.7
-	pud.damage = dmg * 0.2
-	pud.max_life = 2.0 * fuse_duration()
+	pud.radius = radius * cfg.puddle_radius_ratio
+	pud.damage = dmg * cfg.puddle_dmg_ratio
+	pud.max_life = cfg.puddle_life * fuse_duration()
 	pud.life = pud.max_life
 	pud.fiery = true
-	pud.burn_dps = dmg * 0.2
-	pud.burn_dur = 1.0 * fuse_duration()
+	pud.burn_dps = dmg * cfg.burn_dps_ratio
+	pud.burn_dur = cfg.burn_dur * fuse_duration()
 	pud.position = global_position
 	player.get_parent().add_child(pud)
 	Sfx.play("nova", global_position)
-	cooldown = 2.8 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

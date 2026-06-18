@@ -11,7 +11,7 @@ var _sfx_played := false
 
 
 func _init() -> void:
-	weapon_id    = "fus_chaingun"
+	weapon_id    = "fus_charge_round"
 	display_name = "Charge Round"
 
 
@@ -20,7 +20,6 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	var cfg          := WeaponConfig.BASE.fus_charge_round
 	var range: float  = cfg.range * fuse_duration()
 	var target := player.nearest_enemy(range * 1.4)
 	if target != null:
@@ -42,7 +41,6 @@ func _physics_process(delta: float) -> void:
 
 
 func _fire(range: float) -> void:
-	var cfg          := WeaponConfig.BASE.fus_charge_round
 	var dmg: float    = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	var radius: float = cfg.radius * fuse_area()
 	var dir    := Vector2.from_angle(aim_angle)
@@ -66,7 +64,6 @@ func _fire(range: float) -> void:
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var cfg         := WeaponConfig.BASE.fus_charge_round
 	var range: float = cfg.range * fuse_duration()
 	var dir          := Vector2.from_angle(aim_angle)
 	var cd: float    = cfg.cd * fuse_rate()

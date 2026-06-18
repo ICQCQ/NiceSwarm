@@ -12,14 +12,14 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(999.0)
+	var target := player.nearest_enemy(cfg.length)
 	if target == null:
 		cooldown = 0.1
 		return
 	var dir := (target.global_position - player.global_position).normalized()
-	var length := 999.0 * fuse_area()            # long line-of-sight rail
-	var zap_r := randf_range(42.0, 80.0) * fuse_area()   # erratic corridor reach (not a fixed beam)
-	var dmg := 5.0 * fuse_damage() * (1.0 + 0.4 * (level - 1))
+	var length: float = cfg.length * fuse_area()            # long line-of-sight rail
+	var zap_r: float = randf_range(cfg.zap_r_min, cfg.zap_r_max) * fuse_area()   # erratic corridor reach (not a fixed beam)
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	var origin := player.global_position
 	var fx := LightningFx.new()
 	fx.points = [origin, origin + dir * length]
@@ -42,9 +42,9 @@ func _physics_process(delta: float) -> void:
 		var z := LightningFx.new()            # arc from the beam to each zapped foe
 		z.points = [beam_pt, e.global_position]
 		player.get_parent().add_child(z)
-		_bounce(e, dmg * 0.6, randi_range(1, 2), visited)   # erratic 1-2 hops to RANDOM foes
+		_bounce(e, dmg * cfg.bounce_dmg_ratio, randi_range(cfg.hops_min, cfg.hops_max), visited)   # erratic 1-2 hops to RANDOM foes
 	Sfx.play("lightning", origin)
-	cooldown = 0.9 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()
 
 
 ## Erratic chain: bounce from `src` to a RANDOM nearby unvisited enemy (not the nearest —
@@ -52,7 +52,7 @@ func _physics_process(delta: float) -> void:
 func _bounce(src: Node2D, dmg: float, hops: int, visited: Dictionary) -> void:
 	if hops <= 0 or player == null:
 		return
-	var reach := randf_range(90.0, 170.0) * fuse_area()   # bounce reach is kind of random too
+	var reach: float = randf_range(cfg.bounce_reach_min, cfg.bounce_reach_max) * fuse_area()   # bounce reach is kind of random too
 	var candidates: Array = []
 	for e in Main.instance.enemies_in_radius(src.global_position, reach + 64.0):
 		if visited.has(e.get_instance_id()):
@@ -69,4 +69,4 @@ func _bounce(src: Node2D, dmg: float, hops: int, visited: Dictionary) -> void:
 	var bz := LightningFx.new()
 	bz.points = [src.global_position, nxt.global_position]
 	player.get_parent().add_child(bz)
-	_bounce(nxt, dmg * 0.7, hops - 1, visited)
+	_bounce(nxt, dmg * cfg.bounce_decay, hops - 1, visited)

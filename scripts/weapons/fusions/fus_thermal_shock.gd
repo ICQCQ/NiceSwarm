@@ -2,8 +2,6 @@
 class_name FusThermalShock
 extends WeaponBase
 
-const TICK := 0.15
-const HALF := 0.6
 var tick := 0.0
 func _init() -> void:
 	weapon_id = "fus_thermal"
@@ -15,27 +13,29 @@ func _physics_process(delta: float) -> void:
 	tick -= delta
 	if tick > 0.0:
 		return
-	tick = TICK * fuse_rate()
-	var reach := (150.0 + 12.0 * (level - 1)) * fuse_area()
-	var dmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	tick = cfg.cd * fuse_rate()
+	var reach: float = (cfg.reach + cfg.reach_per_level * (level - 1)) * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var half: float = cfg.half_angle
 	var any := false
 	for e in Main.instance.enemies_in_radius(player.global_position, reach + 64.0):
 		var to: Vector2 = e.global_position - player.global_position
-		if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= HALF:
+		if to.length() <= reach + e.radius and absf(player.facing.angle_to(to)) <= half:
 			damage_dealt += dmg
 			e.take_hit(dmg, null, Enemy.DMG_FIRE, player.peer_id)
 			ignite(e, dmg)
-			e.apply_slow(0.6, 0.8 * fuse_duration())
+			e.apply_slow(cfg.slow_mult, cfg.slow_dur * fuse_duration())
 			any = true
 	if any:
 		Sfx.play("flame", player.global_position)
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var reach := (150.0 + 12.0 * (level - 1)) * fuse_area()
+	var reach: float = (cfg.reach + cfg.reach_per_level * (level - 1)) * fuse_area()
+	var half: float = cfg.half_angle
 	var base_a := player.facing.angle()
 	for i in 7:
-		var ang := base_a + randf_range(-HALF * 0.8, HALF * 0.8)
+		var ang := base_a + randf_range(-half * 0.8, half * 0.8)
 		var dist := randf_range(reach * 0.25, reach)
 		var col := Color(1.0, 0.5, 0.2) if randf() < 0.5 else Color(0.5, 0.85, 1.0)
 		draw_circle(Vector2.from_angle(ang) * dist, randf_range(4.0, 10.0),

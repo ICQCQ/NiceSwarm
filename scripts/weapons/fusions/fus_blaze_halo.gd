@@ -2,8 +2,6 @@
 class_name FusBlazeHalo
 extends WeaponBase
 
-const ORBIT_R := 80.0
-const BLADE_R := 11.0
 const HIT_CD := 0.5
 var angle := 0.0
 var hit_cd := {}
@@ -15,7 +13,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + 2.8 / fuse_rate() * delta, TAU)
+	angle = fmod(angle + cfg.spin / fuse_rate() * delta, TAU)
 	queue_redraw()
 	var expired := []
 	for k in hit_cd:
@@ -24,10 +22,10 @@ func _physics_process(delta: float) -> void:
 			expired.append(k)
 	for k in expired:
 		hit_cd.erase(k)
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
-	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_radius * fuse_area()
+	var blade_r: float = cfg.blade_radius * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -41,8 +39,8 @@ func _physics_process(delta: float) -> void:
 				break
 	pulse_cd -= delta
 	if pulse_cd <= 0.0:
-		var radius := (182.0 + 8.0 * (count_level() - 1)) * fuse_area()
-		var pdmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+		var radius: float = (cfg.pulse_radius_base + cfg.pulse_radius_per_count * (count_level() - 1)) * fuse_area()
+		var pdmg: float = cfg.pulse_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 		var any := false
 		for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 			if global_position.distance_to(e.global_position) <= radius + e.radius:
@@ -59,15 +57,15 @@ func _physics_process(delta: float) -> void:
 			fx.color = Color(1.0, 0.5, 0.15)
 			player.get_parent().add_child(fx)
 			Sfx.play("flame", global_position)
-			pulse_cd = 3.0 * fuse_rate()
+			pulse_cd = cfg.pulse_cd * fuse_rate()
 		else:
 			pulse_cd = 0.3
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_radius * fuse_area()
+	var blade_r: float = cfg.blade_radius * fuse_area()
 	for i in n:
 		var p := Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		draw_circle(p, blade_r, Color(1.0, 0.5, 0.15))

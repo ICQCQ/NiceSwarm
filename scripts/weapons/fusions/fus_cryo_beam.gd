@@ -12,7 +12,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + 2.4 / fuse_rate() * delta, TAU)
+	angle = fmod(angle + cfg.spin / fuse_rate() * delta, TAU)
 	queue_redraw()
 	var expired := []
 	for k in hit_cd:
@@ -21,9 +21,9 @@ func _physics_process(delta: float) -> void:
 			expired.append(k)
 	for k in expired:
 		hit_cd.erase(k)
-	var beams := 1 + count_level()
-	var length := (260.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var dmg := 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var beams: int = cfg.beams_base + count_level()
+	var length: float = (cfg.length_base + cfg.length_per_count * (count_level() - 1)) * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		if hit_cd.has(e.get_instance_id()):
 			continue
@@ -34,15 +34,15 @@ func _physics_process(delta: float) -> void:
 			if (dir * along).distance_to(rel) <= 9.0 + e.radius:
 				damage_dealt += dmg
 				e.take_hit(dmg, global_position + dir * along, Enemy.DMG_ICE, player.peer_id)
-				e.apply_slow(0.5, 1.0 * fuse_duration())
+				e.apply_slow(cfg.slow_mult, cfg.slow_dur * fuse_duration())
 				hit_cd[e.get_instance_id()] = HIT_CD * fuse_rate()
 				Sfx.play("frost", e.global_position, -5.0)
 				break
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var beams := 1 + count_level()
-	var length := (260.0 + 10.0 * (count_level() - 1)) * fuse_area()
+	var beams: int = cfg.beams_base + count_level()
+	var length: float = (cfg.length_base + cfg.length_per_count * (count_level() - 1)) * fuse_area()
 	for b in beams:
 		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(0.5, 0.85, 1.0, 0.22), 12.0)

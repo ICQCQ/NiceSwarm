@@ -5,4 +5,3 @@ func _init() -> void:
 	weapon_id = "fus_haloturret"
 	display_name = "Halo Turret"
 	mode = "orbit"
-	dmg_base = 2.0

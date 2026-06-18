@@ -2,8 +2,6 @@
 class_name FusRocketHalo
 extends WeaponBase
 
-const ORBIT_R := 78.0
-const BLADE_R := 11.0
 const HIT_CD := 0.5
 const TAG_DUR := 2.5
 var angle := 0.0
@@ -33,10 +31,10 @@ func _physics_process(delta: float) -> void:
 			texpired.append(k)
 	for k in texpired:
 		tagged.erase(k)
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
-	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_r * fuse_area()
+	var blade_r: float = cfg.blade_r * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	# blades that strike an enemy paint a lock-on target for the missiles
 	for e in Main.instance.enemies_in_radius(global_position, orbit_r + blade_r + 64.0):
 		if hit_cd.has(e.get_instance_id()):
@@ -63,20 +61,20 @@ func _physics_process(delta: float) -> void:
 		m.source_pid = player.peer_id
 		m.source_weapon = self
 		m.target = lock
-		m.damage = 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-		m.splash = (75.0 + 10.0 * (level - 1)) * fuse_area()
-		m.life = 4.0 * fuse_duration()
-		m.velocity = (lock.global_position - global_position).normalized() * 280.0
+		m.damage = cfg.missile_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+		m.splash = (cfg.splash + cfg.splash_per_level * (level - 1)) * fuse_area()
+		m.life = cfg.missile_life * fuse_duration()
+		m.velocity = (lock.global_position - global_position).normalized() * cfg.missile_speed
 		m.position = global_position
 		player.get_parent().add_child(m)
 		Sfx.play("missile", global_position)
-		missile_cd = 1.6 * fuse_rate()
+		missile_cd = cfg.missile_cd * fuse_rate()
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_r * fuse_area()
+	var blade_r: float = cfg.blade_r * fuse_area()
 	for i in n:
 		var p := Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		draw_circle(p, blade_r, Color(0.85, 0.6, 0.3))

@@ -2,8 +2,6 @@
 class_name FusPulsar
 extends WeaponBase
 
-const ORBIT_R := 80.0
-const BLADE_R := 11.0
 const HIT_CD := 0.45
 const PULSE_CD := 1.6
 var angle := 0.0
@@ -25,16 +23,16 @@ func _physics_process(delta: float) -> void:
 			expired.append(k)
 	for k in expired:
 		hit_cd.erase(k)
-	var n := 2 + count_level()
+	var n: int = cfg.count_base + count_level()
 	while pulse_timers.size() < n:
 		pulse_timers.append(randf() * PULSE_CD)
 	while pulse_timers.size() > n:
 		pulse_timers.pop_back()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
-	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	var pulse_radius := (90.0 + 20.0 * (level - 1)) * fuse_area()  # real nova area, not a mini bang
-	var pulse_dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var orbit_r: float = cfg.orbit_r * fuse_area()
+	var blade_r: float = cfg.blade_r * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var pulse_radius: float = (cfg.pulse_radius + cfg.pulse_radius_per_level * (level - 1)) * fuse_area()  # real nova area, not a mini bang
+	var pulse_dmg: float = cfg.pulse_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for i in n:
 		var bp: Vector2 = global_position + Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		# contact damage from the spinning blade itself
@@ -67,9 +65,9 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var n := 2 + count_level()
-	var orbit_r := ORBIT_R * fuse_area()
-	var blade_r := BLADE_R * fuse_area()
+	var n: int = cfg.count_base + count_level()
+	var orbit_r: float = cfg.orbit_r * fuse_area()
+	var blade_r: float = cfg.blade_r * fuse_area()
 	for i in n:
 		var p := Vector2.from_angle(angle + TAU * float(i) / n) * orbit_r
 		var glow := 1.0

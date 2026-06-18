@@ -12,28 +12,28 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(700.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.1
 		return
 	var base := (target.global_position - player.global_position).normalized()
-	var count := 1 + count_level()
-	var dmg := 1.5 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	var splash := (44.0 + 6.0 * (level - 1)) * fuse_area()
+	var count: int = cfg.count_base + count_level()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var splash: float = (cfg.splash_base + cfg.splash_per_level * (level - 1)) * fuse_area()
 	for i in count:
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
 		p.source_weapon = self
-		p.velocity = base.rotated(deg_to_rad(14.0) * (i - (count - 1) / 2.0)) * 480.0
-		p.damage = dmg * 0.4
-		p.radius = 4.0 * fuse_area()
-		p.life = 1.8 * fuse_duration()
+		p.velocity = base.rotated(deg_to_rad(cfg.spread_deg) * (i - (count - 1) / 2.0)) * cfg.speed
+		p.damage = dmg * cfg.direct_dmg_ratio
+		p.radius = cfg.radius * fuse_area()
+		p.life = cfg.life * fuse_duration()
 		p.explode_radius = splash  # every shot is a self-propelled flak shell
 		p.explode_damage = dmg
-		p.homing_turn = 5.0  # curves toward the nearest enemy as it flies
-		p.homing_range = 260.0 * fuse_area()
+		p.homing_turn = cfg.homing_turn  # curves toward the nearest enemy as it flies
+		p.homing_range = cfg.homing_range * fuse_area()
 		p.color = Color(1.0, 0.7, 0.3)
 		p.position = player.global_position
 		player.get_parent().add_child(p)
 	Sfx.play("missile", player.global_position, -6.0)
-	cooldown = 0.5 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

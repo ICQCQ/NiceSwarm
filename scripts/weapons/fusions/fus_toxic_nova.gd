@@ -5,8 +5,6 @@ extends WeaponBase
 ## each cooldown fires one blast plus level-scaled echo pulses (count_level()-4 extra
 ## shockwaves), so high levels pulse several times per cycle instead of only widening.
 
-const ECHO_GAP := 0.22  # seconds between a pulse and its echoes (x Haste)
-
 var cooldown := 1.6
 var echoes_left := 0
 var echo_cd := 0.0
@@ -26,15 +24,15 @@ func _physics_process(delta: float) -> void:
 		echo_cd -= delta
 		if echo_cd <= 0.0:
 			echoes_left -= 1
-			echo_cd = ECHO_GAP * player.rate_mult
+			echo_cd = cfg.echo_gap * player.rate_mult
 			_blast(false)
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
 	if _blast(true):
-		cooldown = 1.3 * fuse_rate()             # halved (was 2.6)
-		echoes_left = maxi(0, count_level() - 4)  # pulses scale with level, like Nova (born floor 6 -> 2-3)
-		echo_cd = ECHO_GAP * player.rate_mult
+		cooldown = cfg.cd * fuse_rate()             # halved (was 2.6)
+		echoes_left = maxi(0, count_level() - cfg.echo_count_threshold)  # pulses scale with level, like Nova (born floor 6 -> 2-3)
+		echo_cd = cfg.echo_gap * player.rate_mult
 	else:
 		cooldown = 0.25  # nothing in range, retry soon
 
@@ -42,14 +40,14 @@ func _physics_process(delta: float) -> void:
 ## One toxic shockwave: damages + poisons everything in radius. `with_puddle` drops the
 ## ground puddle (only the main pulse does, not every echo). Returns whether it hit.
 func _blast(with_puddle: bool) -> bool:
-	var radius := (238.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	var dmg := 8.9 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # ring = nova @L7 (13.35 eff)
+	var radius: float = (cfg.radius + cfg.radius_per_count * (count_level() - 1)) * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))  # ring = nova @L7 (13.35 eff)
 	var any := false
 	for e in Main.instance.enemies_in_radius(global_position, radius + 64.0):
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			damage_dealt += dmg
 			e.take_hit(dmg, global_position, Enemy.DMG_PHYS, player.peer_id)
-			e.apply_burn(dmg * 0.3, 1.5 * fuse_duration(), 1.0, player.peer_id)
+			e.apply_burn(dmg * cfg.poison_dps_ratio, cfg.poison_dur * fuse_duration(), 1.0, player.peer_id)
 			push(e, global_position)
 			any = true
 	if not any:
@@ -65,9 +63,9 @@ func _blast(with_puddle: bool) -> bool:
 		var pud := VenomPuddle.new()
 		pud.source_pid = player.peer_id
 		pud.source_weapon = self
-		pud.radius = radius * 0.7
-		pud.damage = dmg * 0.25
-		pud.max_life = 2.5 * fuse_duration()
+		pud.radius = radius * cfg.puddle_radius_ratio
+		pud.damage = dmg * cfg.puddle_dmg_ratio
+		pud.max_life = cfg.puddle_life * fuse_duration()
 		pud.life = pud.max_life
 		pud.position = global_position
 		player.get_parent().add_child(pud)

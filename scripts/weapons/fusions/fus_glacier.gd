@@ -12,19 +12,19 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(700.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.2
 		return
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id
 	w.source_weapon = self
-	w.radius = (260.0 + 10.0 * (count_level() - 1)) * fuse_area()
-	w.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))  # re-anchored: Lv1 ≈ two max-level base weapons
-	w.pull = 120.0
-	w.life = 3.0 * fuse_duration()
+	w.radius = (cfg.radius + cfg.radius_per_count * (count_level() - 1)) * fuse_area()
+	w.damage = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))  # re-anchored: Lv1 ≈ two max-level base weapons
+	w.pull = cfg.pull
+	w.life = cfg.life * fuse_duration()
 	w.freeze = true
 	w.position = target.global_position
 	player.get_parent().add_child(w)
 	Sfx.play("frost", target.global_position)
-	cooldown = 5.0 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

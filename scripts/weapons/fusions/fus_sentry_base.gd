@@ -1,14 +1,19 @@
 # --- deployed turret variants (turret + X) -----------------------------------
+# Shared deployment mechanics (life/target_range/proj_radius/cd) live in
+# WeaponConfig.BASE.sentry; each subclass's own dmg/growth/life_scale/cooldown_scale/
+# deploy_cap_bonus live in WeaponConfig.BASE[weapon_id], read dynamically since each
+# subclass sets its own weapon_id in _init() before this base class runs.
 class_name FusSentryBase
 extends WeaponBase
 
 var cooldown := 1.5
 var mode := "bolt"
-var dmg_base := WeaponConfig.BASE.sentry.dmg
-var life_scale := 1.0      # fused Gatling Nest: shorter-lived, faster-redeploying turrets
-var cooldown_scale := 1.0
+var sentry_cfg: Dictionary  # the shared WeaponConfig.BASE.sentry entry, cached once below
+func _ready() -> void:
+	super._ready()
+	sentry_cfg = WeaponConfig.BASE.sentry
 func _deploy_cap() -> int:
-	return count_level() + 2
+	return count_level() + cfg.deploy_cap_bonus
 func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		return
@@ -27,10 +32,10 @@ func _physics_process(delta: float) -> void:
 	t.source_pid = player.peer_id
 	t.source_weapon = self
 	t.mode = mode
-	t.life = (6.0 + 0.5 * level) * fuse_duration() * life_scale
-	t.damage = dmg_base * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	t.target_range = 480.0 * fuse_area()
-	t.proj_radius = 5.0 * fuse_area()
+	t.life = (sentry_cfg.life_base + sentry_cfg.life_per_level * level) * fuse_duration() * cfg.life_scale
+	t.damage = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	t.target_range = sentry_cfg.target_range * fuse_area()
+	t.proj_radius = sentry_cfg.proj_radius * fuse_area()
 	t.area_mult = fuse_area()
 	t.dur_mult = fuse_duration()
 	t.fire_mult = fuse_rate()
@@ -39,4 +44,4 @@ func _physics_process(delta: float) -> void:
 	Sfx.play("turret_deploy", player.global_position)
 	# Spread deploys over cd / cap so the field fills to _deploy_cap(); a flat cd
 	# was slower than a turret's life, so only ~2 ever coexisted of the cap's many.
-	cooldown = WeaponConfig.BASE.sentry.cd * fuse_rate() * cooldown_scale / _deploy_cap()
+	cooldown = sentry_cfg.cd * fuse_rate() * cfg.cooldown_scale / _deploy_cap()

@@ -12,13 +12,13 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var first := player.nearest_enemy(520.0)
+	var first := player.nearest_enemy(cfg.range)
 	if first == null:
 		cooldown = 0.15
 		return
-	var dmg := 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	var chains := 3 + count_level()
-	var jump := 210.0 * fuse_area()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var chains: int = cfg.chains_base + count_level()
+	var jump: float = cfg.jump * fuse_area()
 	var pts: Array = [player.global_position]
 	var visited := {}
 	var cur: Node2D = first
@@ -27,7 +27,7 @@ func _physics_process(delta: float) -> void:
 		pts.append(cur.global_position)
 		damage_dealt += dmg
 		cur.take_hit(dmg, null, Enemy.DMG_PHYS, player.peer_id)
-		cur.apply_slow(0.45, 1.6 * fuse_duration())
+		cur.apply_slow(cfg.slow_mult, cfg.slow_dur * fuse_duration())
 		ignite(cur, dmg)
 		chains -= 1
 		cur = _next(pts[pts.size() - 1], visited, jump)
@@ -35,7 +35,7 @@ func _physics_process(delta: float) -> void:
 	fx.points = pts
 	player.get_parent().add_child(fx)
 	Sfx.play("lightning", player.global_position)
-	cooldown = 1.8 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()
 func _next(from: Vector2, visited: Dictionary, jump: float) -> Node2D:
 	var best: Node2D = null
 	var bd := jump * jump

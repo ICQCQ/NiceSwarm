@@ -5,4 +5,3 @@ func _init() -> void:
 	weapon_id = "fus_toxturret"
 	display_name = "Toxic Turret"
 	mode = "venom"
-	dmg_base = 1.0

@@ -13,7 +13,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.downed:
 		queue_redraw()
 		return
-	angle = fmod(angle + 1.6 / fuse_rate() * delta, TAU)
+	angle = fmod(angle + cfg.spin / fuse_rate() * delta, TAU)
 	queue_redraw()
 	var texpired := []
 	for k in tagged:
@@ -22,8 +22,8 @@ func _physics_process(delta: float) -> void:
 			texpired.append(k)
 	for k in texpired:
 		tagged.erase(k)
-	var beams := 1 + count_level()
-	var length := (244.0 + 8.0 * (count_level() - 1)) * fuse_area()
+	var beams: int = cfg.beams_base + count_level()
+	var length: float = (cfg.length_base + cfg.length_per_count * (count_level() - 1)) * fuse_area()
 	# beams deal no damage of their own -- they just paint targets
 	for e in Main.instance.enemies_in_radius(global_position, length + 64.0):
 		var rel: Vector2 = e.global_position - global_position
@@ -44,29 +44,29 @@ func _physics_process(delta: float) -> void:
 		if locks.is_empty():
 			missile_cd = 0.2
 			return
-		var dmg := 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+		var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 		for lock in locks:
 			var m := MissileProj.new()
 			m.source_pid = player.peer_id
 			m.source_weapon = self
 			m.target = lock
 			m.damage = dmg
-			m.splash = (65.0 + 8.0 * (level - 1)) * fuse_area()
-			m.life = 4.0 * fuse_duration()
-			m.velocity = (lock.global_position - global_position).normalized() * 280.0
-			m.fire_dps = 0.7 * fuse_damage() * (1.0 + 0.35 * (level - 1))
-			m.fire_radius = (55.0 + 8.0 * (level - 1)) * fuse_area()
-			m.fire_dur = 1.6 * fuse_duration()
+			m.splash = (cfg.splash_base + cfg.splash_per_level * (level - 1)) * fuse_area()
+			m.life = cfg.life * fuse_duration()
+			m.velocity = (lock.global_position - global_position).normalized() * cfg.speed
+			m.fire_dps = cfg.fire_dps_base * fuse_damage() * (1.0 + cfg.fire_dps_growth * (level - 1))
+			m.fire_radius = (cfg.fire_radius_base + cfg.fire_radius_per_level * (level - 1)) * fuse_area()
+			m.fire_dur = cfg.fire_dur * fuse_duration()
 			m.position = global_position
 			player.get_parent().add_child(m)
 		Sfx.play("missile", global_position)
 		tagged.clear()
-		missile_cd = 1.8 * fuse_rate()
+		missile_cd = cfg.cd * fuse_rate()
 func _draw() -> void:
 	if player == null or player.downed:
 		return
-	var beams := 1 + count_level()
-	var length := (244.0 + 8.0 * (count_level() - 1)) * fuse_area()
+	var beams: int = cfg.beams_base + count_level()
+	var length: float = (cfg.length_base + cfg.length_per_count * (count_level() - 1)) * fuse_area()
 	for b in beams:
 		var dir := Vector2.from_angle(angle + TAU * float(b) / beams)
 		draw_line(Vector2.ZERO, dir * length, Color(1.0, 0.7, 0.3, 0.22), 12.0)

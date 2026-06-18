@@ -6,6 +6,6 @@ func _init() -> void:
 	weapon_id = "fus_novamine"
 	display_name = "Nova Mine"
 func _load(m: MineNode) -> void:
-	m.nova_radius = (180.0 + 25.0 * count_level()) * fuse_area()
-	m.nova_dmg = 5.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * level)
-	m.nova_push = 80.0 * fuse_area()
+	m.nova_radius = (cfg.nova_radius + cfg.nova_radius_per_count * count_level()) * fuse_area()
+	m.nova_dmg = cfg.nova_dmg * fuse_damage() * (1.0 + cfg.nova_growth * level)
+	m.nova_push = cfg.nova_push * fuse_area()

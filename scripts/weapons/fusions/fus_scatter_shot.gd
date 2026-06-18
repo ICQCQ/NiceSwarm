@@ -12,19 +12,19 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var count := 6 + 2 * count_level()  # born ~18 bolts (count_level floored), 20 at max
-	var dmg := 4.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
+	var count: int = cfg.count_base + cfg.count_per_level * count_level()  # born ~18 bolts (count_level floored), 20 at max
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
 	for i in count:
 		var dir := Vector2.from_angle(TAU * float(i) / count)
 		var p := Projectile.new()
 		p.source_pid = player.peer_id
 		p.source_weapon = self
-		p.velocity = dir * 480.0
+		p.velocity = dir * cfg.speed
 		p.damage = dmg
-		p.radius = 5.5 * fuse_area()
-		p.life = 1.5 * fuse_duration()
+		p.radius = cfg.radius * fuse_area()
+		p.life = cfg.life * fuse_duration()
 		p.color = Color(0.9, 0.8, 0.3)
 		p.position = player.global_position
 		player.get_parent().add_child(p)
 	Sfx.play("bolt", player.global_position)
-	cooldown = 2.2 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

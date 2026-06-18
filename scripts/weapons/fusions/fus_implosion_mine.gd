@@ -12,32 +12,32 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(700.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.2
 		return
-	var r := (150.0 + 14.0 * (level - 1)) * fuse_area()
+	var r: float = (cfg.well_radius + cfg.well_radius_per_level * (level - 1)) * fuse_area()
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id
 	w.source_weapon = self
 	w.radius = r
-	w.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	w.pull = 200.0
-	w.life = 2.6 * fuse_duration()
+	w.damage = cfg.well_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	w.pull = cfg.well_pull
+	w.life = cfg.well_life * fuse_duration()
 	w.position = target.global_position
 	player.get_parent().add_child(w)
-	var dmg := 17.8 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	var count := 1 + count_level()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var count: int = cfg.count_base + count_level()
 	for i in count:
 		var m := MineNode.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
 		m.damage = dmg
-		m.blast_radius = (90.0 + 12.0 * (level - 1)) * fuse_area()
-		m.trigger_radius = 45.0 * fuse_area()
-		m.life = 6.0 * fuse_duration()
-		m.arm = 0.2
-		m.position = target.global_position + Vector2.from_angle(TAU * float(i) / count) * r * 0.6
+		m.blast_radius = (cfg.blast_radius + cfg.blast_radius_per_level * (level - 1)) * fuse_area()
+		m.trigger_radius = cfg.trigger_radius * fuse_area()
+		m.life = cfg.life * fuse_duration()
+		m.arm = cfg.arm
+		m.position = target.global_position + Vector2.from_angle(TAU * float(i) / count) * r * cfg.spawn_r_ratio
 		player.get_parent().add_child(m)
 	Sfx.play("mine", target.global_position)
-	cooldown = 5.5 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()

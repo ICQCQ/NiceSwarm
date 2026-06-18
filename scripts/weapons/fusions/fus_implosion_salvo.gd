@@ -12,31 +12,31 @@ func _physics_process(delta: float) -> void:
 	cooldown -= delta
 	if cooldown > 0.0:
 		return
-	var target := player.nearest_enemy(750.0)
+	var target := player.nearest_enemy(cfg.range)
 	if target == null:
 		cooldown = 0.2
 		return
-	var r := (160.0 + 15.0 * (level - 1)) * fuse_area()
+	var r: float = (cfg.well_radius + cfg.well_radius_per_level * (level - 1)) * fuse_area()
 	var w := GravityWell.new()
 	w.source_pid = player.peer_id
 	w.source_weapon = self
 	w.radius = r
-	w.damage = 3.0 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	w.pull = 210.0
-	w.life = 3.0 * fuse_duration()
+	w.damage = cfg.well_dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	w.pull = cfg.well_pull
+	w.life = cfg.well_life * fuse_duration()
 	w.position = target.global_position
 	player.get_parent().add_child(w)
-	var dmg := 6.1 * fuse_damage() * (1.0 + GameConfig.FUSION_LEVEL_GROWTH * (level - 1))
-	var count := 1 + count_level()
+	var dmg: float = cfg.dmg * fuse_damage() * (1.0 + cfg.growth * (level - 1))
+	var count: int = cfg.count_base + count_level()
 	for i in count:
 		var m := MissileProj.new()
 		m.source_pid = player.peer_id
 		m.source_weapon = self
 		m.damage = dmg
-		m.splash = (70.0 + 10.0 * (level - 1)) * fuse_area()
-		m.life = 4.0 * fuse_duration()
-		m.velocity = Vector2.from_angle(TAU * float(i) / count) * 280.0
+		m.splash = (cfg.splash + cfg.splash_per_level * (level - 1)) * fuse_area()
+		m.life = cfg.life * fuse_duration()
+		m.velocity = Vector2.from_angle(TAU * float(i) / count) * cfg.speed
 		m.position = player.global_position
 		player.get_parent().add_child(m)
 	Sfx.play("missile", player.global_position)
-	cooldown = 4.5 * fuse_rate()
+	cooldown = cfg.cd * fuse_rate()
