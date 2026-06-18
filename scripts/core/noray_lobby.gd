@@ -68,7 +68,9 @@ func host(noray_host := DEFAULT_HOST) -> void:
 func join(oid: String, noray_host := DEFAULT_HOST) -> void:
 	if _busy:
 		return
-	if oid.strip_edges() == "":
+	# Join codes are uppercase (NORAY_OID_CHARSET); accept any case the player types.
+	var code := oid.strip_edges().to_upper()
+	if code == "":
 		lobby_failed.emit("Enter a join code")
 		return
 	_busy = true
@@ -79,7 +81,7 @@ func join(oid: String, noray_host := DEFAULT_HOST) -> void:
 	_client_cb = _on_client_connect
 	Noray.on_connect_nat.connect(_client_cb)
 	Noray.on_connect_relay.connect(_client_cb)
-	Noray.connect_nat(oid.strip_edges())
+	Noray.connect_nat(code)
 
 
 ## Drop any Noray signal handlers and reset state. Called from net.leave() so a

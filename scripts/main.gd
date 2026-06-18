@@ -122,6 +122,7 @@ const PROFILE_SAVE_PATH := "user://profile.cfg"
 # --- lobby (pre-game roster) ---
 var lobby_players := {}         # peer_id -> {name, color, shape}; synced host<->clients
 var lobby_port := 0             # port we're hosting/connected on, shown in the config column
+var lobby_join_code := ""       # Noray NAT-lobby join code (OID); shown instead of Port when set
 
 # --- run config (host sets in the menu, broadcast to all peers at start) ---
 const MAX_CHOICES := GameConfig.MAX_CHOICES
@@ -452,6 +453,7 @@ func _apply_menu_config() -> void:
 
 func _on_solo_pressed() -> void:
 	net.leave()
+	lobby_join_code = ""
 	_apply_menu_config()
 	lobby_players[1] = {"name": profile_name, "color": profile_color_idx, "shape": profile_shape_idx}
 	start_game([1])
@@ -474,6 +476,7 @@ func _on_host_pressed() -> void:
 		status_label.text = err
 		return
 	lobby_port = port
+	lobby_join_code = ""
 	_show_lobby("Hosting\nPlayers: 1 (you)")
 
 
@@ -490,6 +493,7 @@ func _on_join_pressed() -> void:
 		status_label.text = err
 		return
 	lobby_port = port
+	lobby_join_code = ""
 	status_label.text = "Connecting to %s:%d ..." % [ip_edit.text, port]
 
 
@@ -517,6 +521,7 @@ func _on_noray_host_pressed() -> void:
 
 func _on_noray_host_ready(oid: String) -> void:
 	lobby_port = 0  # not a direct port; rejoin-by-port is N/A for Noray
+	lobby_join_code = oid
 	print("[noray] host oid=%s" % oid)
 	_show_lobby("Online (NAT lobby)\nJoin code: %s\nPlayers: 1 (you)" % oid)
 
@@ -524,7 +529,8 @@ func _on_noray_host_ready(oid: String) -> void:
 func _on_noray_join_pressed() -> void:
 	if net.active:
 		net.leave()
-	var oid := oid_edit.text.strip_edges()
+	var oid := oid_edit.text.strip_edges().to_upper()
+	lobby_join_code = oid
 	var lobby := net.noray_lobby
 	if not lobby.lobby_failed.is_connected(_on_noray_failed):
 		lobby.lobby_failed.connect(_on_noray_failed)
@@ -1238,7 +1244,19 @@ func _refresh_lobby_config_display() -> void:
 		return
 	for c in lobby_config_box.get_children():
 		c.queue_free()
-	_make_config_label(lobby_config_box, "Port", str(lobby_port))
+	if lobby_join_code != "":
+		# Noray NAT lobby: show the shareable join code + a copy-to-clipboard button
+		# instead of a (meaningless) direct port.
+		_make_config_label(lobby_config_box, "Join code", lobby_join_code)
+		var copy := Button.new()
+		copy.text = "Copy join code"
+		copy.add_theme_font_size_override("font_size", 15)
+		copy.pressed.connect(func():
+			DisplayServer.clipboard_set(lobby_join_code)
+			copy.text = "Copied!")
+		lobby_config_box.add_child(copy)
+	else:
+		_make_config_label(lobby_config_box, "Port", str(lobby_port))
 	if is_host():
 		var _send := func(): net.send_config(cfg_choices, cfg_xp_rate, cfg_enemy_scale, cfg_win_time, cfg_boss_kill_base, cfg_boss_interval, cfg_boss_growth, cfg_random_power, cfg_async_levelup)
 		_make_lobby_cycler(lobby_config_box, "Options / level-up", str(CHOICES_OPTS[cfg_choices_i]), func():
