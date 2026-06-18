@@ -9,6 +9,8 @@ var splash := 70.0
 var velocity := Vector2.ZERO
 var life := 4.0
 var target: Node2D
+var use_point_target := false  # fused Carpet Bombing: fly to target_point, not an enemy
+var target_point := Vector2.ZERO  # explodes only on arrival here, ignoring anything passed en route
 var freeze_slow := 0.0  # >0: slow enemies in splash (Cryo Missile); duration scales with damage
 var freeze_dur := 0.0
 var push_strength := 0.0  # >0: shockwave push on impact (fused Cluster Warhead)
@@ -31,18 +33,25 @@ func _physics_process(delta: float) -> void:
 	if life <= 0.0:
 		queue_free()
 		return
-	if target == null or not is_instance_valid(target):
-		target = _find_target()
-	if target != null:
-		var desired := (target.global_position - global_position).normalized() * 380.0
-		velocity = velocity.lerp(desired, 4.0 * delta)
+	if use_point_target:
+		var desired_pt := (target_point - global_position).normalized() * 380.0
+		velocity = velocity.lerp(desired_pt, 4.0 * delta)
+	else:
+		if target == null or not is_instance_valid(target):
+			target = _find_target()
+		if target != null:
+			var desired := (target.global_position - global_position).normalized() * 380.0
+			velocity = velocity.lerp(desired, 4.0 * delta)
 	position += velocity * delta
 	rotation = velocity.angle()
 	queue_redraw()
 	if EnemyGrid.in_interceptor_zone(global_position):
 		queue_free()
 		return
-	if target != null and is_instance_valid(target) \
+	if use_point_target:
+		if global_position.distance_to(target_point) <= 12.0:
+			_explode()
+	elif target != null and is_instance_valid(target) \
 			and global_position.distance_to(target.global_position) <= 10.0 + target.radius:
 		_explode()
 

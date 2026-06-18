@@ -25,7 +25,7 @@ var sounds := {}
 var throttle := {
 	"orbit": 0.09, "laser": 0.08, "flame": 0.12, "gem": 0.06, "kill": 0.05,
 	"venom": 0.25, "bolt": 0.05, "turret": 0.06, "frost": 0.08, "boom": 0.06,
-	"chaingun_charge": 1.5, "chaingun_fire": 0.15,
+	"chaingun_charge": 1.5, "chaingun_fire": 0.15, "plasma_pulse": 0.3,
 }
 var last_play := {}
 var pool_2d: Array = []
@@ -112,6 +112,7 @@ func _make_sounds() -> void:
 	_synth("chaingun_charge", 0.9, 80.0, 1400.0, W_SAW, 0.05, 0.12, 0.55, 0.6, 0.05)  # rising power-up whine
 	_synth("chaingun_fire", 0.28, 1600.0, 60.0, W_SQUARE, 0.45, 0.003, 0.85, 0.9, 0.04)  # heavy discharge crack
 	_synth("frost", 0.12, 1100.0, 2100.0, W_TRI, 0.1, 0.005, 0.45)      # icy shimmer
+	_synth("plasma_pulse", 0.55, 70.0, 36.0, W_SINE, 0.05, 0.05, 0.85, 0.6, 0.15)  # deep bass whooom swell
 	_synth("gravity", 0.38, 95.0, 55.0, W_SINE, 0.05, 0.05, 0.8)        # wub
 	_synth("turret_deploy", 0.09, 320.0, 190.0, W_SQUARE, 0.1, 0.005, 0.5)
 	_synth("turret", 0.06, 700.0, 380.0, W_SQUARE, 0.0, 0.003, 0.35)    # smaller pew

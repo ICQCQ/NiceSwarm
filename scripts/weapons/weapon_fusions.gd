@@ -34,7 +34,7 @@ const INFO := {
 	"missiles|turret": {"name": "Missile Battery", "desc": "a deployed launcher firing homing salvos"},
 	"laser|turret": {"name": "Beam Sentry", "desc": "a deployed turret that sweeps a beam"},
 	"frost|turret": {"name": "Cryo Sentry", "desc": "a deployed turret firing slowing shots"},
-	"laser|nova": {"name": "Nova Beam", "desc": "sweeping beams that pulse a nova"},
+	"laser|nova": {"name": "Plasma Pulse", "desc": "a ring of light that follows you, slowly growing outward"},
 	"bolt|missiles": {"name": "Flak Battery", "desc": "rapid homing flak shells that curve toward foes and burst into shrapnel"},
 	"nova|venom": {"name": "Toxic Nova", "desc": "a blast that leaves a poison pool"},
 	"bolt|turret": {"name": "Gatling Nest", "desc": "a swarm of short-lived, rapid-redeploy mini-turrets carpeting the field"},
@@ -60,14 +60,14 @@ const INFO := {
 	"bolt|mines": {"name": "Sapper Round", "desc": "bolts that arm a proximity mine on impact"},
 	"bolt|venom": {"name": "Corrosive Round", "desc": "bolts that shatter into a corrosive splash on hit"},
 	"frost|laser": {"name": "Cryo Beam", "desc": "rotating ice beams that chill everything they sweep"},
-	"frost|mines": {"name": "Glacial Mine", "desc": "mines that detonate into a freezing blast"},
+	"frost|mines": {"name": "Glacial Mine", "desc": "mines that detonate into a total freeze, halting enemies caught in the blast"},
 	"frost|missiles": {"name": "Cryo Missile", "desc": "homing missiles that slow all targets in the blast"},
 	"frost|venom": {"name": "Frostbite", "desc": "a pool that chills and poisons everything inside"},
 	"flame|gravity": {"name": "Cinder Vortex", "desc": "a vortex that drags enemies into a burning pool"},
 	"gravity|laser": {"name": "Accretion Beam", "desc": "a vortex ringed by rotating energy beams"},
 	"gravity|lightning": {"name": "Storm Vortex", "desc": "a vortex that arcs lightning between everything it traps"},
 	"gravity|mines": {"name": "Implosion Mine", "desc": "a vortex that seeds mines around its collapsing core"},
-	"gravity|missiles": {"name": "Implosion Salvo", "desc": "a vortex that launches a salvo of homing missiles"},
+	"gravity|missiles": {"name": "Carpet Bombing", "desc": "marks a random nearby foe's spot, then calls in a missile barrage on random points inside that zone"},
 	"glaive|mines": {"name": "Shrapnel Mine", "desc": "mines that burst into a spray of glaive shrapnel"},
 	"laser|mines": {"name": "Beam Mine", "desc": "mines that leave a spinning laser array at the blast site"},
 	"lightning|mines": {"name": "Tesla Mine", "desc": "mines that chain lightning outward from the blast"},
@@ -140,7 +140,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"missiles|turret": return FusMissileBattery.new()
 		"laser|turret": return FusBeamSentry.new()
 		"frost|turret": return FusCryoSentry.new()
-		"laser|nova": return FusNovaBeam.new()
+		"laser|nova": return FusPlasmaPulse.new()
 		"bolt|missiles": return FusBarrage.new()
 		"nova|venom": return FusToxicNova.new()
 		"bolt|turret": return FusGunTurret.new()
@@ -173,7 +173,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"gravity|laser": return FusAccretionBeam.new()
 		"gravity|lightning": return FusStormVortex.new()
 		"gravity|mines": return FusImplosionMine.new()
-		"gravity|missiles": return FusImplosionSalvo.new()
+		"gravity|missiles": return FusCarpetBombing.new()
 		"glaive|mines": return FusShrapnelMine.new()
 		"laser|mines": return FusBeamMine.new()
 		"lightning|mines": return FusTeslaMine.new()

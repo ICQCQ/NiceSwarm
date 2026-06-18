@@ -157,13 +157,13 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | frost + venom | **Frostbite** | a pool that chills and poisons everything inside |
 | bolt + turret | **Gatling Nest** | a swarm of short-lived, rapid-redeploy mini-turrets carpeting the field |
 | frost + glaive | **Glacial Edge** | boomerangs that freeze and bleed |
-| frost + mines | **Glacial Mine** | mines that detonate into a freezing blast |
+| frost + mines | **Glacial Mine** | mines that detonate into a total freeze, completely halting enemies in the blast |
 | frost + gravity | **Glacier** | a slow, huge vortex that freezes everything inside |
 | glaive + turret | **Glaive Turret** | a deployed turret hurling boomerang glaives |
 | bolt + gravity | **Gravity Round** | bolts that form a gravity vortex on impact |
 | orbit + turret | **Halo Turret** | a deployed turret ringed with whirling blades |
 | gravity + mines | **Implosion Mine** | a vortex that seeds mines around its collapsing core |
-| gravity + missiles | **Implosion Salvo** | a vortex that launches a salvo of homing missiles |
+| gravity + missiles | **Carpet Bombing** | marks a random foe's spot with a target zone, then calls in a missile barrage on random points inside it (missiles per wave scale with level) |
 | bolt + flame | **Incendiary Rounds** | bolts that ignite the ground on impact, leaving a burning field |
 | flame + glaive | **Inferno Blade** | boomerangs that ignite foes and leave fire pools where they strike |
 | laser + lightning | **Ion Storm** | rotating beams that arc lightning to nearby foes |
@@ -171,7 +171,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | mines + turret | **Mine Layer** | a deployed turret seeding proximity mines |
 | missiles + turret | **Missile Battery** | a deployed launcher firing homing salvos |
 | flame + mines | **Napalm Mine** | mines that leave a burning pool on blast |
-| laser + nova | **Nova Beam** | sweeping beams that pulse a nova |
+| laser + nova | **Plasma Pulse** | drops a ring of light that grows outward slowly at first then in a fast burst, hitting harder the farther out it catches a foe — re-hits foes who linger in it |
 | mines + nova | **Nova Mine** | mines that pulse a second energy blast on detonation |
 | flame + missiles | **Phoenix Rocket** | homing rockets that leave a burning crater on impact |
 | glaive + laser | **Photon Disc** | boomerangs that fire a piercing beam from every hit |

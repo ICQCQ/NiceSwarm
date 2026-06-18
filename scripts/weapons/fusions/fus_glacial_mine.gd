@@ -1,4 +1,4 @@
-# --- frost + mines: mines that freeze all enemies in the blast ---------------
+# --- frost + mines: mines that detonate into a total freeze, halting movement ---
 class_name FusGlacialMine
 extends WeaponBase
 
@@ -23,8 +23,7 @@ func _physics_process(delta: float) -> void:
 	m.blast_radius = (cfg.blast_radius + cfg.blast_radius_per_count * (count_level() - 1)) * fuse_area()
 	m.trigger_radius = cfg.trigger_radius * fuse_area()
 	m.life = cfg.life * fuse_duration()
-	m.freeze_slow = cfg.freeze_slow
-	m.freeze_dur = dmg * cfg.freeze_dur_ratio * fuse_duration()
+	m.freeze_dur = cfg.freeze_dur_base * fuse_duration()
 	m.position = player.global_position \
 		+ Vector2(randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	player.get_parent().add_child(m)

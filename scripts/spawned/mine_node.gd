@@ -14,8 +14,7 @@ var spawn_missiles := 0  # fused Cluster Mine launches this many homing rockets
 var fire_dps := 0.0      # fused Napalm Mine leaves a burning pool on blast
 var fire_radius := 0.0
 var fire_dur := 2.0
-var freeze_slow := 0.0   # >0: slow enemies in blast (Glacial Mine); duration scales with damage
-var freeze_dur := 0.0
+var freeze_dur := 0.0    # >0: completely halts enemies in blast (Glacial Mine); scales with Duration
 var shrapnel_count := 0  # fused Shrapnel Mine: glaive shards fly outward on blast
 var shrapnel_dmg := 0.0
 var shrapnel_radius := 12.0
@@ -93,8 +92,8 @@ func _explode() -> void:
 			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += damage
 			e.take_hit(damage, global_position, Enemy.DMG_PHYS, source_pid)
-			if freeze_slow > 0.0:
-				e.apply_slow(freeze_slow, freeze_dur)
+			if freeze_dur > 0.0:
+				e.apply_freeze(freeze_dur)
 	for i in spawn_missiles:
 		var m := MissileProj.new()
 		m.damage = damage * 0.5
