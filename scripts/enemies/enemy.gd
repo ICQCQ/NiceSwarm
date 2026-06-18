@@ -171,6 +171,10 @@ func _physics_process(delta: float) -> void:
 	if life > 0.0:
 		life -= delta
 		if life <= 0.0:
+			# Timed despawn (shards): no `killed` signal, so erase the bookkeeping
+			# entry ourselves — otherwise enemies_by_id keeps a stale reference
+			# until the next network-sync pass notices it's invalid.
+			main_ref.enemies_by_id.erase(net_id)
 			queue_free()
 			return
 	var manual := false

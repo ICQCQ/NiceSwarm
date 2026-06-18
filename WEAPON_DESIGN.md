@@ -132,7 +132,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | gravity + mines | **Implosion Mine** | a vortex that seeds mines around its collapsing core |
 | gravity + missiles | **Implosion Salvo** | a vortex that launches a salvo of homing missiles |
 | glaive + mines | **Shrapnel Mine** | mines that burst into glaive shrapnel on blast |
-| laser + mines | **Beam Mine** | mines that pulse laser spokes outward on blast |
+| laser + mines | **Beam Mine** | mines that leave a spinning laser array at the blast site |
 | lightning + mines | **Tesla Mine** | mines that chain lightning outward from the blast |
 | mines + nova | **Nova Mine** | mines that pulse a second energy blast on detonation |
 | mines + venom | **Toxic Mine** | mines that leave a toxic pool on blast |

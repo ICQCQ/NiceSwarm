@@ -69,7 +69,7 @@ const INFO := {
 	"gravity|mines": {"name": "Implosion Mine", "desc": "a vortex that seeds mines around its collapsing core"},
 	"gravity|missiles": {"name": "Implosion Salvo", "desc": "a vortex that launches a salvo of homing missiles"},
 	"glaive|mines": {"name": "Shrapnel Mine", "desc": "mines that burst into a spray of glaive shrapnel"},
-	"laser|mines": {"name": "Beam Mine", "desc": "mines that pulse laser spokes outward on blast"},
+	"laser|mines": {"name": "Beam Mine", "desc": "mines that leave a spinning laser array at the blast site"},
 	"lightning|mines": {"name": "Tesla Mine", "desc": "mines that chain lightning outward from the blast"},
 	"mines|nova": {"name": "Nova Mine", "desc": "mines that pulse a second energy blast on detonation"},
 	"mines|venom": {"name": "Toxic Mine", "desc": "mines that leave a toxic pool on blast"},

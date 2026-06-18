@@ -133,7 +133,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | gravity + laser | **Accretion Beam** | a vortex ringed by rotating energy beams |
 | laser + venom | **Acid Ray** | rotating beams that corrode foes and seed toxic pools |
 | laser + missiles | **Beam Battery** | harmless rotating beams paint targets; on cooldown, every painted enemy takes a homing, fire-bursting missile |
-| laser + mines | **Beam Mine** | mines that pulse laser spokes outward on blast |
+| laser + mines | **Beam Mine** | mines that leave a spinning laser array at the blast site |
 | laser + turret | **Beam Sentry** | a deployed turret that sweeps a beam |
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |
 | glaive + orbit | **Blade Tempest** | a ring of blades where one periodically breaks off, strikes as a glaive, and rejoins the ring |
