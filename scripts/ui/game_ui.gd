@@ -674,6 +674,20 @@ func _build_menu() -> void:
 
 	# --- Online co-op (Noray NAT lobby): no port-forwarding; host shares a join code ---
 	vbox.add_child(_section_label("ONLINE  ·  no port-forwarding"))
+	var srv_row := HBoxContainer.new()
+	srv_row.add_theme_constant_override("separation", 8)
+	vbox.add_child(srv_row)
+	var srv_label := Label.new()
+	srv_label.text = "Lobby server"
+	srv_label.add_theme_font_size_override("font_size", 15)
+	srv_label.custom_minimum_size = Vector2(110, 42)
+	srv_row.add_child(srv_label)
+	main.noray_host_edit = LineEdit.new()
+	main.noray_host_edit.text = NorayLobby.DEFAULT_HOST
+	main.noray_host_edit.tooltip_text = "Noray lobby server (host and joiner must use the same one)"
+	main.noray_host_edit.custom_minimum_size = Vector2(242, 42)
+	main.noray_host_edit.add_theme_font_size_override("font_size", 15)
+	srv_row.add_child(main.noray_host_edit)
 	var online_host := Button.new()
 	online_host.text = "Host Online — create join code"
 	online_host.custom_minimum_size = Vector2(360, 42)

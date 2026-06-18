@@ -136,6 +136,20 @@ healthcheck fails ("unhealthy" while the server is actually fine). `curl` IS pre
 the working check is `curl -fsS http://127.0.0.1:8891/metrics` (returns 200; `/`
 404s).
 
+**Client robustness (2026-06-18):** the game side is **protocol-compatible** with the
+fork (the fork is pure server-side hardening — same `register-host`/`connect`/
+`set-oid`/`set-pid` wire protocol; its per-connection rate limit (50/s, burst 100) and
+host cap (8) are far above our ~2-commands-1-host handshake). Added so a join can't
+silently hang and works behind symmetric-NAT/LAN-hairpin: (1) **relay fallback** —
+`NorayLobby` tries `connect_nat`, and if the punch hasn't landed in `RELAY_FALLBACK_S`
+it asks Noray to `connect_relay` (uses the fork's hardened relay); (2) a **join
+timeout** (`JOIN_TIMEOUT_S`) that emits a clear `lobby_failed` instead of sitting on
+"Reaching lobby server"; (3) a **connect timeout** in the vendored `connect_to_host`
+(upstream looped forever on an unreachable host); (4) a **"Lobby server" field** in the
+menu so host + joiner can point at the same reachable server (env `NICESWARM_NORAY_HOST`
+still overrides). The default is still `ns.javis.coffee` (CGNAT-blocked) — for LAN use,
+set both to the LAN IP.
+
 **Known follow-up (pre-existing, not Noray-specific):** when a co-op peer leaves
 mid-run it stays in `peer_ids` (for rejoin) but drops out of
 `multiplayer.get_peers()`, so `main._refresh_pings()` calls

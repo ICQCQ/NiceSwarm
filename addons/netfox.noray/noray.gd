@@ -68,7 +68,11 @@ func _enter_tree():
 	on_command.connect(_handle_commands)
 
 ## Connect to noray at host.
-func connect_to_host(address: String, port: int = 8890) -> Error:
+## FORK FIX: added `timeout` (seconds) — upstream loops forever while the TCP
+## socket sits in CONNECTING (unreachable host that silently drops SYNs), which
+## hangs the caller with no failure. Now it gives up after `timeout` and returns
+## ERR_CONNECTION_ERROR so the lobby can surface a real error.
+func connect_to_host(address: String, port: int = 8890, timeout: float = 8.0) -> Error:
 	if is_connected_to_host():
 		disconnect_from_host()
 
@@ -84,8 +88,11 @@ func connect_to_host(address: String, port: int = 8890) -> Error:
 	_peer.set_no_delay(true)
 	_protocol.reset()
 
+	var deadline := Time.get_ticks_msec() + int(timeout * 1000.0)
 	while _peer.get_status() < 2:
 		_peer.poll()
+		if Time.get_ticks_msec() >= deadline:
+			break
 		await get_tree().process_frame
 
 	if _peer.get_status() == _peer.STATUS_CONNECTED:

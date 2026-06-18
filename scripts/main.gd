@@ -300,6 +300,7 @@ var update_banner: Control      # menu "a newer build is available" notice (hidd
 var _update_hash := ""          # sha256 of the newer build, for the Skip-this-version action
 var ip_edit: LineEdit
 var oid_edit: LineEdit             # Noray join code (OID) entry for the online lobby
+var noray_host_edit: LineEdit      # Noray lobby-server address (host + client must match)
 var port_edit: LineEdit
 var status_label: Label
 var settings: GameSettings        # client-local prefs (audio/display/shake), persisted
@@ -503,8 +504,14 @@ func _on_join_pressed() -> void:
 ## Resolve which Noray relay to use: NICESWARM_NORAY_HOST env override (for local /
 ## container testing) else the production default baked into NorayLobby.
 func _noray_host_addr() -> String:
-	var h := OS.get_environment("NICESWARM_NORAY_HOST")
-	return h if h != "" else NorayLobby.DEFAULT_HOST
+	var env_h := OS.get_environment("NICESWARM_NORAY_HOST")
+	if env_h != "":
+		return env_h  # headless/container override wins
+	if noray_host_edit != null:
+		var t := noray_host_edit.text.strip_edges()
+		if t != "":
+			return t  # the menu's Lobby server field
+	return NorayLobby.DEFAULT_HOST
 
 
 func _on_noray_host_pressed() -> void:

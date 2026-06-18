@@ -17,6 +17,9 @@ extends Node
 ## NICESWARM_NORAY_HOST env var (handled in main.gd).
 const DEFAULT_HOST := "ns.javis.coffee"
 const NORAY_PORT := 8890
+const HANDSHAKE_S := 4.0        # per-attempt NAT/relay punch window (< RELAY_FALLBACK_S)
+const RELAY_FALLBACK_S := 5.0   # if the NAT punch hasn't landed, ask Noray to relay instead
+const JOIN_TIMEOUT_S := 13.0    # overall: give up + report a clear error instead of hanging
 
 ## Emitted once we're registered as a host and have our OID (the join code).
 signal host_ready(oid: String)
@@ -29,7 +32,9 @@ var main: Node
 
 # Per-attempt role state so a retry (or the opposite role) starts clean.
 var _busy := false
-var _client_done := false
+var _connected := false     # client: a peer connection was established (nat or relay)
+var _handshaking := false   # client: a punch/handshake is in flight (serialises nat vs relay)
+var _attempt := 0           # join attempt id, so a stale watchdog/handshake no-ops
 var _host_cb := Callable()
 var _client_cb := Callable()
 
@@ -74,7 +79,10 @@ func join(oid: String, noray_host := DEFAULT_HOST) -> void:
 		lobby_failed.emit("Enter a join code")
 		return
 	_busy = true
-	_client_done = false
+	_connected = false
+	_handshaking = false
+	_attempt += 1
+	var attempt := _attempt
 	if not await _bootstrap(noray_host):
 		_busy = false
 		return
@@ -82,6 +90,7 @@ func join(oid: String, noray_host := DEFAULT_HOST) -> void:
 	Noray.on_connect_nat.connect(_client_cb)
 	Noray.on_connect_relay.connect(_client_cb)
 	Noray.connect_nat(code)
+	_watch_join(attempt, code)  # NAT punch -> relay fallback -> clear error (no silent hang)
 
 
 ## Drop any Noray signal handlers and reset state. Called from net.leave() so a
@@ -102,7 +111,22 @@ func reset() -> void:
 	if Noray.is_connected_to_host():
 		Noray.disconnect_from_host()
 	_busy = false
-	_client_done = false
+	_connected = false
+	_handshaking = false
+
+
+## Client watchdog: if the NAT punch hasn't connected within RELAY_FALLBACK_S, ask
+## Noray to relay instead (covers symmetric-NAT / LAN-hairpin where direct punch
+## fails); if still nothing by JOIN_TIMEOUT_S, surface a clear error rather than
+## hanging on "Reaching lobby server". `attempt` guards against a stale run.
+func _watch_join(attempt: int, code: String) -> void:
+	await get_tree().create_timer(RELAY_FALLBACK_S).timeout
+	if _attempt == attempt and _busy and not _connected:
+		Noray.connect_relay(code)
+	await get_tree().create_timer(JOIN_TIMEOUT_S - RELAY_FALLBACK_S).timeout
+	if _attempt == attempt and _busy and not _connected:
+		lobby_failed.emit("Couldn't reach the host. Check the join code, that the host is online, and that host & client use the same lobby server.")
+		reset()
 
 
 ## Shared bootstrap for both roles: reach the Noray server, register, and learn our
@@ -136,23 +160,28 @@ func _on_host_connect(address: String, port: int) -> void:
 ## Client side: handshake over the registered local port, then ENet-connect to the
 ## host across the punched path (reusing Noray.local_port as ENet's local bind).
 func _on_client_connect(address: String, port: int) -> void:
-	if _client_done:
+	# Serialise attempts: fires for both nat and relay (and the host can re-broker),
+	# but only one handshake binds Noray.local_port at a time. Once connected we stop.
+	if _connected or _handshaking:
 		return
-	_client_done = true
+	_handshaking = true
 	var udp := PacketPeerUDP.new()
 	udp.bind(Noray.local_port)
 	udp.set_dest_address(address, port)
-	var err := await PacketHandshake.over_packet_peer(udp)
+	var err := await PacketHandshake.over_packet_peer(udp, HANDSHAKE_S)
 	udp.close()
-	# ERR_BUSY = we exchanged packets but never saw a full ack; netfox treats this
-	# as "probably connectable", so we proceed on OK or BUSY.
+	# ERR_BUSY = packets exchanged but no full ack; netfox treats it as connectable.
+	# On any other failure, free the lock so the relay fallback (or a re-broker) can
+	# try — the watchdog reports the final failure if nothing lands.
 	if err != OK and err != ERR_BUSY:
-		lobby_failed.emit("NAT handshake failed (err %d)" % err)
+		_handshaking = false
 		return
 	var peer := ENetMultiplayerPeer.new()
 	err = peer.create_client(address, port, 0, 0, 0, Noray.local_port)
 	if err != OK:
-		lobby_failed.emit("Could not connect (err %d)" % err)
+		_handshaking = false
 		return
 	multiplayer.multiplayer_peer = peer
 	net.active = true
+	_connected = true
+	_handshaking = false
