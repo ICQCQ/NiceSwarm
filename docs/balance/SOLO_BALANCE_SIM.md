@@ -37,7 +37,7 @@ time-scale). On win (survive `WIN_TIME`) or wipe it prints one line then quits:
 ```
 
 **Playstyles** (`SIM_STYLES`): each is a priority-weapon line + the fusion to aim for
-(railgun, pulsar, supernova, glacier, prism, toxicpyre, warhead, singular, cluster, storm,
+(railgun, pulsar, supernova, glacier, prism, purgatory, warhead, singular, cluster, storm,
 frostbite, greedy). `_sim_pick_for` auto-resolves level-ups toward that build.
 
 **The bot** (`player.gd` `_bot_step`, active only when `bot == true`): comet-tail orbit kite,

@@ -41,9 +41,18 @@ in `weapon_flame.gd`) is the only user so far.
   Glacial Mine (frost+mines); freeze duration scales with Duration, not damage. Bosses are
   exempt outright (a full stop would trivialize boss fights) on top of the `cc_immune` check
 - `apply_burn(dps, duration)` — fire/energy weapons, via `ignite()`
-- `apply_push(from_pos, strength)` — knockback impulse away from `from_pos`; nova-family
-  blasts call `WeaponBase.push(e, from_pos)` for a mild extra "shockwave" shove on top of
-  `take_hit`'s normal hit knockback (skipped for `cc_immune` enemies, scales with Area)
+- `apply_push(from_pos, strength)` — knockback impulse away from `from_pos`, capped at 280 px/s;
+  nova-family blasts call `WeaponBase.push(e, from_pos)` for a mild extra "shockwave" shove on
+  top of `take_hit`'s normal hit knockback (skipped for `cc_immune` enemies, scales with Area)
+- `apply_blast_push(from_pos, distance)` — a heavy forced shove that covers `distance` px at a
+  fixed speed (`BLAST_PUSH_SPEED`), bypassing `apply_push`'s 280 px/s cap so a "heavy push"
+  effect (Cluster Warhead) actually reads as heavy; `distance` is the stat-scaled knob (Duration)
+
+Both `apply_slow` and `apply_freeze` are no-ops on `cc_immune` enemies; `apply_push` and
+`apply_blast_push` are no-ops on `cc_immune` or `knockback_immune` enemies. Every enemy's
+final position is clamped to the arena bounds every tick (in `Enemy._physics_process`, after
+movement + any push/pull), so no push or pull effect — including these — can shove or drag an
+enemy outside the map.
 
 ## Checklist for a NEW base weapon
 
@@ -85,10 +94,10 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 |------|--------|----------|
 | bolt + nova | **Plasma Burst** | slugs that erupt into an AoE blast on impact |
 | frost + lightning | **Cryoshock** | a chain that freezes (slow) and burns every link |
-| flame + venom | **Toxic Pyre** | a trail of burning toxic pools |
+| flame + venom | **Purgatory** | an eerie field that burns and marks foes inside it -- marked enemies take extra damage, slow harder, and can't burn out |
 | gravity + nova | **Singularity** | a vortex that collapses into a detonation |
 | mines + missiles | **Cluster Bomb** | mines that spray homing rockets on blast |
-| laser + orbit | **Prism Halo** | rotating beam-spokes orbiting you |
+| laser + orbit | **Prism Halo** | prisms drop around you, linked to you and each other by damage beams |
 | frost + glaive | **Glacial Edge** | boomerangs that freeze and bleed |
 | bolt + lightning | **Railgun** | a piercing rail-line that electrifies everything along it |
 | flame + nova | **Supernova** | a huge blast that leaves a burning field |
@@ -99,7 +108,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | missiles + nova | **Cluster Warhead** | straight-flying (non-homing) warheads that explode into a heavy shockwave, shoving everything in the blast outward (push distance scales with Duration) |
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |
 | orbit + venom | **Toxic Halo** | orbiting blades that poison on contact and paint a rotating ring of toxic ground |
-| nova + orbit | **Pulsar** | orbiting blades that each breathe — independently pulsing their own mini-nova as they spin |
+| nova + orbit | **Pulsar** | orbiting balls that periodically swarm a random foe — spreading into a ring around it before every ball rushes the center and detonates (target-find range + blast radius scale with Area, ring distance + both the dive and the blast's damage scale with Duration, the wait between attacks shortens with Haste) |
 | bolt + frost | **Frost Lance** | a piercing volley of chilling lances; a lance that strikes an already-frozen foe shatters into an icy burst |
 | lightning + venom | **Ground Current** | drops a crackling field on a random foe within the player's screen (Duration stretches that leash); every enemy caught inside it becomes its own lightning source and chains out to nearby foes, re-zapping on an interval for as long as the field lasts (hop count scales with level + every Duration power-up picked) |
 | lightning + orbit | **Tesla Halo** | orbiting blades that zap nearby foes |
@@ -118,7 +127,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | gravity + orbit | **Event Horizon** | blades that hold enemies in a crushing ring |
 | glaive + gravity | **Vortex Blade** | glaives that drop a small pulling vortex on every hit |
 | lightning + nova | **Thunderclap** | a blast that forks lightning out of every hit |
-| mines + orbit | **Mine Halo** | orbiting blades that fling proximity mines |
+| mines + orbit | **Bouncy Grenade** | a barrage of grenades that bounce between enemies, exploding hardest on the final hop |
 | bolt + flame | **Incendiary Rounds** | bolts that ignite the ground on impact, leaving a burning field |
 | bolt + orbit | **Scatter Shot** | a ring of bolts fired in all directions |
 | bolt + glaive | **Ricochet** | bolts that arc to the next enemy on every hit |
@@ -146,7 +155,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | flame + orbit | **Blaze Halo** | orbiting blades that ignite on contact and pulse a ring of fire |
 | glaive + laser | **Photon Disc** | boomerangs that fire a piercing beam from every hit |
 | glaive + missiles | **Rotor Missile** | homing rockets that burst into glaive shrapnel |
-| glaive + orbit | **Blade Tempest** | a ring of orbiting blades where one periodically breaks formation, flies out as a glaive, and rejoins the ring on return |
+| glaive + orbit | **Halo Comet** | orbiting balls that periodically spurt outward like a comet's tail, hitting harder while extended |
 | glaive + venom | **Plague Blade** | boomerangs that poison foes and leave toxic pools where they strike |
 | laser + lightning | **Ion Storm** | rotating beams that arc lightning to nearby foes |
 | laser + missiles | **Beam Battery** | harmless rotating beams paint targets; on cooldown a homing missile volley strikes every painted enemy |

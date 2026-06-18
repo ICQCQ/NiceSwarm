@@ -70,9 +70,9 @@ const CLASSES := {
 		# Scrambler: casts a field at a random spot nearby (not on itself); sized by current THREAT.
 		{"name": "Scrambler", "hp0": 18.0, "hpk": 5.0, "spd": 75.0, "spdk": 1.0, "r": 16.0, "dmg": 1, "xp": 8, "col": Color(0.7, 0.2, 0.32), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 1, "icast_radius": 90.0, "icast_life": 3.0, "icast_cooldown": 5.0},
 		# Disperser: drops lingering fields on several nearby enemies at once.
-		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.8, 0.25, 0.35), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 130.0, "icast_life": 6.0, "icast_count": 3, "icast_cooldown": 8.0},
+		{"name": "Disperser", "hp0": 28.0, "hpk": 6.0, "spd": 78.0, "spdk": 1.0, "r": 17.0, "dmg": 2, "xp": 11, "col": Color(0.8, 0.25, 0.35), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 2, "icast_radius": 130.0, "icast_life": 6.0, "icast_count": 1, "icast_cooldown": 8.0},
 		# Overseer: rare — casts a single very long line of fields across the arena at a random angle.
-		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.9, 0.3, 0.4), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 10.0},
+		{"name": "Overseer", "hp0": 42.0, "hpk": 8.0, "spd": 80.0, "spdk": 1.0, "r": 19.0, "dmg": 2, "xp": 16, "col": Color(0.9, 0.3, 0.4), "shape": "hex", "pull_imm": true, "move": 4, "icast_pattern": 3, "icast_radius": 110.0, "icast_life": 6.0, "icast_cooldown": 15.0},
 	],
 	"elite": [  # tanky specials that always drop a chest
 		{"name": "Elite", "hp0": 40.0, "hpk": 18.0, "spd": 100.0, "spdk": 0.0, "r": 18.0, "dmg": 1, "xp": 8, "col": Color(0.95, 0.35, 0.5), "shape": "circle", "elite": true, "pull_imm": true},
@@ -94,7 +94,7 @@ const CLASSES := {
 		# centered on itself at the target's current distance — find the gaps
 		# by stepping toward or away from it.
 		# A dark void orb (circle) keeps it reading distinct from Juggernaut's red hex.
-		{"name": "Eclipse", "hp0": 1100.0, "hpk": 90.0, "spd": 50.0, "spdk": 0.0, "r": 38.0, "dmg": 5, "xp": 100, "col": Color(0.1, 0.04, 0.16), "shape": "circle", "elite": true, "pull_imm": true, "boss": true, "enrage_resist": 0.5, "summon_cls": "interceptor", "summon_tier": 1, "summon_count": 2, "summon_cooldown": 12.0, "slam_pattern": 5, "slam_radius": 55.0, "slam_damage": 4, "slam_cooldown": 5.5},
+		{"name": "Eclipse", "hp0": 1100.0, "hpk": 90.0, "spd": 50.0, "spdk": 0.0, "r": 38.0, "dmg": 5, "xp": 100, "col": Color(0.1, 0.04, 0.16), "shape": "circle", "elite": true, "pull_imm": true, "boss": true, "enrage_resist": 0.5, "summon_cls": "wisp", "summon_tier": 1, "summon_count": 2, "summon_cooldown": 12.0, "slam_pattern": 5, "slam_radius": 55.0, "slam_damage": 4, "slam_cooldown": 5.5},
 	],
 }
 

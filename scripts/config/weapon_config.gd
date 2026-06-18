@@ -34,7 +34,7 @@ const BASE := {
 		"target_range": 480.0, "proj_radius": 5.0},
 	# Redesigned fusions — all tuning lives here.
 	# fus_charge_round (bolt+laser): charge_time=cd, bolt_range=range, bolt_radius=radius
-	"fus_charge_round": {"dmg": 18.0, "growth": 0.08, "cd": 2.5, "range": 500.0, "radius": 8.0},
+	"fus_charge_round": {"dmg": 38.0, "growth": 0.08, "cd": 2.5, "range": 500.0, "radius": 8.0},
 
 	# --- Mine-fusion base stats (FusMineBase, read dynamically by weapon_id) plus each
 	# subclass's bonus-payload numbers (added by its own _load() override). ---
@@ -98,7 +98,7 @@ const BASE := {
 	"fus_barrage": {"dmg": 1.5, "growth": 0.08, "cd": 0.5, "range": 700.0, "count_base": 1, "splash_base": 44.0, "splash_per_level": 6.0, "spread_deg": 14.0, "speed": 480.0, "direct_dmg_ratio": 0.4, "radius": 4.0, "life": 1.8, "homing_turn": 5.0, "homing_range": 260.0},
 	"fus_beambattery": {"dmg": 6.1, "growth": 0.08, "cd": 1.8, "spin": 1.6, "beams_base": 1, "length_base": 244.0, "length_per_count": 8.0, "splash_base": 65.0, "splash_per_level": 8.0, "life": 4.0, "speed": 280.0, "fire_dps_base": 0.7, "fire_dps_growth": 0.35, "fire_radius_base": 55.0, "fire_radius_per_level": 8.0, "fire_dur": 1.6},
 	"fus_blackbog": {"dmg": 3.0, "growth": 0.08, "cd": 4.5, "range": 700.0, "radius_base": 212.0, "radius_per_count": 8.0, "life": 3.0, "pull": 160.0, "well_dmg_ratio": 1.5, "pool_radius_ratio": 0.9, "pool_dmg_ratio": 1.6},
-	"fus_bladetempest": {"dmg": 5.0, "growth": 0.08, "spin": 3.2, "count_base": 2, "orbit_radius": 75.0, "blade_radius": 11.0, "launch_range": 600.0, "launch_speed": 460.0, "launch_dmg": 5.1, "launch_hit_radius": 14.0, "launch_cd": 1.8},
+	"fus_halocomet": {"dmg": 5.0, "growth": 0.08, "spin": 3.2, "count_base": 2, "orbit_radius": 75.0, "blade_radius": 11.0, "spurt_cd": 2.4, "spurt_range": 160.0, "spurt_dmg_bonus": 2.5, "spurt_size_bonus": 1.8},
 	"fus_blazehalo": {"dmg": 5.0, "growth": 0.08, "spin": 2.8, "count_base": 2, "orbit_radius": 80.0, "blade_radius": 11.0, "pulse_radius_base": 182.0, "pulse_radius_per_count": 8.0, "pulse_dmg": 1.5, "pulse_cd": 3.0},
 	"fus_cindervortex": {"dmg": 3.0, "growth": 0.08, "cd": 4.5, "range": 700.0, "radius_base": 202.0, "radius_per_count": 8.0, "life": 2.8, "pull": 180.0, "well_dmg_ratio": 0.9, "pool_radius_ratio": 0.85, "pool_dmg_ratio": 0.9, "burn_dps_ratio": 0.9, "burn_dur": 1.4},
 	"fus_cluster": {"dmg": 17.8, "growth": 0.08, "cd": 2.0, "cap_base": 3, "blast_radius_base": 110.0, "blast_radius_per_level": 15.0, "trigger_radius": 60.0, "life": 12.0, "spawn_missiles_base": 2},
@@ -134,8 +134,8 @@ const BASE := {
 	"fus_plasmastorm": {"dmg": 2.0, "growth": 0.08, "cap_base": 2, "spawn_cd": 1.8, "speed": 70.0, "aim_range": 700.0, "radius": 65.0, "max_dist": 260.0, "life": 5.0, "lightning_cd": 0.9, "lightning_dmg": 4.5, "chain_base": 2, "chain_range": 190.0},
 
 	# --- batch 3 ---
-	"fus_prism": {"dmg": 3.0, "growth": 0.08, "count_base": 1, "length": 222.0, "length_per_count": 8.0, "hit_radius": 7.0},
-	"fus_pulsar": {"dmg": 5.0, "growth": 0.08, "count_base": 2, "orbit_r": 80.0, "blade_r": 11.0, "pulse_radius": 90.0, "pulse_radius_per_level": 20.0, "pulse_dmg": 8.9},
+	"fus_prism": {"dmg": 3.0, "growth": 0.08, "count_base": 1, "spawn_cd": 1.6, "lifetime": 5.0, "place_dist": 220.0, "hit_radius": 10.0, "tick_cd": 0.35},
+	"fus_pulsar": {"dmg": 4.0, "growth": 0.4, "count_base": 2, "orbit_r": 75.0, "ball_r": 11.0, "orbit_dmg": 2.0, "seek_range": 380.0, "b_range": 220.0, "explode_radius": 85.0, "explode_dmg": 9.0, "period": 3.2},
 	"fus_railgun": {"dmg": 5.0, "growth": 0.4, "cd": 0.9, "length": 999.0, "zap_r_min": 42.0, "zap_r_max": 80.0, "bounce_dmg_ratio": 0.6, "hops_min": 1, "hops_max": 2, "bounce_reach_min": 90.0, "bounce_reach_max": 170.0, "bounce_decay": 0.7},
 	"fus_ricochet": {"dmg": 4.1, "growth": 0.08, "cd": 0.8, "range": 650.0, "speed": 540.0, "radius": 6.0, "life": 2.0, "chain_decay": 0.7, "chain_range": 220.0},
 	"fus_concorde": {"dmg": 3.0, "growth": 0.08, "cd": 8.0, "range": 700.0, "speed": 240.0, "speed_ramp": 18.0, "dmg_ramp": 0.5, "max_size": 24.0, "life": 18.0},
@@ -152,6 +152,6 @@ const BASE := {
 	"fus_thunderclap": {"dmg": 8.9, "growth": 0.08, "cd": 2.2, "radius": 170.0, "radius_per_count": 28.0, "fork_count_base": 3, "fork_range_ratio": 1.6, "fork_dmg_ratio": 0.6},
 	"fus_toxhalo": {"dmg": 5.0, "growth": 0.08, "count_base": 2, "orbit_r": 80.0, "blade_r": 11.0, "poison_dps_ratio": 0.35, "poison_dur": 1.5, "trail_cd": 0.16, "puddle_radius": 16.0, "puddle_radius_per_level": 2.0, "puddle_dmg": 0.5, "puddle_dmg_growth": 0.3, "puddle_life": 1.4},
 	"fus_toxicnova": {"dmg": 8.9, "growth": 0.08, "cd": 1.3, "radius": 238.0, "radius_per_count": 10.0, "poison_dps_ratio": 0.3, "poison_dur": 1.5, "puddle_radius_ratio": 0.7, "puddle_dmg_ratio": 0.25, "puddle_life": 2.5, "echo_gap": 0.22, "echo_count_threshold": 4},
-	"fus_pyre": {"dmg": 3.0, "growth": 0.08, "cd": 0.3, "radius": 55.0, "radius_per_level": 6.0, "life": 3.0, "burn_dps_ratio": 0.8, "burn_dur": 1.2},
+	"fus_purgatory": {"dmg": 3.0, "growth": 0.08, "cd": 2.0, "radius": 155.0, "radius_per_level": 6.0, "life": 3.0, "burn_dps_ratio": 0.8, "burn_dur": 1.2, "vuln_dmg_bonus": 0.2, "vuln_dur": 2.5},
 	"fus_vortexblade": {"dmg": 5.1, "growth": 0.08, "cd": 1.8, "range": 650.0, "count_base": 2, "spread_deg": 22.0, "speed": 430.0, "hit_radius": 14.0, "well_radius": 50.0, "well_radius_per_level": 6.0, "well_dmg": 0.35, "well_growth": 0.3, "well_pull": 120.0, "well_life": 1.0},
 }
