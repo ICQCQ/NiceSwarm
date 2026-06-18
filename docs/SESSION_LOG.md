@@ -1021,3 +1021,22 @@ Two reported balance bugs, both rooted in the 3→7 weapon-cap rise not being fo
 - **Next:** persistent Noray server deploy (compose + `.env` + healthcheck) on docker-server; resolve the public
   inbound/CGNAT question (read the home router WAN IP → bridge ONT vs. public VPS) before `ns.javis.coffee` can
   serve real internet players; wire the OID join code into the launcher / add copy-to-clipboard in the lobby UI.
+
+### 2026-06-18 — Session 13: Noray server deployed, security-reviewed, swapped to hardened fork
+- **Persistent deploy:** Noray now runs as a standing stack on docker-server (`~/noray/`, LAN, healthy), not a
+  throwaway `--rm`. Game reaches it via `NICESWARM_NORAY_HOST=192.168.1.36`.
+- **Security review** (blackbox + whitebox; report in infra repo `network/noray-security-review.md`): **no RCE**.
+  Found a process-killing crash (any relay crossing a bandwidth/lifetime/traffic cap threw uncaught → the whole
+  server exited, dropping all sessions — reproduced live), a dynamic-relay pool-exhaustion crash, unbounded
+  `register-host`, and metrics exposed on `0.0.0.0:8891`.
+- **Hardened private fork** ([github.com/chawasit/noray](https://github.com/chawasit/noray), `upstream` =
+  foxssake/noray): relay drops instead of crashing (DoS-1, proven live on the built image), dynamic-relay
+  exhaustion guard + per-connection host cap & command rate limit (DoS-2/3), metrics bound to container loopback
+  + `8891` un-published (IL-2). Published to **private GHCR** `ghcr.io/chawasit/noray:trirat`; live `~/noray/`
+  compose pulls it (self-healing). Relay caps tuned generous for co-op (1mb/s · 24hr · 64gb). 147/147 unit tests
+  (added DoS-1 + limits regression tests); relay forwarding re-proven end-to-end on the fork image.
+- **Client compat:** game side is wire-compatible (fork is server-only hardening); our ~2-cmd/1-host handshake is
+  far under the new limits. See `docs/NORAY.md` for the contract + the fork's `FORK.md`.
+- **Still open (owner):** raise `NORAY_OID_LENGTH` from 6 before any internet exposure (rate-limit ≠ anti-enumeration);
+  public-inbound CGNAT decision; e2e suite + full Godot rendezvous not re-run against the fork (named residual).
+- **Next:** OID length decision; CGNAT bridge-vs-VPS; wire OID join code into launcher + copy-to-clipboard.

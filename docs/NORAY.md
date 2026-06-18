@@ -25,7 +25,7 @@ niceswarm Noray relay").
   | 8890 | TCP | `NORAY_SOCKET_PORT=8890` | client registration / connect requests |
   | 8809 | UDP | `NORAY_UDP_REGISTRAR_PORT=8809` | UDP address registration (host) |
   | 49152–49199 | UDP | `NORAY_UDP_RELAY_PORTS=49152-49199` | relay slots (48, trimmed from default) |
-  | 8891 | TCP | `NORAY_HTTP_PORT` | Prometheus metrics — **keep LAN-only, do NOT forward** |
+  | 8891 | TCP | `NORAY_HTTP_PORT` | Prometheus metrics — since the hardened fork, bound to **container loopback** (`NORAY_HTTP_HOST=127.0.0.1`) and **un-published**; not LAN-reachable, never forward |
 
 ## ⚠️ Blocker: inbound to the home is currently BLOCKED (CGNAT/double-NAT)
 
