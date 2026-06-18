@@ -119,6 +119,7 @@ var main_ref: Node  # set by main.gd (host); null on puppets
 var puppet := false
 var net_id := 0
 var net_target := Vector2.ZERO
+var _interp := NetInterp.new()  # time-based snapshot interp (used when GameSettings.net_interpolation)
 
 
 func _ready() -> void:
@@ -166,7 +167,11 @@ func _physics_process(delta: float) -> void:
 		_last_sig = sig
 		queue_redraw()
 	if puppet:
-		global_position = global_position.lerp(net_target, minf(10.0 * delta, 1.0))
+		var m := Main.instance
+		if m != null and m.settings != null and m.settings.net_interpolation:
+			global_position = _interp.sample(Time.get_ticks_msec(), NetInterp.ENEMY_DELAY_MS)
+		else:
+			global_position = global_position.lerp(net_target, minf(10.0 * delta, 1.0))
 		return
 	if main_ref == null:
 		return

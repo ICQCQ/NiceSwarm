@@ -5,14 +5,13 @@ state is broadcast, **how** clients render it smoothly, and how to scale entity
 count without bandwidth blow-up. This is **orthogonal to transport** — it runs
 unchanged over direct-IP ENet or the Noray relay (see [`NORAY.md`](./NORAY.md)).
 
-Status: **mostly applied (2026-06-18).** Live: telegraphs promoted to the 20 Hz
-tick; cadence gated by physics-frame count (jitter-free); enemies at **12 Hz**
-(`% 5`); and **`STATE_ENEMIES` delta compression** (only changed enemies per tick +
-explicit removals, full keyframe every ~1 s and on (re)connect). The **only**
-remaining item is **time-based snapshot interpolation** — the current puppet lerp is
-fixed-weight, so at 12 Hz (83 ms spacing) fast movers can look slightly steppy;
-that's a feel change only verifiable over a real relay, so it's deferred. 30 Hz
-physics stays off (CPU not proven the bottleneck).
+Status: **applied (2026-06-18).** Live: telegraphs promoted to the 20 Hz tick;
+cadence gated by physics-frame count (jitter-free); enemies at **12 Hz** (`% 5`);
+**`STATE_ENEMIES` delta compression** (only changed enemies per tick + explicit
+removals, full keyframe every ~1 s and on (re)connect); and **time-based snapshot
+interpolation** as an **opt-in client setting** ("Smooth net motion",
+`GameSettings.net_interpolation`, default off) — so it can be A/B'd live without a
+forced feel change. 30 Hz physics stays off (CPU not proven the bottleneck).
 
 ## Current state (as shipped)
 
@@ -139,9 +138,12 @@ host is sim-bound. Revisit 30 Hz only with the two prerequisites handled.
 - [x] Enemies 16→**12 Hz** (`% 5`). **Done 2026-06-18.** Gems/pickups ride the same
       tick. (Feel caveat: best paired with the time-based interpolation below at this
       rate.)
-- [ ] Audit `player.gd` puppet lerp: make it time-based snapshot interpolation
-      with per-channel buffers (player ~100 ms, enemies ~150–200 ms). **Only remaining
-      item** — feel change, needs real-relay A/B.
+- [x] Time-based snapshot interpolation (`scripts/core/net_interp.gd` `NetInterp`),
+      wired into player + enemy puppets with per-channel delay (player 100 ms, enemy
+      160 ms). **Done 2026-06-18** as an **opt-in setting** ("Smooth net motion",
+      default off) so the feel change can be A/B'd live. Buffer is fed on every apply
+      regardless of the toggle, so flipping it on has instant history. Math unit-tested
+      (`tests/test_net_interp.gd`); smoothness itself is only judgeable over a live link.
 - [x] Delta + 16-bit quantization for `STATE_ENEMIES`; keyframe every ~1 s + on
       (re)connect. **Done 2026-06-18** — positions were already 16-bit fixed-point;
       added per-tick delta (only changed enemies) + explicit removals + keyframe

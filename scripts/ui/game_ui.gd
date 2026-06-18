@@ -869,6 +869,9 @@ func _build_settings_rows(parent: Node, rows_out: Array) -> void:
 	_make_setting_cycler(parent, "Screen shake",
 		func(): return "On" if main.settings.screen_shake else "Off",
 		_adv_shake, rows_out)
+	_make_setting_cycler(parent, "Smooth net motion",
+		func(): return "On" if main.settings.net_interpolation else "Off",
+		_adv_net_interp, rows_out)
 
 
 ## Like _make_cycler, but records {button, get_text} into rows_out so _relabel can
@@ -923,4 +926,9 @@ func _adv_fullscreen() -> void:
 
 func _adv_shake() -> void:
 	main.settings.screen_shake = not main.settings.screen_shake
+	main.settings.save()
+
+
+func _adv_net_interp() -> void:
+	main.settings.net_interpolation = not main.settings.net_interpolation
 	main.settings.save()

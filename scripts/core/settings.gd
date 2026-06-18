@@ -10,6 +10,7 @@ var volume := 1.0          # master bus level, 0.0–1.0
 var muted := false         # mute toggle (independent of volume)
 var fullscreen := false    # windowed (false) vs fullscreen
 var screen_shake := true   # camera shake on hit/bomb (player.gd reads this live)
+var net_interpolation := false  # smooth remote puppets via time-based snapshot interp (opt-in)
 
 
 ## Cycle the master volume in 10% steps, wrapping 100% → 0%. Pure so it's testable.
@@ -31,6 +32,7 @@ func load_from_disk(path := SAVE_PATH) -> void:
 	muted = bool(data.get("muted", muted))
 	fullscreen = bool(data.get("fullscreen", fullscreen))
 	screen_shake = bool(data.get("screen_shake", screen_shake))
+	net_interpolation = bool(data.get("net_interpolation", net_interpolation))
 
 
 func save(path := SAVE_PATH) -> void:
@@ -39,6 +41,7 @@ func save(path := SAVE_PATH) -> void:
 		f.store_var({
 			"volume": volume, "muted": muted,
 			"fullscreen": fullscreen, "screen_shake": screen_shake,
+			"net_interpolation": net_interpolation,
 		})
 
 

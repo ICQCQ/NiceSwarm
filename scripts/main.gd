@@ -2439,6 +2439,7 @@ func apply_player_state(pid: int, pos: Vector2, facing: Vector2, dashing: bool) 
 	if p == null:
 		return
 	p.net_target = pos
+	p._interp.push(Time.get_ticks_msec(), pos)
 	p.facing = facing
 	p.remote_dashing = dashing
 
@@ -2692,6 +2693,7 @@ func _apply_enemy_state(data: PackedByteArray) -> void:
 			enemies_by_id[id] = e
 			world.add_child(e)
 		e.net_target = pos
+		e._interp.push(Time.get_ticks_msec(), pos)
 		var status := int(f) / 1000
 		e.slow_timer = 0.5 if status == 1 or status == 3 else 0.0
 		e.freeze_timer = 0.5 if status == 2 or status == 3 else 0.0

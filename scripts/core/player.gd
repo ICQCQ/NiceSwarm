@@ -84,6 +84,7 @@ var cam: Camera2D
 
 # Remote-puppet state (set from network)
 var net_target := Vector2.ZERO
+var _interp := NetInterp.new()  # time-based snapshot interp (used when GameSettings.net_interpolation)
 var remote_dashing := false
 
 
@@ -136,7 +137,11 @@ func _physics_process(delta: float) -> void:
 		_local_move(delta)
 	else:
 		var to := net_target - global_position
-		global_position = global_position.lerp(net_target, minf(14.0 * delta, 1.0))
+		var m := Main.instance
+		if m != null and m.settings != null and m.settings.net_interpolation:
+			global_position = _interp.sample(Time.get_ticks_msec(), NetInterp.PLAYER_DELAY_MS)
+		else:
+			global_position = global_position.lerp(net_target, minf(14.0 * delta, 1.0))
 		velocity = to * 10.0  # rough speed estimate, used by venom's "moving" check
 		if remote_dashing and dash_active <= 0.0:
 			Sfx.play("dash", global_position)
