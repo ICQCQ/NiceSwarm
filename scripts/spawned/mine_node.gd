@@ -18,16 +18,7 @@ var freeze_dur := 0.0    # >0: completely halts enemies in blast (Glacial Mine);
 var shrapnel_count := 0  # fused Shrapnel Mine: glaive shards fly outward on blast
 var shrapnel_dmg := 0.0
 var shrapnel_radius := 12.0
-var beam_spokes := 0     # fused Beam Mine: spinning laser arms left at the blast site
-var beam_dmg := 0.0
-var beam_len := 0.0
-var beam_burn_dur := 0.0
-var beam_spin_life := 0.0  # how long the laser array keeps spinning before fading
-var beam_spin := 2.2       # rad/s
-var beam_rate := 1.0       # Haste: per-enemy re-hit cooldown on the spinning array
-var chain_count := 0     # fused Tesla Mine: lightning chains out from the blast
-var chain_dmg := 0.0
-var chain_range := 0.0
+var shrapnel_life := 0.0  # Duration: shards shuttle forth/back from the blast point until this expires
 var nova_radius := 0.0   # fused Nova Mine: a second, larger energy pulse on blast
 var nova_dmg := 0.0
 var nova_push := 0.0     # fused Nova Mine: shockwave push from the energy pulse
@@ -123,48 +114,9 @@ func _explode() -> void:
 		g.velocity = Vector2.from_angle(TAU * float(i) / shrapnel_count) * 420.0
 		g.damage = shrapnel_dmg
 		g.hit_radius = shrapnel_radius
+		g.shuttle_life = shrapnel_life
 		g.position = global_position
 		get_parent().add_child(g)
-	if beam_spokes > 0:
-		var sl := SpinLaser.new()
-		sl.position = global_position
-		sl.spokes = beam_spokes
-		sl.dmg = beam_dmg
-		sl.length = beam_len
-		sl.spin = beam_spin
-		sl.rate_mult = beam_rate
-		sl.life = beam_spin_life
-		sl.burn_dur = beam_burn_dur
-		sl.source_pid = source_pid
-		sl.source_weapon = (source_weapon if is_instance_valid(source_weapon) else null)
-		get_parent().add_child(sl)
-		Sfx.play("laser", global_position)
-	if chain_count > 0:
-		var visited := {}
-		for e in EnemyGrid.near(global_position, blast_radius):
-			if global_position.distance_to(e.global_position) <= blast_radius + e.radius:
-				visited[e.get_instance_id()] = true
-		var from_pos := global_position
-		for i in chain_count:
-			var best: Node2D = null
-			var bd := chain_range * chain_range
-			for e in EnemyGrid.near(from_pos, chain_range):
-				if visited.has(e.get_instance_id()):
-					continue
-				var d: float = from_pos.distance_squared_to(e.global_position)
-				if d < bd:
-					bd = d
-					best = e
-			if best == null:
-				break
-			visited[best.get_instance_id()] = true
-			if is_instance_valid(source_weapon):
-				source_weapon.damage_dealt += chain_dmg
-			best.take_hit(chain_dmg, from_pos, Enemy.DMG_ENERGY, source_pid)
-			var cfx := LightningFx.new()
-			cfx.points = [from_pos, best.global_position]
-			get_parent().add_child(cfx)
-			from_pos = best.global_position
 	if nova_radius > 0.0:
 		for e in EnemyGrid.near(global_position, nova_radius):
 			if global_position.distance_to(e.global_position) <= nova_radius + e.radius:

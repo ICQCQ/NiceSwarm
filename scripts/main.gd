@@ -1794,6 +1794,12 @@ func cast_intercept_zone(pos: Vector2, radius: float, life: float) -> void:
 # --- host: drops, pickups, revives -------------------------------------------
 
 func _on_enemy_killed(enemy: Enemy) -> void:
+	# _clear_world() queue_frees the world and nulls this ref synchronously, but a still-alive
+	# child (e.g. a long-lived Storm Disc shuriken, which unlike other projectiles never expires
+	# on its own) can land a killing blow during the one frame before its own deferred free runs.
+	# The run is ending/already reset either way, so there's nothing meaningful left to do here.
+	if world == null:
+		return
 	enemies_by_id.erase(enemy.net_id)
 	if spawner.types[enemy.type_id].cls == "bouncer":
 		spawner.bouncer_live -= 1

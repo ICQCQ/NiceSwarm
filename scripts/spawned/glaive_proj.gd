@@ -2,6 +2,9 @@ class_name GlaiveProj
 extends Node2D
 ## Boomerang glaive: decelerates outward, then returns to the player.
 ## Pierces everything; each enemy can be hit once per phase (out / return).
+## If `shuttle_life` is set instead of `player` (e.g. mine-spawned shrapnel),
+## it shuttles forth and back from its spawn point instead, relaunching each
+## time it returns, until `shuttle_life` runs out.
 
 const DECEL := 700.0
 const RETURN_SPEED := 540.0
@@ -17,19 +20,40 @@ var slow_factor := 1.0  # <1 = fused ice glaive slows on hit
 var arc_damage := 0.0   # fused Storm Disc: arcs lightning to a nearby foe on hit
 var arc_range := 150.0
 var on_hit: Callable    # fused variants: extra effect (e.g. spawn a node) on hit
+var shuttle_life := 0.0  # Duration: >0 shuttles forth/back instead of returning to the player
 var returning := false
 var spin := 0.0
 var hit_ids := {}
+var _shuttle_origin := Vector2.ZERO
+var _launch_velocity := Vector2.ZERO
+
+
+func _ready() -> void:
+	if shuttle_life > 0.0:
+		_launch_velocity = velocity
+		_shuttle_origin = global_position
 
 
 func _physics_process(delta: float) -> void:
 	spin += 14.0 * delta
+	if shuttle_life > 0.0:
+		shuttle_life -= delta
+		if shuttle_life <= 0.0:
+			queue_free()
+			return
 	if not returning:
 		velocity = velocity.move_toward(Vector2.ZERO, DECEL * delta)
 		position += velocity * delta
 		if velocity.length() < 12.0:
 			returning = true
 			hit_ids.clear()  # can hit everyone again on the way back
+	elif shuttle_life > 0.0:
+		var dir := (_shuttle_origin - global_position).normalized()
+		position += dir * RETURN_SPEED * delta
+		if global_position.distance_to(_shuttle_origin) < 12.0:
+			returning = false
+			velocity = _launch_velocity  # relaunch outward along the same arc
+			hit_ids.clear()
 	else:
 		if player == null or not is_instance_valid(player):
 			queue_free()

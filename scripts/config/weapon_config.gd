@@ -38,11 +38,18 @@ const BASE := {
 
 	# --- Mine-fusion base stats (FusMineBase, read dynamically by weapon_id) plus each
 	# subclass's bonus-payload numbers (added by its own _load() override). ---
+	# Beam Mine doesn't explode on contact: it links a sustained damaging laser
+	# to every other Beam Mine in range (Area widens link_range). Enemy contact
+	# arms a delayed fuse (`inert_dur`, scales with Duration) instead of an
+	# instant blast -- the baseline runs longer than a normal mine's whole life
+	# (mines.life = 12.0) since it keeps beaming the whole time it's fused. The
+	# fuse then detonates a normal mine-style blast. `life` only matters if a
+	# mine is never triggered (it just fizzles out).
 	"fus_beammine": {
-		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
-		"trigger_radius": 50.0, "life": 11.0, "cap_base": 3,
-		"beam_dmg": 2.4, "beam_growth": 0.08, "beam_len": 170.0, "beam_len_per_count": 16.0,
-		"beam_spin": 2.4, "beam_spin_life": 1.4, "beam_burn_dur": 1.0,
+		"cd": 1.9, "cap_base": 3, "trigger_radius": 50.0, "life": 20.0, "inert_dur": 10.0,
+		"dmg": 17.8, "growth": 0.08, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
+		"link_dmg": 2.0, "link_growth": 0.08, "link_range": 220.0, "link_range_per_count": 20.0,
+		"beam_width": 6.0,
 	},
 	"fus_novamine": {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
@@ -53,11 +60,20 @@ const BASE := {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
 		"trigger_radius": 50.0, "life": 11.0, "cap_base": 3,
 		"shrapnel_count_base": 3, "shrapnel_dmg": 2.0, "shrapnel_growth": 0.08, "shrapnel_radius": 12.0,
+		"shrapnel_life": 3.0,  # Duration: how long each shard shuttles before fading
 	},
+	# Tesla Mine doesn't extend FusMineBase/MineNode: it's inert (no contact
+	# detonation) for its first inert_dur (Duration-scaled), and projects a
+	# continuous shocking field the whole time. shock_interval is Haste-scaled
+	# and gates the field to a recurring tick rather than a per-frame scan, so
+	# N placed mines stay cheap regardless of swarm size. Once inert_dur runs
+	# out it arms like a normal mine -- the next contact detonates it (dmg/
+	# growth/blast_radius/trigger_radius, same shape as the other mine fusions).
+	# life is still a normal mine lifespan: untouched, it just fizzles out.
 	"fus_teslamine": {
-		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
-		"trigger_radius": 50.0, "life": 11.0, "cap_base": 3,
-		"chain_count_base": 2, "chain_dmg": 5.0, "chain_growth": 0.08, "chain_range": 220.0,
+		"cd": 1.9, "cap_base": 3, "life": 14.0, "inert_dur": 4.0, "shock_interval": 0.7,
+		"chain_count_base": 2, "chain_dmg": 5.0, "chain_growth": 0.08, "chain_range": 150.0,
+		"dmg": 17.8, "growth": 0.08, "blast_radius": 154.0, "blast_radius_per_count": 6.0, "trigger_radius": 50.0,
 	},
 	"fus_toxicmine": {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
@@ -142,16 +158,27 @@ const BASE := {
 	"fus_rotormissile": {"dmg": 6.1, "growth": 0.08, "cd": 2.6, "range": 800.0, "count_base": 1, "splash": 60.0, "splash_per_level": 8.0, "life": 4.0, "speed": 280.0, "shrapnel_count_base": 2, "shrapnel_dmg": 1.0, "shrapnel_radius": 12.0},
 	"fus_sapper": {"dmg": 4.1, "growth": 0.08, "cd": 0.9, "range": 650.0, "spread_deg": 10.0, "speed": 500.0, "radius": 5.0, "life": 1.6, "mine_dmg": 17.8, "blast_radius": 90.0, "blast_radius_per_level": 12.0, "trigger_radius": 50.0, "mine_life": 8.0},
 	"fus_scatter": {"dmg": 4.1, "growth": 0.08, "cd": 2.2, "count_base": 6, "count_per_level": 2, "speed": 480.0, "radius": 5.5, "life": 1.5},
-	"fus_singularity": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 212.0, "radius_per_count": 8.0, "pull": 210.0, "life": 2.5, "detonate_dmg": 8.9, "push": 70.0},
+	# pull_interval: Haste-scaled, how often (s) the field yanks enemies inward (was
+	# continuous; now a periodic pulse). detonate_scale_per_enemy: bonus dmg mult per
+	# enemy caught in the field at collapse, beyond the first -- rewards grouping a crowd.
+	"fus_singularity": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 212.0, "radius_per_count": 8.0,
+		"pull": 250.0, "pull_interval": 1.0, "life": 2.5, "detonate_dmg": 8.9, "detonate_scale_per_enemy": 0.2, "push": 70.0},
 	"fus_solarlance": {"dmg": 3.0, "growth": 0.08, "length": 380.0, "length_per_count": 10.0, "width": 16.0, "burn_dps_ratio": 0.6, "burn_dur": 1.2},
-	"fus_storm": {"dmg": 5.1, "growth": 0.08, "cd": 1.6, "range": 650.0, "count_base": 1, "spread_deg": 24.0, "speed": 430.0, "dmg_ratio": 0.6, "burn_dps_ratio": 0.3, "hit_radius": 14.0, "arc_dmg_ratio": 0.6, "arc_range": 150.0},
+	# recall_grace/recall_cd_penalty: touching the player does nothing before the grace window;
+	# after it, contact recalls the shuriken and delays the next throw. fly_back_speed_mult sets
+	# the starting comet "perihelion" speed (vs. speed) on the first return to the player;
+	# max_speed_growth then keeps raising that perihelion speed the longer the shuriken survives.
+	# min_speed is the near-stop "aphelion" floor at the far end of fly-out. out_angle_spread_deg
+	# is the +- jitter around each new fly-out's 180-degree-from-the-last-one angle. age_dmg_growth
+	# is the fractional damage (direct hit + lightning arc) gained per second this shuriken survives.
+	"fus_storm": {"dmg": 5.1, "growth": 0.08, "cd": 1.6, "count_base": 1, "patrol_range": 360.0, "speed": 260.0, "dmg_ratio": 0.6, "hit_radius": 20.0, "arc_dmg_ratio": 0.6, "arc_range": 150.0, "recall_grace": 3.0, "recall_cd_penalty": 0.5, "fly_back_speed_mult": 2.5, "max_speed_growth": 15.0, "min_speed": 50.0, "out_angle_spread_deg": 5.0, "age_dmg_growth": 0.1},
 	"fus_stormvortex": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 202.0, "radius_per_count": 8.0, "pull": 190.0, "life": 2.8, "chain_dmg": 5.0},
 	"fus_supernova": {"dmg": 8.9, "growth": 0.08, "cd": 2.8, "radius": 270.0, "radius_per_count": 10.0, "puddle_radius_ratio": 0.7, "puddle_dmg_ratio": 0.2, "puddle_life": 2.0, "burn_dps_ratio": 0.2, "burn_dur": 1.0},
 	"fus_teslahalo": {"dmg": 5.0, "growth": 0.08, "count_base": 2, "orbit_r": 80.0, "blade_r": 11.0, "zap_range": 170.0, "zap_dmg_ratio": 0.7},
 	"fus_thermal": {"dmg": 1.5, "growth": 0.08, "cd": 0.15, "reach": 150.0, "reach_per_level": 12.0, "half_angle": 0.6, "slow_mult": 0.6, "slow_dur": 0.8},
 	"fus_thunderclap": {"dmg": 8.9, "growth": 0.08, "cd": 2.2, "radius": 170.0, "radius_per_count": 28.0, "fork_count_base": 3, "fork_range_ratio": 1.6, "fork_dmg_ratio": 0.6},
 	"fus_toxhalo": {"dmg": 5.0, "growth": 0.08, "count_base": 2, "orbit_r": 80.0, "blade_r": 11.0, "poison_dps_ratio": 0.35, "poison_dur": 1.5, "trail_cd": 0.16, "puddle_radius": 16.0, "puddle_radius_per_level": 2.0, "puddle_dmg": 0.5, "puddle_dmg_growth": 0.3, "puddle_life": 1.4},
-	"fus_toxicnova": {"dmg": 8.9, "growth": 0.08, "cd": 1.8, "radius": 1808.0, "radius_per_count": 10.0, "poison_dps_ratio": 0.3, "poison_dur": 1.5, "puddle_radius_ratio": 0.7, "puddle_dmg_ratio": 0.25, "puddle_life": 2.5, "echo_gap": 0.22, "echo_count_threshold": 4},
+	"fus_toxicnova": {"dmg": 8.9, "growth": 0.08, "cd": 1.8, "radius": 130.0, "radius_per_count": 10.0, "poison_dps_ratio": 0.3, "poison_dur": 1.5, "puddle_radius_ratio": 0.7, "puddle_dmg_ratio": 0.25, "puddle_life": 3.5, "echo_gap": 0.22, "echo_count_threshold": 4},
 	"fus_purgatory": {"dmg": 3.0, "growth": 0.08, "cd": 2.0, "radius": 155.0, "radius_per_level": 6.0, "life": 3.0, "burn_dps_ratio": 0.8, "burn_dur": 1.2, "vuln_dmg_bonus": 0.2, "vuln_dur": 2.5},
 	"fus_vortexblade": {"dmg": 5.1, "growth": 0.08, "cd": 1.8, "range": 650.0, "count_base": 2, "spread_deg": 22.0, "speed": 430.0, "hit_radius": 14.0, "well_radius": 50.0, "well_radius_per_level": 6.0, "well_dmg": 0.35, "well_growth": 0.3, "well_pull": 120.0, "well_life": 1.0},
 }

@@ -133,7 +133,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | gravity + laser | **Accretion Beam** | a vortex ringed by rotating energy beams |
 | laser + venom | **Acid Ray** | rotating beams that corrode foes and seed toxic pools |
 | laser + missiles | **Beam Battery** | harmless rotating beams paint targets; on cooldown, every painted enemy takes a homing, fire-bursting missile |
-| laser + mines | **Beam Mine** | mines that leave a spinning laser array at the blast site |
+| laser + mines | **Beam Mine** | mines that link sustained laser beams to each other; enemy contact arms a long fuse, still beaming, before it detonates |
 | laser + turret | **Beam Sentry** | a deployed turret that sweeps a beam |
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |
 | glaive + orbit | **Halo Comet** | orbiting balls that periodically spurt outward like a comet's tail, hitting harder while extended |
@@ -189,15 +189,15 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | glaive + missiles | **Rotor Missile** | homing rockets that burst into glaive shrapnel |
 | bolt + mines | **Sapper Round** | bolts that arm a proximity mine on impact |
 | bolt + orbit | **Scatter Shot** | a ring of bolts fired in all directions |
-| glaive + mines | **Shrapnel Mine** | mines that burst into a spray of glaive shrapnel |
-| gravity + nova | **Singularity** | a vortex that collapses into a detonation |
+| glaive + mines | **Shrapnel Mine** | mines that burst into a spray of glaive shrapnel that shuttles back and forth until it fades |
+| gravity + nova | **Singularity** | a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught |
 | gravity + turret | **Singularity Turret** | a deployed turret dropping gravity wells |
 | flame + laser | **Solar Lance** | a continuous beam of searing light |
-| glaive + lightning | **Storm Disc** | boomerangs that arc lightning to nearby foes |
+| glaive + lightning | **Storm Disc** | a thunder shuriken on a comet's orbit — out to a random point (near-stop at the far end), then back (speeding up to an ever-climbing peak), looping forever, dealing more damage the longer it's survived; touching it within 3s does nothing, touching it after recalls it and delays the next throw — damages and arcs lightning on contact |
 | gravity + lightning | **Storm Vortex** | a vortex that arcs lightning between everything it traps |
 | flame + nova | **Supernova** | a huge blast that leaves a burning field |
 | lightning + orbit | **Tesla Halo** | orbiting blades that zap nearby foes |
-| lightning + mines | **Tesla Mine** | mines that chain lightning outward from the blast |
+| lightning + mines | **Tesla Mine** | mines placed inert, projecting a shocking field that chains lightning between enemies; once the inert period ends, contact detonates them like a normal mine |
 | lightning + turret | **Tesla Turret** | a deployed turret that chains lightning |
 | flame + frost | **Thermal Shock** | a cone that burns and freezes for thermal stress |
 | lightning + nova | **Thunderclap** | a blast that forks lightning out of every hit |
