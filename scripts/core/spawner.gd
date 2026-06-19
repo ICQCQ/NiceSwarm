@@ -355,6 +355,16 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 	e.elite = d.get("elite", false)
 	e.resist = d.get("resist", 0.0)
 	e.immune_type = d.get("immune", -1)
+	if e.immune_type >= 0:
+		e.dmg_affinity.set_mult(e.immune_type, 0.0)
+	var weak: int = d.get("weak", -1)
+	if weak >= 0:
+		e.dmg_affinity.set_mult(weak, d.get("weak_mult", 1.5))
+	# "affinity": {Enemy.DMG_FIRE: 1.5, Enemy.DMG_ICE: 0.5, ...} — full multi-type control,
+	# for classes that need more than one weak/strong matchup at once (see DamageAffinity)
+	var affinity: Dictionary = d.get("affinity", {})
+	for t in affinity:
+		e.dmg_affinity.set_mult(t, affinity[t])
 	# Bosses and tier-3+ enemies resist crowd control: immune to knockback (pushback) and
 	# to gravity-well suck-in, but still slowable (unlike cc_immune which also blocks slow).
 	var cc_tough: bool = d.get("boss", false) or tier >= GameConfig.CC_IMMUNE_TIER
@@ -396,6 +406,7 @@ func make_enemy(cls: String, tier: int) -> Enemy:
 		e.immune_pool = immune_pool
 		e.immune_type = immune_pool[0]
 		e.immune_timer = e.immune_cycle
+		e.dmg_affinity.set_mult(e.immune_type, 0.0)
 	e.summon_cls = d.get("summon_cls", "")
 	e.summon_count = d.get("summon_count", 0)
 	e.summon_cooldown = d.get("summon_cooldown", 0.0)

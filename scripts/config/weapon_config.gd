@@ -182,6 +182,6 @@ const BASE := {
 	"fus_thunderclap": {"dmg": 8.9, "growth": 0.08, "cd": 2.2, "radius": 170.0, "radius_per_count": 28.0, "fork_count_base": 3, "fork_range_ratio": 1.6, "fork_dmg_ratio": 0.6},
 	"fus_toxhalo": {"dmg": 5.0, "growth": 0.08, "count_base": 2, "orbit_r": 80.0, "blade_r": 11.0, "poison_dps_ratio": 0.35, "poison_dur": 1.5, "trail_cd": 0.16, "puddle_radius": 16.0, "puddle_radius_per_level": 2.0, "puddle_dmg": 0.5, "puddle_dmg_growth": 0.3, "puddle_life": 1.4},
 	"fus_toxicnova": {"dmg": 8.9, "growth": 0.08, "cd": 1.8, "radius": 130.0, "radius_per_count": 10.0, "poison_dps_ratio": 0.3, "poison_dur": 1.5, "puddle_radius_ratio": 0.7, "puddle_dmg_ratio": 0.25, "puddle_life": 3.5, "echo_gap": 0.22, "echo_count_threshold": 4},
-	"fus_purgatory": {"dmg": 3.0, "growth": 0.08, "cd": 2.0, "radius": 155.0, "radius_per_level": 6.0, "life": 3.0, "burn_dps_ratio": 0.8, "burn_dur": 1.2, "vuln_dmg_bonus": 0.2, "vuln_dur": 2.5},
+	"fus_purgatory": {"dmg": 3.0, "growth": 0.08, "cd": 2.0, "radius": 155.0, "radius_per_level": 6.0, "life": 3.0, "burn_dps_ratio": 0.8, "burn_dur": 1.2, "vuln_dur": 2.5},
 	"fus_vortexblade": {"dmg": 5.1, "growth": 0.08, "cd": 1.8, "range": 650.0, "count_base": 2, "spread_deg": 22.0, "speed": 430.0, "hit_radius": 14.0, "well_radius": 50.0, "well_radius_per_level": 6.0, "well_dmg": 0.35, "well_growth": 0.3, "well_pull": 120.0, "well_life": 1.0},
 }
