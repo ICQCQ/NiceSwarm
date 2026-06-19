@@ -19,7 +19,7 @@ const INFO := {
 	"bolt|lightning": {"name": "Railgun", "desc": "a piercing rail-shot that electrifies its whole line"},
 	"flame|nova": {"name": "Supernova", "desc": "a huge blast that leaves a burning field"},
 	"frost|orbit": {"name": "Frost Halo", "desc": "orbiting blades that freeze on contact"},
-	"frost|gravity": {"name": "Glacier", "desc": "a slow, huge vortex that freezes everything inside"},
+	"frost|gravity": {"name": "Glacier", "desc": "a huge frost vortex pulsing cold waves; 3 waves fully freezes a foe"},
 	"glaive|lightning": {"name": "Storm Disc", "desc": "a thunder shuriken that loops between random points and the player, arcing lightning to nearby foes"},
 	"flame|mines": {"name": "Napalm Mine", "desc": "mines that leave a burning pool on blast"},
 	"missiles|nova": {"name": "Cluster Warhead", "desc": "straight-flying warheads that erupt into a heavy shockwave, shoving everything in the blast outward"},

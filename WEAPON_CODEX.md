@@ -158,7 +158,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | bolt + turret | **Gatling Nest** | a swarm of short-lived, rapid-redeploy mini-turrets carpeting the field |
 | frost + glaive | **Glacial Edge** | boomerangs that freeze and bleed |
 | frost + mines | **Glacial Mine** | mines that detonate into a total freeze, completely halting enemies in the blast |
-| frost + gravity | **Glacier** | a slow, huge vortex that freezes everything inside |
+| frost + gravity | **Glacier** | a huge frost vortex that drags enemies in and chills them, pulsing a cold wave every second (faster and colder with Haste) — catching 3 waves fully freezes a foe |
 | glaive + turret | **Glaive Turret** | a deployed turret hurling boomerang glaives |
 | bolt + gravity | **Gravity Round** | bolts that form a gravity vortex on impact |
 | orbit + turret | **Halo Turret** | a deployed turret ringed with whirling blades |

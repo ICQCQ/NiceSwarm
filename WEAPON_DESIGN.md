@@ -102,7 +102,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | bolt + lightning | **Railgun** | a piercing rail-line that electrifies everything along it |
 | flame + nova | **Supernova** | a huge blast that leaves a burning field |
 | frost + orbit | **Frost Halo** | orbiting blades that freeze on contact |
-| frost + gravity | **Glacier** | a slow, huge vortex that freezes everything inside |
+| frost + gravity | **Glacier** | a huge frost vortex that drags enemies in and chills them continuously (Haste deepens the slow), pulsing a cold wave through the field every `wave_interval` seconds (also Haste-scaled); catching `freeze_wave_threshold` waves (3, tunable) fully freezes a foe for `freeze_dur_base` × Duration |
 | glaive + lightning | **Storm Disc** | a thunder shuriken on a comet's orbit — straight out to a random point near you (slowing to a near-stop), then straight back (accelerating to a peak speed that climbs the longer it survives), looping forever, hitting harder the longer it's been alive; touching it does nothing for the first 3s, after that contact recalls it and delays the next throw by `recall_cd_penalty` (patrol range scales with Duration, size with Area, cooldown with Haste) — damages and arcs lightning to a nearby foe on contact |
 | flame + mines | **Napalm Mine** | mines that leave a burning pool on blast |
 | missiles + nova | **Cluster Warhead** | straight-flying (non-homing) warheads that explode into a heavy shockwave, shoving everything in the blast outward (push distance scales with Duration) |
