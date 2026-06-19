@@ -84,7 +84,7 @@ const BASE := {
 	# --- Turret-fusion (FusSentryBase) per-mode overrides ---
 	"fus_beamsentry":    {"dmg": 1.2, "growth": 0.08, "life_scale": 1.0, "cooldown_scale": 1.0, "deploy_cap_bonus": 2},
 	"fus_cryosentry":    {"dmg": 1.8, "growth": 0.08, "life_scale": 1.0, "cooldown_scale": 1.0, "deploy_cap_bonus": 2},
-	"fus_flameturret":   {"dmg": 0.8, "growth": 0.08, "life_scale": 1.0, "cooldown_scale": 1.0, "deploy_cap_bonus": 2},
+	"fus_flameturret":   {"dmg": 0.8, "growth": 0.08, "life_scale": 1.0, "cooldown_scale": 1.0, "deploy_cap_bonus": 2, "burn_dps_ratio": 1.5, "burn_dur": 1.5},  # burn is its own knob, independent of dmg (see FusSentryBase)
 	"fus_glaiveturret":  {"dmg": 2.5, "growth": 0.08, "life_scale": 1.0, "cooldown_scale": 1.0, "deploy_cap_bonus": 2},
 	"fus_gunturret":     {"dmg": 1.5, "growth": 0.08, "life_scale": 0.4, "cooldown_scale": 0.3, "deploy_cap_bonus": 4},
 	"fus_haloturret":    {"dmg": 2.0, "growth": 0.08, "life_scale": 1.0, "cooldown_scale": 1.0, "deploy_cap_bonus": 2},

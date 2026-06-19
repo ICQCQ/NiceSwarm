@@ -42,7 +42,7 @@ const INFO := {
 	"nova|turret": {"name": "Pulse Turret", "desc": "a deployed turret that pulses novas"},
 	"glaive|turret": {"name": "Glaive Turret", "desc": "a deployed turret hurling boomerang glaives"},
 	"lightning|turret": {"name": "Tesla Turret", "desc": "a deployed turret that chains lightning"},
-	"flame|turret": {"name": "Flame Turret", "desc": "a deployed turret breathing a fire cone"},
+	"flame|turret": {"name": "Flame Turret", "desc": "a deployed turret spraying a fire cone, just like Flame Cone, plus a periodic burning ring-burst"},
 	"mines|turret": {"name": "Mine Layer", "desc": "a deployed turret seeding proximity mines"},
 	"gravity|turret": {"name": "Singularity Turret", "desc": "a deployed turret dropping gravity wells"},
 	"turret|venom": {"name": "Toxic Turret", "desc": "a deployed turret pooling venom around it"},
