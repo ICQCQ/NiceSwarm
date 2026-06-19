@@ -164,7 +164,14 @@ const BASE := {
 	"fus_singularity": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 212.0, "radius_per_count": 8.0,
 		"pull": 250.0, "pull_interval": 1.0, "life": 2.5, "detonate_dmg": 8.9, "detonate_scale_per_enemy": 0.2, "push": 70.0},
 	"fus_solarlance": {"dmg": 3.0, "growth": 0.08, "length": 380.0, "length_per_count": 10.0, "width": 16.0, "burn_dps_ratio": 0.6, "burn_dur": 1.2},
-	"fus_storm": {"dmg": 5.1, "growth": 0.08, "cd": 1.6, "range": 650.0, "count_base": 1, "spread_deg": 24.0, "speed": 430.0, "dmg_ratio": 0.6, "burn_dps_ratio": 0.3, "hit_radius": 14.0, "arc_dmg_ratio": 0.6, "arc_range": 150.0},
+	# recall_grace/recall_cd_penalty: touching the player does nothing before the grace window;
+	# after it, contact recalls the shuriken and delays the next throw. fly_back_speed_mult sets
+	# the starting comet "perihelion" speed (vs. speed) on the first return to the player;
+	# max_speed_growth then keeps raising that perihelion speed the longer the shuriken survives.
+	# min_speed is the near-stop "aphelion" floor at the far end of fly-out. out_angle_spread_deg
+	# is the +- jitter around each new fly-out's 180-degree-from-the-last-one angle. age_dmg_growth
+	# is the fractional damage (direct hit + lightning arc) gained per second this shuriken survives.
+	"fus_storm": {"dmg": 5.1, "growth": 0.08, "cd": 1.6, "count_base": 1, "patrol_range": 360.0, "speed": 260.0, "dmg_ratio": 0.6, "hit_radius": 20.0, "arc_dmg_ratio": 0.6, "arc_range": 150.0, "recall_grace": 3.0, "recall_cd_penalty": 0.5, "fly_back_speed_mult": 2.5, "max_speed_growth": 15.0, "min_speed": 50.0, "out_angle_spread_deg": 5.0, "age_dmg_growth": 0.1},
 	"fus_stormvortex": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 202.0, "radius_per_count": 8.0, "pull": 190.0, "life": 2.8, "chain_dmg": 5.0},
 	"fus_supernova": {"dmg": 8.9, "growth": 0.08, "cd": 2.8, "radius": 270.0, "radius_per_count": 10.0, "puddle_radius_ratio": 0.7, "puddle_dmg_ratio": 0.2, "puddle_life": 2.0, "burn_dps_ratio": 0.2, "burn_dur": 1.0},
 	"fus_teslahalo": {"dmg": 5.0, "growth": 0.08, "count_base": 2, "orbit_r": 80.0, "blade_r": 11.0, "zap_range": 170.0, "zap_dmg_ratio": 0.7},

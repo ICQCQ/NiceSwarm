@@ -103,7 +103,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | flame + nova | **Supernova** | a huge blast that leaves a burning field |
 | frost + orbit | **Frost Halo** | orbiting blades that freeze on contact |
 | frost + gravity | **Glacier** | a slow, huge vortex that freezes everything inside |
-| glaive + lightning | **Storm Disc** | boomerangs that arc lightning to nearby foes |
+| glaive + lightning | **Storm Disc** | a thunder shuriken on a comet's orbit — straight out to a random point near you (slowing to a near-stop), then straight back (accelerating to a peak speed that climbs the longer it survives), looping forever, hitting harder the longer it's been alive; touching it does nothing for the first 3s, after that contact recalls it and delays the next throw by `recall_cd_penalty` (patrol range scales with Duration, size with Area, cooldown with Haste) — damages and arcs lightning to a nearby foe on contact |
 | flame + mines | **Napalm Mine** | mines that leave a burning pool on blast |
 | missiles + nova | **Cluster Warhead** | straight-flying (non-homing) warheads that explode into a heavy shockwave, shoving everything in the blast outward (push distance scales with Duration) |
 | gravity + venom | **Black Bog** | a vortex that leaves a toxic pool where it forms |

@@ -193,7 +193,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | gravity + nova | **Singularity** | a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught |
 | gravity + turret | **Singularity Turret** | a deployed turret dropping gravity wells |
 | flame + laser | **Solar Lance** | a continuous beam of searing light |
-| glaive + lightning | **Storm Disc** | boomerangs that arc lightning to nearby foes |
+| glaive + lightning | **Storm Disc** | a thunder shuriken on a comet's orbit — out to a random point (near-stop at the far end), then back (speeding up to an ever-climbing peak), looping forever, dealing more damage the longer it's survived; touching it within 3s does nothing, touching it after recalls it and delays the next throw — damages and arcs lightning on contact |
 | gravity + lightning | **Storm Vortex** | a vortex that arcs lightning between everything it traps |
 | flame + nova | **Supernova** | a huge blast that leaves a burning field |
 | lightning + orbit | **Tesla Halo** | orbiting blades that zap nearby foes |
