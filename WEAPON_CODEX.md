@@ -197,7 +197,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | gravity + lightning | **Storm Vortex** | a vortex that arcs lightning between everything it traps |
 | flame + nova | **Supernova** | a huge blast that leaves a burning field |
 | lightning + orbit | **Tesla Halo** | orbiting blades that zap nearby foes |
-| lightning + mines | **Tesla Mine** | mines that chain lightning outward from the blast |
+| lightning + mines | **Tesla Mine** | mines placed inert, projecting a shocking field that chains lightning between enemies; once the inert period ends, contact detonates them like a normal mine |
 | lightning + turret | **Tesla Turret** | a deployed turret that chains lightning |
 | flame + frost | **Thermal Shock** | a cone that burns and freezes for thermal stress |
 | lightning + nova | **Thunderclap** | a blast that forks lightning out of every hit |

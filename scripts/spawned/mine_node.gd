@@ -19,9 +19,6 @@ var shrapnel_count := 0  # fused Shrapnel Mine: glaive shards fly outward on bla
 var shrapnel_dmg := 0.0
 var shrapnel_radius := 12.0
 var shrapnel_life := 0.0  # Duration: shards shuttle forth/back from the blast point until this expires
-var chain_count := 0     # fused Tesla Mine: lightning chains out from the blast
-var chain_dmg := 0.0
-var chain_range := 0.0
 var nova_radius := 0.0   # fused Nova Mine: a second, larger energy pulse on blast
 var nova_dmg := 0.0
 var nova_push := 0.0     # fused Nova Mine: shockwave push from the energy pulse
@@ -120,32 +117,6 @@ func _explode() -> void:
 		g.shuttle_life = shrapnel_life
 		g.position = global_position
 		get_parent().add_child(g)
-	if chain_count > 0:
-		var visited := {}
-		for e in EnemyGrid.near(global_position, blast_radius):
-			if global_position.distance_to(e.global_position) <= blast_radius + e.radius:
-				visited[e.get_instance_id()] = true
-		var from_pos := global_position
-		for i in chain_count:
-			var best: Node2D = null
-			var bd := chain_range * chain_range
-			for e in EnemyGrid.near(from_pos, chain_range):
-				if visited.has(e.get_instance_id()):
-					continue
-				var d: float = from_pos.distance_squared_to(e.global_position)
-				if d < bd:
-					bd = d
-					best = e
-			if best == null:
-				break
-			visited[best.get_instance_id()] = true
-			if is_instance_valid(source_weapon):
-				source_weapon.damage_dealt += chain_dmg
-			best.take_hit(chain_dmg, from_pos, Enemy.DMG_ENERGY, source_pid)
-			var cfx := LightningFx.new()
-			cfx.points = [from_pos, best.global_position]
-			get_parent().add_child(cfx)
-			from_pos = best.global_position
 	if nova_radius > 0.0:
 		for e in EnemyGrid.near(global_position, nova_radius):
 			if global_position.distance_to(e.global_position) <= nova_radius + e.radius:

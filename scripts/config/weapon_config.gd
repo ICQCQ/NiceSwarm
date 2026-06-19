@@ -62,10 +62,18 @@ const BASE := {
 		"shrapnel_count_base": 3, "shrapnel_dmg": 2.0, "shrapnel_growth": 0.08, "shrapnel_radius": 12.0,
 		"shrapnel_life": 3.0,  # Duration: how long each shard shuttles before fading
 	},
+	# Tesla Mine doesn't extend FusMineBase/MineNode: it's inert (no contact
+	# detonation) for its first inert_dur (Duration-scaled), and projects a
+	# continuous shocking field the whole time. shock_interval is Haste-scaled
+	# and gates the field to a recurring tick rather than a per-frame scan, so
+	# N placed mines stay cheap regardless of swarm size. Once inert_dur runs
+	# out it arms like a normal mine -- the next contact detonates it (dmg/
+	# growth/blast_radius/trigger_radius, same shape as the other mine fusions).
+	# life is still a normal mine lifespan: untouched, it just fizzles out.
 	"fus_teslamine": {
-		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
-		"trigger_radius": 50.0, "life": 11.0, "cap_base": 3,
-		"chain_count_base": 2, "chain_dmg": 5.0, "chain_growth": 0.08, "chain_range": 220.0,
+		"cd": 1.9, "cap_base": 3, "life": 14.0, "inert_dur": 4.0, "shock_interval": 0.7,
+		"chain_count_base": 2, "chain_dmg": 5.0, "chain_growth": 0.08, "chain_range": 150.0,
+		"dmg": 17.8, "growth": 0.08, "blast_radius": 154.0, "blast_radius_per_count": 6.0, "trigger_radius": 50.0,
 	},
 	"fus_toxicmine": {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
