@@ -20,6 +20,7 @@ var aim_angle := 0.0
 var angle := 0.0       # orbit/beam sweep angle
 var hit_cd := {}       # beam/orbit: per-enemy re-hit cooldown
 var gun_cd := 0.0      # independent timer for the normal bolt gun (GUN_RETAINING_MODES)
+var puddle_cd := 1.2   # venom mode: interval between dropped puddles (config-driven by the deploying weapon)
 
 # Turret-fusion modes whose effect is NOT a fired bullet (ground deploys + AoE/chain).
 # These KEEP the normal turret bolt gun firing on its own timer, on top of the effect —
@@ -164,7 +165,7 @@ func _emit(target: Node2D) -> float:
 			pud.source_weapon = (source_weapon if is_instance_valid(source_weapon) else null)
 			get_parent().add_child(pud)
 			Sfx.play("venom", here, -4.0)
-			return 1.2
+			return puddle_cd
 		_:
 			_fire_bolt()
 			return BOLT_CD

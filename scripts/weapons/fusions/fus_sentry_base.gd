@@ -39,6 +39,8 @@ func _physics_process(delta: float) -> void:
 	t.area_mult = fuse_area()
 	t.dur_mult = fuse_duration()
 	t.fire_mult = fuse_rate()
+	if cfg.has("puddle_cd"):
+		t.puddle_cd = cfg.puddle_cd
 	t.position = player.global_position
 	player.get_parent().add_child(t)
 	Sfx.play("turret_deploy", player.global_position)
