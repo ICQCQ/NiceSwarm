@@ -24,7 +24,7 @@ func _physics_process(delta: float) -> void:
 	p.life = p.max_life
 	p.burn_dps = cfg.burn_dps_ratio * fuse_damage()
 	p.burn_dur = cfg.burn_dur * fuse_duration()
-	p.vuln_dmg_mult = 1.0 + cfg.vuln_dmg_bonus * player.damage_mult  # Power: deepens the mark's bonus dmg
+	p.vuln_stat_mult = player.damage_mult  # Power: deepens the mark's base bonus (AfflictConfig.deepened)
 	p.vuln_dur = cfg.vuln_dur * fuse_duration()  # Duration: how long the mark lingers
 	p.position = player.global_position
 	player.get_parent().add_child(p)

@@ -42,7 +42,9 @@ var elite := false
 var type_id := 0   # network id of this (class, tier); see EnemySpawner.build_type_registry
 var tier := 0
 var resist := 0.0       # Warden: fraction of every hit shrugged off (0..1)
-var immune_type := -1   # Elemental: takes zero damage of this DMG_* type
+var dmg_affinity := DamageAffinity.new()  # per-DMG_*-type weak/strong/immune multipliers
+var immune_type := -1   # bookkeeping for immune_cycle rotation + the outer aura draw —
+                         # which DMG_* type is currently the (fully-blocked) "immune" slot
 var pull_immune := false # ignores gravity-well yank (tanks/wardens/elites)
 var cc_immune := false  # Bouncer/shards: immune to slow + knockback (can't be interrupted)
 var knockback_immune := false  # bosses/tier-3: immune to knockback push (but still slowable, unlike cc_immune)
@@ -114,8 +116,7 @@ var burn_dps := 0.0
 var burn_timer := 0.0
 var burn_tick := 0.0
 var burn_source_pid: int = -1
-var vuln_timer := 0.0    # Purgatory mark: extra dmg taken, slows hit harder, burn can't fade
-var vuln_dmg_mult := 1.0
+var afflicts := AfflictTracker.new()  # named, timed debuffs (Purgatory mark, etc — see AfflictTracker)
 
 var main_ref: Node  # set by main.gd (host); null on puppets
 var puppet := false
@@ -156,7 +157,7 @@ func _physics_process(delta: float) -> void:
 	flash = maxf(flash - delta, 0.0)
 	slow_timer = maxf(slow_timer - delta, 0.0)
 	freeze_timer = maxf(freeze_timer - delta, 0.0)
-	vuln_timer = maxf(vuln_timer - delta, 0.0)
+	afflicts.tick(delta)
 	if shield_cycle > 0.0:  # Sentinel: phase the shield on and off
 		shield_timer -= delta
 		if shield_timer <= 0.0:
@@ -166,7 +167,7 @@ func _physics_process(delta: float) -> void:
 	# cached _draw (the renderer applies the node transform regardless). This is
 	# the big late-game saver — most of the swarm is idle-looking circles.
 	var sig := _appearance_sig()
-	if burn_timer > 0.0 or freeze_timer > 0.0 or vuln_timer > 0.0 or sig != _last_sig:  # burn embers / freeze shimmer / purgatory wisps animate continuously
+	if burn_timer > 0.0 or freeze_timer > 0.0 or not afflicts.is_empty() or sig != _last_sig:  # burn embers / freeze shimmer / afflict wisps animate continuously
 		_last_sig = sig
 		queue_redraw()
 	if puppet:
@@ -304,7 +305,9 @@ func _physics_process(delta: float) -> void:
 		if immune_timer <= 0.0:
 			immune_timer = immune_cycle
 			var idx := immune_pool.find(immune_type)
+			dmg_affinity.clear(immune_type)  # revert the outgoing slot to normal
 			immune_type = immune_pool[(idx + 1) % immune_pool.size()]
+			dmg_affinity.set_mult(immune_type, 0.0)
 	if summon_cooldown > 0.0:
 		summon_timer -= delta
 		if summon_timer <= 0.0:
@@ -358,7 +361,7 @@ func _physics_process(delta: float) -> void:
 	# burn DoT (host-authoritative) — Duration extends it, Power feeds its dps.
 	# Re-igniting an active burn stacks onto it: hotter (dps) AND longer (time).
 	if burn_timer > 0.0:
-		if vuln_timer <= 0.0:  # Purgatory mark: an active burn can't tick down while marked
+		if not afflicts.has("purgatory"):  # Purgatory mark: an active burn can't tick down while marked
 			burn_timer -= delta
 		burn_tick -= delta
 		if burn_tick <= 0.0:
@@ -372,16 +375,21 @@ func _physics_process(delta: float) -> void:
 func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, source_pid: int = -1) -> void:
 	if bullet:
 		return  # shard bullets can't be destroyed — dodge them
-	if dtype == immune_type or (shielded and not puppet):
-		flash = 0.06  # pings off the shield / immunity — no damage
+	if shielded and not puppet:
+		flash = 0.06  # pings off the shield — no damage
 		return
+	# base dmg_affinity (static, config-set) layered with any active afflict's own
+	# per-type modifier (e.g. the Purgatory mark afflict applies to every DMG_* at once)
+	var type_mult := dmg_affinity.get_mult(dtype) * afflicts.mult(dtype)
+	if type_mult <= 0.0:
+		flash = 0.06  # pings off this type's immunity — no damage
+		return
+	amount *= type_mult  # weak (>1) bonus or strong/resist (<1) reduction, before armor
 	var eff_resist := resist
 	if enrage_resist > 0.0 and max_hp > 0.0:  # enrage: tougher the lower its hp gets
 		eff_resist = clampf(resist + enrage_resist * (1.0 - hp / max_hp), 0.0, 0.9)
 	if eff_resist > 0.0:  # Warden armor / enrage reduces every hit (shown + applied consistently)
 		amount *= 1.0 - eff_resist
-	if vuln_timer > 0.0:  # Purgatory mark: extra damage from every source while marked
-		amount *= vuln_dmg_mult
 	if puppet:
 		# cosmetic only: real damage happens on the host
 		flash = 0.12
@@ -431,7 +439,7 @@ func apply_slow(mult: float, duration: float) -> void:
 	# frost slow becomes 0.2 speed (an 80% slow) — frost/freeze really bites. Bosses/tier-3
 	# are included (still slowable); only cc_immune enemies are exempt (returned above).
 	# Purgatory mark: doubles the potency, so a slow applied while marked bites twice as hard.
-	var potency := GameConfig.SLOW_POTENCY * (2.0 if vuln_timer > 0.0 else 1.0)
+	var potency := GameConfig.SLOW_POTENCY * (2.0 if afflicts.has("purgatory") else 1.0)
 	var deep := 1.0 - (1.0 - mult) * potency
 	slow_mult = maxf(deep, GameConfig.SLOW_FLOOR_MULT)
 	slow_timer = maxf(slow_timer, duration)
@@ -543,14 +551,16 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid
 		burn_timer = duration
 
 
-## Purgatory mark: while active, this enemy takes dmg_mult extra damage from
-## every source (take_hit), any slow applied to it bites twice as hard
-## (apply_slow), and an active burn's remaining time stops ticking down (it
-## can't fade out while marked). Not gated on cc_immune -- it's a damage
-## debuff, not crowd control.
-func apply_vuln(dmg_mult: float, duration: float) -> void:
-	vuln_dmg_mult = dmg_mult
-	vuln_timer = maxf(vuln_timer, duration)
+## Purgatory mark: while active, this enemy takes extra damage from every source
+## (take_hit) — the base bonus (AfflictConfig.DEFS.purgatory.affinity, +20% by
+## default) deepens with stat_mult (Power), any slow applied to it bites twice as
+## hard (apply_slow), and an active burn's remaining time stops ticking down (it
+## can't fade out while marked). Not gated on cc_immune -- it's a damage debuff,
+## not crowd control. Built on AfflictTracker: a weaker/shorter mark from another
+## source can't cut a longer one short (see AfflictTracker.apply).
+func apply_vuln(stat_mult: float, duration: float) -> void:
+	var mods := AfflictConfig.deepened("purgatory", stat_mult)
+	afflicts.apply("purgatory", duration, mods, AfflictConfig.DEFS.purgatory.color)
 
 
 ## A cheap discrete signature of the enemy's current appearance. _physics_process
@@ -564,7 +574,7 @@ func _appearance_sig() -> int:
 	if burn_timer > 0.0: s |= 4
 	if shielded: s |= 8
 	if freeze_timer > 0.0: s |= 16
-	if vuln_timer > 0.0: s |= 32
+	if afflicts.has("purgatory"): s |= 32
 	if shape == "triangle" or shape == "diamond" or shape == "square" or shape == "hex" or shape == "star":
 		s |= int((heading.angle() + PI) * 6.0) << 4  # ~9.5-degree facing buckets
 	return s
@@ -587,7 +597,7 @@ func _draw() -> void:
 		# bright yellow-white, not orange: enemy bodies now sit in the warm band, so an
 		# orange burn tint would vanish on red/orange enemies — this still pops on them.
 		c = c.lerp(Color(1.0, 0.8, 0.3), 0.55)
-	if vuln_timer > 0.0:  # purgatory mark: a sickly violet pall over the body
+	if afflicts.has("purgatory"):  # purgatory mark: a sickly violet pall over the body
 		c = c.lerp(Color(0.55, 0.2, 0.7), 0.4)
 	_draw_body(Color.WHITE if flash > 0.0 else c)
 	if burn_timer > 0.0:  # flickering embers — driven by global time, no per-enemy state
@@ -597,7 +607,7 @@ func _draw() -> void:
 			var p := Vector2.from_angle(a) * radius * 0.5 + Vector2(0.0, -radius * 0.4)
 			var s := 1.6 + 1.3 * (0.5 + 0.5 * sin(t * 14.0 + i * 3.0))
 			draw_circle(p, s, Color(1.0, 0.6, 0.15, 0.85))
-	if vuln_timer > 0.0:  # purgatory mark: a slow-pulsing violet aura with drifting spirit motes
+	if afflicts.has("purgatory"):  # purgatory mark: a slow-pulsing violet aura with drifting spirit motes
 		var vt := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.05
 		var pulse := 0.5 + 0.5 * sin(vt * 3.0)
 		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 22, Color(0.6, 0.25, 0.75, 0.35 + 0.25 * pulse), 2.0)
@@ -620,6 +630,26 @@ func _draw() -> void:
 			draw_circle(Vector2.from_angle(TAU * i / 3.0) * radius * 0.4, radius * 0.22, color.darkened(0.3))
 	if immune_type >= 0:  # elemental: a colored aura of its immune element
 		draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 24, _elem_color(immune_type) * Color(1, 1, 1, 0.8), 2.0)
+	# any other type-matchups (an enemy can be weak/strong against several at once): a
+	# thin inner ring per weak type, a subtler one per strong/resist type — distinct from
+	# the outer solid ring above, which is reserved for full immunity.
+	for t in dmg_affinity.mults:
+		if t == immune_type:
+			continue
+		var m: float = dmg_affinity.mults[t]
+		if m > 1.0:
+			draw_arc(Vector2.ZERO, radius - 4.0, 0.0, TAU, 16, _elem_color(t) * Color(1, 1, 1, 0.6), 1.5)
+		elif m > 0.0:
+			draw_arc(Vector2.ZERO, radius - 1.0, 0.0, TAU, 20, _elem_color(t) * Color(1, 1, 1, 0.35), 1.0)
+	# generic afflict ring: any active affliction without a bespoke draw of its own
+	# (Purgatory mark draws its own pall + motes above and is skipped here) shows
+	# as a dashed ring in its own color — so new afflicts get a UI cue for free.
+	for id in afflicts.active:
+		if id == "purgatory":
+			continue
+		var a: AfflictTracker.Affliction = afflicts.active[id]
+		var seg := Time.get_ticks_msec() % 1000 < 500
+		draw_arc(Vector2.ZERO, radius + 7.0, 0.0, PI if seg else TAU, 14, a.color, 2.0)
 	if shielded:  # sentinel: an impenetrable bubble — wait it out
 		draw_circle(Vector2.ZERO, radius + 6.0, Color(0.5, 0.8, 1.0, 0.28))
 		draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 28, Color(0.7, 0.9, 1.0, 0.9), 2.5)

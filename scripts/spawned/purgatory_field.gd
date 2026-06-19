@@ -13,7 +13,7 @@ var max_life := 4.0
 var life := 4.0
 var burn_dps := 0.0
 var burn_dur := 0.0
-var vuln_dmg_mult := 1.2
+var vuln_stat_mult := 1.0  # Power scalar — deepens the mark's base bonus (see AfflictConfig.deepened)
 var vuln_dur := 1.0
 var tick := 0.0
 var redraw_tick := 0.0
@@ -46,7 +46,7 @@ func _physics_process(delta: float) -> void:
 			e.take_hit(damage, null, Enemy.DMG_PHYS, source_pid)
 			if burn_dps > 0.0:
 				e.apply_burn(burn_dps, burn_dur, 1.0, source_pid)
-			e.apply_vuln(vuln_dmg_mult, vuln_dur)
+			e.apply_vuln(vuln_stat_mult, vuln_dur)
 
 
 func _draw() -> void:

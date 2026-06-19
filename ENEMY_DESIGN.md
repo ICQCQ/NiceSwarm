@@ -26,7 +26,9 @@ Each tier is a dictionary:
 | `col` | body color |
 | `elite` | always drops a chest (free team upgrade) |
 | `resist` | Warden armor — fraction of every hit ignored (0..1) |
-| `immune` | `Enemy.DMG_*` — takes **zero** damage of that type (PHYS/FIRE/ICE/ENERGY) |
+| `immune` | `Enemy.DMG_*` — shorthand for a 0.0 entry in `dmg_affinity` (zero damage of that type) |
+| `weak`+`weak_mult` | `Enemy.DMG_*` — shorthand for a `weak_mult` (default 1.5) entry in `dmg_affinity` |
+| `affinity` | `{Enemy.DMG_*: mult, ...}` — full multi-type `dmg_affinity` control in one go (see Damage types) |
 | `pull_imm` | ignores gravity-well pull |
 | `shield_cycle`+`shield_time` | Sentinel — phases an invulnerable shield on/off |
 | `move` | 0 chase (default) / 1 wander (random) / 2 bounce (straight, reflects off walls) / 3 straight+`life` / 4 wander, flee a nearby player (stays within the arena) |
@@ -44,11 +46,70 @@ Each tier is a dictionary:
 
 ## Damage types
 
-Weapons tag their hits with a `DMG_*` type (defaults to PHYS). Enemies with `immune`
-take zero damage of that type — a counter to mono-element builds. Current tags: ENERGY =
+Weapons tag their hits with a `DMG_*` type (defaults to PHYS). Current tags: ENERGY =
 nova / lightning / laser / gravity-well; FIRE = flame + all burns (`ignite`); ICE = frost;
 everything else PHYS. The gravity **well pulls each enemy in only once** (then it just
 grinds), and `pull_imm` enemies ignore the pull entirely.
+
+Every `Enemy` carries a `dmg_affinity` (`DamageAffinity`, `scripts/enemies/damage_affinity.gd`)
+— a table of `DMG_* -> multiplier` applied in `take_hit` before `resist`/`enrage_resist`. It
+holds any number of types at once (an enemy can be weak to FIRE *and* resistant to ICE
+simultaneously). `0.0` = immune (zero damage, a "ping" no-op), `>1.0` = weak (bonus damage),
+`<1.0` = strong/resist (reduced damage), unset = `1.0` (normal). This is the *static* baseline
+(config-set at spawn, no expiry) — for a *temporary* mid-fight retag, use an Afflict instead
+(below); permanent rotation, like the Harbinger's elemental immunity (`immune_cycle`/
+`immune_pool`), still mutates `dmg_affinity` directly each tick (clears the outgoing type's
+`0.0` entry, sets a `0.0` entry on the next one) since it never expires on its own.
+
+`immune`/`weak`+`weak_mult`/`affinity` (above) are `EnemyConfig` shorthands that seed
+`dmg_affinity` at spawn (`EnemySpawner.make_enemy`) — `affinity` is the general form for
+classes that need more than one matchup at once, e.g.
+`"affinity": {Enemy.DMG_FIRE: 1.5, Enemy.DMG_ICE: 0.5}`. No bestiary entry uses `weak`/
+`affinity` yet; it's plumbing for future per-class weaknesses.
+
+## Afflicts
+
+**Afflict is a category, not a single effect** — `AfflictConfig.DEFS`
+(`scripts/config/afflict_config.gd`) is the catalog of every distinct afflict in the game
+(currently `"purgatory"` and `"disrupt"`; Purgatory mark is one entry among them, not a special
+case). Any number of them can be active on the same enemy or player at once, each tracked and
+ticking down independently — applying one never disturbs another already active. Each entry
+carries a base `affinity` (`key -> multiplier`, at `stat_mult = 1.0`) — the matchups/effects this
+afflict inflicts and their base strength, tunable in one place (Purgatory's `1.2` = "+20% damage
+taken, of every type, by default"). Afflicts whose overall strength also scales per-application
+(a weapon's level/Power, same as `apply_burn`/`apply_slow`) read it through
+`AfflictConfig.deepened(id, stat_mult)`, which deepens the *bonus* over/under `1.0` by `stat_mult`
+(the same shape as `apply_slow`'s potency deepening — a `stat_mult` of `2.0` on a `20%` bonus
+gives a `40%` bonus, never `140%`); afflicts with a fixed strength (Disruptor) use the base
+`affinity` directly.
+
+`Enemy.afflicts` and `Player.afflicts` are an `AfflictTracker` (`scripts/core/afflict_tracker.gd`)
+holding the *currently active* afflicts for that one target. `afflicts.apply(id, duration, mods,
+color)` activates `id`; if `id` is already active, the new application only takes effect (mods
+*and* duration together) when its `duration` is longer than the time the active one has left —
+so when several players or instances inflict the same afflict, only the longest-remaining one
+ever wins, never a patchwork of whichever applied last. `mods` is a `key -> multiplier` map read
+back via `afflicts.mult(key)` (the product across every active afflict, so several stack):
+
+- **Enemy** afflicts use `DMG_*` (int) keys, layered on top of the enemy's static `dmg_affinity`
+  in `take_hit` (`dmg_affinity.get_mult(dtype) * afflicts.mult(dtype)`) — this is the mechanism
+  for a *temporary* matchup change (a debuff that exposes a weakness, a mark that boosts every
+  type), as opposed to `dmg_affinity`'s permanent baseline. `apply_vuln(stat_mult, duration)`
+  (Purgatory mark, id `"purgatory"`) is the existing example: its base `affinity` is `1.2` (+20%)
+  on all four `DMG_*` keys equally, and `AfflictConfig.deepened("purgatory", stat_mult)` deepens
+  that 20% bonus by `stat_mult` (the caller passes `player.damage_mult` — Power).
+- **Player** afflicts use named String keys for their own effects — `apply_disrupt(duration)`
+  (Disruptor, id `"disrupt"`) reads its base `affinity` (`{"speed": 0.5}`) straight from the
+  catalog, via `afflicts.mult("speed")` in `_local_move`. Player afflicts never touch
+  damage-type affinity (players don't have one); whatever a future player afflict needs (a stat
+  mult, a movement lock, …) is just another named key in its `affinity`.
+
+Each catalog entry carries a display `name` + UI `color`; `Enemy._draw` gives any active afflict
+without its own bespoke visual a generic dashed ring in that color for free (Purgatory's violet
+pall + drifting motes is bespoke and opts out by id). Adding a new afflict: add an entry to
+`AfflictConfig.DEFS`, then a small `apply_x(...)` wrapper around `afflicts.apply(...)` (see
+`apply_vuln`/`apply_disrupt`) — no new tracked field, timer, or draw code required unless it
+needs a distinctive look.
 
 ## Telegraph (caster) attacks
 

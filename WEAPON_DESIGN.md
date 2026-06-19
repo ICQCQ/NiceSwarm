@@ -21,9 +21,12 @@ Player carries four weapon-facing multipliers (`scripts/player.gd`):
 
 ### Damage types
 A hit may be tagged `e.take_hit(amount, from_pos, Enemy.DMG_*)` — `PHYS` (default), `FIRE`,
-`ICE`, or `ENERGY`. Enemies with an `immune` type take zero of it (see ENEMY_DESIGN.md), so
-tag elemental weapons honestly: fire weapons FIRE, ice weapons ICE, energy/lightning ENERGY.
-`ignite()` burns are FIRE. Physical weapons can leave the default.
+`ICE`, or `ENERGY`. Each enemy's `dmg_affinity` (`DamageAffinity`) maps `DMG_*` types to a
+multiplier — `0.0` immune, `>1.0` weak/bonus, `<1.0` strong/resist, several types at once (see
+ENEMY_DESIGN.md) — so tag elemental weapons honestly: fire weapons FIRE, ice weapons ICE,
+energy/lightning ENERGY. `ignite()` burns are FIRE. Physical weapons can leave the default.
+Every `take_hit` call in the codebase already passes an explicit `dtype` — there is no untyped
+damage path into `Enemy.take_hit`.
 
 ### How "instant" weapons satisfy Duration
 Hitscan/contact weapons (nova, orbit, laser, lightning, flame, glaive) have no lifetime,
@@ -47,6 +50,21 @@ in `weapon_flame.gd`) is the only user so far.
 - `apply_blast_push(from_pos, distance)` — a heavy forced shove that covers `distance` px at a
   fixed speed (`BLAST_PUSH_SPEED`), bypassing `apply_push`'s 280 px/s cap so a "heavy push"
   effect (Cluster Warhead) actually reads as heavy; `distance` is the stat-scaled knob (Duration)
+
+A sixth, `apply_vuln(stat_mult, duration)` (Purgatory mark), and `Player.apply_disrupt(duration)`
+are both **Afflicts** — see "Afflicts" in ENEMY_DESIGN.md. Afflict is a category
+(`AfflictConfig.DEFS` catalogs every distinct one — Purgatory mark and Disruptor are two
+separate entries), not a single effect, and any number can be active on the same enemy/player
+at once via `AfflictTracker` (`scripts/core/afflict_tracker.gd`) rather than a dedicated timer
+field each: re-applying the same id only wins if its duration is longer than what's currently
+left (so several sources marking the same target can't have a weak, short tag clobber a strong,
+long one — the longest-remaining application always wins outright, multiplier and timer
+together). Each active id contributes a `key -> multiplier` map: enemies read it by `DMG_*` type
+(`enemy.afflicts.mult(dtype)`, layered on top of `dmg_affinity` in `take_hit` — this is *how* a
+temporary affliction can retag an enemy's elemental matchups, vs. `dmg_affinity` itself which is
+static/config-set), players read it by name (`player.afflicts.mult("speed")`). New afflicts that
+don't need a bespoke draw (like Purgatory's violet pall) get a free generic ring in
+`Enemy._draw` from their catalog `color`.
 
 Both `apply_slow` and `apply_freeze` are no-ops on `cc_immune` enemies; `apply_push` and
 `apply_blast_push` are no-ops on `cc_immune` or `knockback_immune` enemies. Every enemy's

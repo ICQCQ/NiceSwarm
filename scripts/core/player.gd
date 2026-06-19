@@ -61,7 +61,7 @@ var lethal_taken := 0.0  # FF lethality instrument: would-be damage eaten while 
 var dash_timer := 0.0   # cooldown remaining
 var dash_active := 0.0  # dash duration remaining
 var dash_dir := Vector2.ZERO
-var disrupt_timer := 0.0  # Disruptor debuff: slows movement (dash still works)
+var afflicts := AfflictTracker.new()  # named, timed debuffs (Disruptor, etc — see AfflictTracker)
 var downed := false
 var revive_progress := 0.0
 ## mid-game: owner's connection dropped; held in place until they rejoin. Toggles
@@ -163,9 +163,8 @@ func _local_move(delta: float) -> void:
 		facing = dir.normalized()
 
 	dash_timer = maxf(dash_timer - delta, 0.0)
-	disrupt_timer = maxf(disrupt_timer - delta, 0.0)
-	var disrupted := disrupt_timer > 0.0
-	var spd := move_speed * (0.5 if disrupted else 1.0)  # Disruptor slows you
+	afflicts.tick(delta)
+	var spd := move_speed * afflicts.mult("speed")  # Disruptor (or any future debuff) slows you
 	var dash_pressed := Input.is_physical_key_pressed(KEY_SPACE) \
 		or Input.is_physical_key_pressed(KEY_SHIFT)
 	if dash_active > 0.0:
@@ -446,9 +445,9 @@ func merge_weapons(id_a: String, id_b: String) -> void:
 func apply_disrupt(duration: float) -> void:
 	if invuln > 0.0 or dash_active > 0.0:
 		return  # dashing through a disruptor zone shrugs it off
-	if disrupt_timer <= 0.0:  # only play the hit sound on the initial debuff, not every refresh tick
+	if not afflicts.has("disrupt"):  # only play the hit sound on the initial debuff, not every refresh tick
 		Sfx.play("hurt", global_position)
-	disrupt_timer = maxf(disrupt_timer, duration)
+	afflicts.apply("disrupt", duration, AfflictConfig.DEFS.disrupt.affinity, AfflictConfig.DEFS.disrupt.color)
 
 
 func heal(amount: int) -> void:
@@ -518,7 +517,7 @@ func _draw() -> void:
 			Vector2.from_angle(fa + 0.45) * (RADIUS - 1.0),
 			Vector2.from_angle(fa - 0.45) * (RADIUS - 1.0)])
 		draw_colored_polygon(notch, Color(1.0, 1.0, 1.0, 0.9 * col.a))
-		if disrupt_timer > 0.0:  # disrupted: a jittery purple ring
+		if afflicts.has("disrupt"):  # disrupted: a jittery purple ring
 			draw_arc(Vector2.ZERO, RADIUS + 5.0, 0.0, TAU, 16,
 				Color(0.7, 0.3, 1.0, 0.9), 2.5)
 	if has_crown and not downed:
