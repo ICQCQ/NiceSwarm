@@ -133,7 +133,10 @@ const BASE := {
 	"fus_frostbite": {"dmg": 3.0, "growth": 0.08, "cd": 2.8, "range": 600.0, "radius": 84.0, "radius_per_count": 4.0, "life": 3.5, "freeze_slow": 0.5, "freeze_dur_ratio": 0.4},
 	"fus_glacial": {"dmg": 5.1, "growth": 0.08, "cd": 1.5, "range": 650.0, "count_base": 2, "spread_deg": 22.0, "speed": 430.0, "dmg_ratio": 0.6, "burn_dps_ratio": 0.3, "hit_radius": 15.0, "slow_factor": 0.5},
 	"fus_glacmine": {"dmg": 17.8, "growth": 0.08, "cd": 2.2, "cap_base": 3, "blast_radius": 154.0, "blast_radius_per_count": 6.0, "trigger_radius": 55.0, "life": 12.0, "freeze_dur_base": 1.0},
-	"fus_glacier": {"dmg": 3.0, "growth": 0.08, "cd": 5.0, "range": 700.0, "radius": 260.0, "radius_per_count": 10.0, "pull": 120.0, "life": 3.0},
+	# slow_mult_base/wave_interval are both Haste-scaled (slow_mult lower = a deeper chill);
+	# freeze_wave_threshold cold waves caught (not Haste/Duration-scaled, just a stack count)
+	# fully freezes an enemy for freeze_dur_base * Duration.
+	"fus_glacier": {"dmg": 3.0, "growth": 0.08, "cd": 5.0, "range": 700.0, "radius": 260.0, "radius_per_count": 10.0, "pull": 120.0, "life": 3.0, "slow_mult_base": 0.45, "wave_interval": 1.0, "freeze_wave_threshold": 3, "freeze_dur_base": 1.0},
 	"fus_gravround": {"dmg": 4.1, "growth": 0.08, "cd": 1.1, "range": 650.0, "spread_deg": 9.0, "speed": 500.0, "radius": 5.5, "life": 1.6, "well_radius": 80.0, "well_radius_per_level": 10.0, "well_dmg": 0.5, "well_growth": 0.3, "well_pull": 220.0, "well_life": 1.5},
 	"fus_implosionmine": {"dmg": 17.8, "growth": 0.08, "cd": 5.5, "range": 700.0, "well_radius": 150.0, "well_radius_per_level": 14.0, "well_dmg": 3.0, "well_pull": 200.0, "well_life": 2.6, "count_base": 1, "blast_radius": 90.0, "blast_radius_per_level": 12.0, "trigger_radius": 45.0, "life": 6.0, "arm": 0.2, "spawn_r_ratio": 0.6},
 	"fus_carpetbombing": {"dmg": 5.0, "growth": 0.08, "cd": 4.0, "range": 750.0, "field_max_dist": 380.0, "cap_base": 2, "field_radius": 140.0, "field_radius_per_level": 8.0, "field_life": 4.0, "missile_cd": 0.85, "missile_count_base": 0, "missile_splash": 55.0, "missile_splash_per_level": 4.0, "missile_life": 3.0},

@@ -12,7 +12,6 @@ var detonate_damage := 0.0  # fused Singularity: collapse blast on expiry
 var detonate_scale_per_enemy := 0.0  # fused Singularity: bonus dmg mult per enemy caught in the blast
 var push_strength := 0.0    # fused Singularity: shockwave push on the collapse blast
 var pull_interval := 0.0    # fused Singularity: >0 = Haste-scaled rhythmic pull instead of a steady drag
-var freeze := false         # fused Glacier: chills everything inside
 var beam_spokes := 0        # fused Accretion Beam: rotating energy beams within the vortex
 var beam_dmg := 0.0
 var beam_len := 0.0
@@ -66,8 +65,6 @@ func _physics_process(delta: float) -> void:
 					if f > 0.0:
 						e.global_position = e.global_position.move_toward(global_position, pull * f * delta)
 					pull_factor[id] = maxf(f - 0.6 * delta, 0.0)
-			if freeze:
-				e.apply_slow(0.45, 0.5)
 			if damage > 0.0:
 				var id := e.get_instance_id()
 				if not _hit_enemies.has(id):  # base gravity damage: one instance per enemy, not per tick
