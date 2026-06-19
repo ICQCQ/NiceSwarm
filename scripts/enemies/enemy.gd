@@ -42,7 +42,9 @@ var elite := false
 var type_id := 0   # network id of this (class, tier); see EnemySpawner.build_type_registry
 var tier := 0
 var resist := 0.0       # Warden: fraction of every hit shrugged off (0..1)
-var immune_type := -1   # Elemental: takes zero damage of this DMG_* type
+var dmg_affinity := DamageAffinity.new()  # per-DMG_*-type weak/strong/immune multipliers
+var immune_type := -1   # bookkeeping for immune_cycle rotation + the outer aura draw —
+                         # which DMG_* type is currently the (fully-blocked) "immune" slot
 var pull_immune := false # ignores gravity-well yank (tanks/wardens/elites)
 var cc_immune := false  # Bouncer/shards: immune to slow + knockback (can't be interrupted)
 var knockback_immune := false  # bosses/tier-3: immune to knockback push (but still slowable, unlike cc_immune)
@@ -304,7 +306,9 @@ func _physics_process(delta: float) -> void:
 		if immune_timer <= 0.0:
 			immune_timer = immune_cycle
 			var idx := immune_pool.find(immune_type)
+			dmg_affinity.clear(immune_type)  # revert the outgoing slot to normal
 			immune_type = immune_pool[(idx + 1) % immune_pool.size()]
+			dmg_affinity.set_mult(immune_type, 0.0)
 	if summon_cooldown > 0.0:
 		summon_timer -= delta
 		if summon_timer <= 0.0:
@@ -372,9 +376,14 @@ func _physics_process(delta: float) -> void:
 func take_hit(amount: float, from_pos: Variant = null, dtype: int = DMG_PHYS, source_pid: int = -1) -> void:
 	if bullet:
 		return  # shard bullets can't be destroyed — dodge them
-	if dtype == immune_type or (shielded and not puppet):
-		flash = 0.06  # pings off the shield / immunity — no damage
+	if shielded and not puppet:
+		flash = 0.06  # pings off the shield — no damage
 		return
+	var type_mult := dmg_affinity.get_mult(dtype)
+	if type_mult <= 0.0:
+		flash = 0.06  # pings off this type's immunity — no damage
+		return
+	amount *= type_mult  # weak (>1) bonus or strong/resist (<1) reduction, before armor
 	var eff_resist := resist
 	if enrage_resist > 0.0 and max_hp > 0.0:  # enrage: tougher the lower its hp gets
 		eff_resist = clampf(resist + enrage_resist * (1.0 - hp / max_hp), 0.0, 0.9)
@@ -620,6 +629,17 @@ func _draw() -> void:
 			draw_circle(Vector2.from_angle(TAU * i / 3.0) * radius * 0.4, radius * 0.22, color.darkened(0.3))
 	if immune_type >= 0:  # elemental: a colored aura of its immune element
 		draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 24, _elem_color(immune_type) * Color(1, 1, 1, 0.8), 2.0)
+	# any other type-matchups (an enemy can be weak/strong against several at once): a
+	# thin inner ring per weak type, a subtler one per strong/resist type — distinct from
+	# the outer solid ring above, which is reserved for full immunity.
+	for t in dmg_affinity.mults:
+		if t == immune_type:
+			continue
+		var m: float = dmg_affinity.mults[t]
+		if m > 1.0:
+			draw_arc(Vector2.ZERO, radius - 4.0, 0.0, TAU, 16, _elem_color(t) * Color(1, 1, 1, 0.6), 1.5)
+		elif m > 0.0:
+			draw_arc(Vector2.ZERO, radius - 1.0, 0.0, TAU, 20, _elem_color(t) * Color(1, 1, 1, 0.35), 1.0)
 	if shielded:  # sentinel: an impenetrable bubble — wait it out
 		draw_circle(Vector2.ZERO, radius + 6.0, Color(0.5, 0.8, 1.0, 0.28))
 		draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 28, Color(0.7, 0.9, 1.0, 0.9), 2.5)

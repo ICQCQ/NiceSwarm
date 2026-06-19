@@ -21,9 +21,12 @@ Player carries four weapon-facing multipliers (`scripts/player.gd`):
 
 ### Damage types
 A hit may be tagged `e.take_hit(amount, from_pos, Enemy.DMG_*)` — `PHYS` (default), `FIRE`,
-`ICE`, or `ENERGY`. Enemies with an `immune` type take zero of it (see ENEMY_DESIGN.md), so
-tag elemental weapons honestly: fire weapons FIRE, ice weapons ICE, energy/lightning ENERGY.
-`ignite()` burns are FIRE. Physical weapons can leave the default.
+`ICE`, or `ENERGY`. Each enemy's `dmg_affinity` (`DamageAffinity`) maps `DMG_*` types to a
+multiplier — `0.0` immune, `>1.0` weak/bonus, `<1.0` strong/resist, several types at once (see
+ENEMY_DESIGN.md) — so tag elemental weapons honestly: fire weapons FIRE, ice weapons ICE,
+energy/lightning ENERGY. `ignite()` burns are FIRE. Physical weapons can leave the default.
+Every `take_hit` call in the codebase already passes an explicit `dtype` — there is no untyped
+damage path into `Enemy.take_hit`.
 
 ### How "instant" weapons satisfy Duration
 Hitscan/contact weapons (nova, orbit, laser, lightning, flame, glaive) have no lifetime,

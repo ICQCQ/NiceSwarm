@@ -26,7 +26,9 @@ Each tier is a dictionary:
 | `col` | body color |
 | `elite` | always drops a chest (free team upgrade) |
 | `resist` | Warden armor — fraction of every hit ignored (0..1) |
-| `immune` | `Enemy.DMG_*` — takes **zero** damage of that type (PHYS/FIRE/ICE/ENERGY) |
+| `immune` | `Enemy.DMG_*` — shorthand for a 0.0 entry in `dmg_affinity` (zero damage of that type) |
+| `weak`+`weak_mult` | `Enemy.DMG_*` — shorthand for a `weak_mult` (default 1.5) entry in `dmg_affinity` |
+| `affinity` | `{Enemy.DMG_*: mult, ...}` — full multi-type `dmg_affinity` control in one go (see Damage types) |
 | `pull_imm` | ignores gravity-well pull |
 | `shield_cycle`+`shield_time` | Sentinel — phases an invulnerable shield on/off |
 | `move` | 0 chase (default) / 1 wander (random) / 2 bounce (straight, reflects off walls) / 3 straight+`life` / 4 wander, flee a nearby player (stays within the arena) |
@@ -44,11 +46,26 @@ Each tier is a dictionary:
 
 ## Damage types
 
-Weapons tag their hits with a `DMG_*` type (defaults to PHYS). Enemies with `immune`
-take zero damage of that type — a counter to mono-element builds. Current tags: ENERGY =
+Weapons tag their hits with a `DMG_*` type (defaults to PHYS). Current tags: ENERGY =
 nova / lightning / laser / gravity-well; FIRE = flame + all burns (`ignite`); ICE = frost;
 everything else PHYS. The gravity **well pulls each enemy in only once** (then it just
 grinds), and `pull_imm` enemies ignore the pull entirely.
+
+Every `Enemy` carries a `dmg_affinity` (`DamageAffinity`, `scripts/enemies/damage_affinity.gd`)
+— a table of `DMG_* -> multiplier` applied in `take_hit` before `resist`/`enrage_resist`. It
+holds any number of types at once (an enemy can be weak to FIRE *and* resistant to ICE
+simultaneously) and is plain mutable state, not baked-in config, so anything — a status
+effect, a debuff weapon, a boss mechanic — can call `enemy.dmg_affinity.set_mult(type, mult)`
+mid-fight to retag a matchup on the fly. `0.0` = immune (zero damage, a "ping" no-op), `>1.0` =
+weak (bonus damage), `<1.0` = strong/resist (reduced damage), unset = `1.0` (normal). The
+Harbinger's rotating elemental immunity (`immune_cycle`/`immune_pool`) is just this: each tick
+it clears the outgoing type's `0.0` entry and sets a `0.0` entry on the next one.
+
+`immune`/`weak`+`weak_mult`/`affinity` (above) are `EnemyConfig` shorthands that seed
+`dmg_affinity` at spawn (`EnemySpawner.make_enemy`) — `affinity` is the general form for
+classes that need more than one matchup at once, e.g.
+`"affinity": {Enemy.DMG_FIRE: 1.5, Enemy.DMG_ICE: 0.5}`. No bestiary entry uses `weak`/
+`affinity` yet; it's plumbing for future per-class weaknesses.
 
 ## Telegraph (caster) attacks
 

@@ -65,3 +65,40 @@ func run(t) -> void:
 	e.apply_slow(0.5, 1.0)
 	t.eq(e.slow_mult, 1.0, "cc_immune enemies can't be slowed")
 	e.free()
+
+	# DamageAffinity: weak/strong/immune multipliers, several types tracked at once,
+	# and mutable at runtime (not baked in at spawn).
+	var aff := DamageAffinity.new()
+	t.eq(aff.get_mult(Enemy.DMG_FIRE), 1.0, "unset type defaults to 1.0")
+	aff.set_mult(Enemy.DMG_FIRE, 1.5)
+	aff.set_mult(Enemy.DMG_ICE, 0.5)
+	aff.set_mult(Enemy.DMG_ENERGY, 0.0)
+	t.eq(aff.get_mult(Enemy.DMG_FIRE), 1.5, "weak type set")
+	t.eq(aff.get_mult(Enemy.DMG_ICE), 0.5, "strong/resist type set independently")
+	t.ok(aff.is_immune(Enemy.DMG_ENERGY), "0.0 mult reads as immune")
+	t.ok(not aff.is_immune(Enemy.DMG_FIRE), "weak type is not immune")
+	aff.set_mult(Enemy.DMG_FIRE, 1.0)  # runtime mutation back to default prunes the entry
+	t.ok(not aff.mults.has(Enemy.DMG_FIRE), "re-setting to 1.0 clears the entry")
+	aff.clear(Enemy.DMG_ICE)
+	t.eq(aff.get_mult(Enemy.DMG_ICE), 1.0, "clear() reverts to default")
+
+	# wired into Enemy.take_hit: weak/strong/immune apply before resist, multiple at once
+	var parent := Node.new()  # take_hit spawns a floating damage number via get_parent()
+	var w := Enemy.new()
+	parent.add_child(w)
+	w.hp = 100.0
+	w.dmg_affinity.set_mult(Enemy.DMG_FIRE, 1.5)
+	w.take_hit(10.0, null, Enemy.DMG_FIRE)
+	t.approx(w.hp, 85.0, 0.001, "weak type applies its multiplier (10 * 1.5 = 15 dmg)")
+	w.take_hit(10.0, null, Enemy.DMG_PHYS)
+	t.approx(w.hp, 75.0, 0.001, "untagged type is unaffected by the FIRE entry")
+	w.dmg_affinity.set_mult(Enemy.DMG_ICE, 0.0)
+	w.take_hit(10.0, null, Enemy.DMG_ICE)
+	t.approx(w.hp, 75.0, 0.001, "0.0 mult takes zero damage")
+	w.dmg_affinity.set_mult(Enemy.DMG_ENERGY, 0.5)
+	w.take_hit(10.0, null, Enemy.DMG_ENERGY)
+	t.approx(w.hp, 70.0, 0.001, "ICE immunity and ENERGY resist coexist independently (10 * 0.5 = 5 dmg)")
+	w.resist = 0.5
+	w.take_hit(10.0, null, Enemy.DMG_FIRE)
+	t.approx(w.hp, 62.5, 0.001, "type mult applies before armor resist (10 * 1.5 * 0.5 = 7.5 dmg)")
+	parent.free()
