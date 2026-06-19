@@ -78,7 +78,7 @@ static func in_interceptor_zone(pos: Vector2) -> bool:
 		var z := _zones[i]
 		if not is_instance_valid(z):
 			_zones.remove_at(i)
-		elif z.is_intercept_active() and pos.distance_to(z.global_position) <= z.radius:
+		elif z.is_intercept_active() and z.contains(pos):
 			return true
 		i -= 1
 	return false

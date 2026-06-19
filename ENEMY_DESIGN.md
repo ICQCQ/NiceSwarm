@@ -150,12 +150,13 @@ stays a cheap linear scan over a handful of live fields). `icast_pattern` select
   radius scaled up by current **THREAT** (`1 + diff()/40`) — the worse things get, the bigger
   the no-fire zones.
 - **2 — N enemies** (Disperser). Drops a field on up to `icast_count` other live enemies,
-  each lingering for `icast_life`. Prefers **Bouncers** — their ricochet path drags the
-  field around the arena unpredictably — and falls back to **Bosses** if no bouncers are
-  alive; if neither is alive, it skips the cast that cycle.
-- **3 — one long line, random angle** (Overseer, rare). A chain of fields spanning the arena's
-  diagonal at a fresh random angle each cast — `icast_cooldown` is long, so this is an
-  infrequent, large-area denial burst.
+  picked at random with no type preference — whichever enemy gets picked drags the field
+  around the arena unpredictably as it moves. The radius is bigger than Scrambler's to
+  compensate for the looser targeting.
+- **3 — one long rectangle, random angle** (Overseer, rare). A single rectangular field
+  (`cast_intercept_line`) spanning the arena at a fresh random angle each cast, instead of
+  a chain of separate circles — `icast_cooldown` is long, so this is an infrequent,
+  large-area denial lane.
 
 ## Current roster
 
@@ -264,8 +265,8 @@ independent of the normal AI, so it interrupts chasing/casting on its own cooldo
 | 1 | Harbinger | `immune_cycle` (4 s) rotates `immune_type` through PHYS→FIRE→ICE→ENERGY — match your damage type | 4 — massive slow strike |
 | 2 | Eclipse | `enrage_resist` (0.5) — armor ramps up to +50% as hp drops toward 0 + `summon_cls`/`summon_tier`/`summon_count`/`summon_cooldown` calls in 2 Dispersers every 9 s | 5 — explosion ring |
 
-Disperser (Interceptor T2) always drops an extra jamming field on every live boss,
-on top of its normal bouncer/boss targets — see `icast_pattern: 2` in `enemy.gd`.
+Eclipse's summoned Dispersers cast like any other Disperser — a big field on a
+random live enemy, not specifically the boss — see `icast_pattern: 2` in `enemy.gd`.
 
 ## Designed, not yet implemented
 
