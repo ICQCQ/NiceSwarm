@@ -96,6 +96,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | frost + lightning | **Cryoshock** | a chain that freezes (slow) and burns every link |
 | flame + venom | **Purgatory** | an eerie field that burns and marks foes inside it -- marked enemies take extra damage, slow harder, and can't burn out |
 | gravity + nova | **Singularity** | a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught |
+| gravity + nova | **Singularity** | a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught |
 | mines + missiles | **Cluster Bomb** | mines that spray homing rockets on blast |
 | laser + orbit | **Prism Halo** | prisms drop around you, linked to you and each other by damage beams |
 | frost + glaive | **Glacial Edge** | boomerangs that freeze and bleed |
@@ -144,6 +145,9 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | gravity + lightning | **Storm Vortex** | a vortex that arcs lightning between everything it traps |
 | gravity + mines | **Implosion Mine** | a vortex that seeds mines around its collapsing core |
 | gravity + missiles | **Carpet Bombing** | marks a random foe's spot with a target zone, then calls in a missile barrage on random points inside it (wave rate scales with Haste, missiles per wave scale with level) |
+| glaive + mines | **Shrapnel Mine** | mines that burst into a spray of glaive shrapnel that shuttles back and forth until it fades |
+| laser + mines | **Beam Mine** | mines that link sustained laser beams to each other; enemy contact arms a long fuse, still beaming, before it detonates |
+| lightning + mines | **Tesla Mine** | mines placed inert, projecting a shocking field that chains lightning between enemies; once the inert period ends, contact detonates them like a normal mine |
 | glaive + mines | **Shrapnel Mine** | mines that burst into a spray of glaive shrapnel that shuttles back and forth until it fades |
 | laser + mines | **Beam Mine** | mines that link sustained laser beams to each other; enemy contact arms a long fuse, still beaming, before it detonates |
 | lightning + mines | **Tesla Mine** | mines placed inert, projecting a shocking field that chains lightning between enemies; once the inert period ends, contact detonates them like a normal mine |
