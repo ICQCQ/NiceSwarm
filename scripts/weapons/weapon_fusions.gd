@@ -68,7 +68,7 @@ const INFO := {
 	"gravity|lightning": {"name": "Storm Vortex", "desc": "a vortex that arcs lightning between everything it traps"},
 	"gravity|mines": {"name": "Implosion Mine", "desc": "a vortex that seeds mines around its collapsing core"},
 	"gravity|missiles": {"name": "Carpet Bombing", "desc": "marks a random nearby foe's spot, then calls in a missile barrage on random points inside that zone"},
-	"glaive|mines": {"name": "Shrapnel Mine", "desc": "mines that burst into a spray of glaive shrapnel"},
+	"glaive|mines": {"name": "Shrapnel Mine", "desc": "mines that burst into a spray of glaive shrapnel that shuttles back and forth until it fades"},
 	"laser|mines": {"name": "Beam Mine", "desc": "mines that link sustained laser beams to each other; enemy contact arms a long fuse, still beaming, before it detonates"},
 	"lightning|mines": {"name": "Tesla Mine", "desc": "mines that chain lightning outward from the blast"},
 	"mines|nova": {"name": "Nova Mine", "desc": "mines that pulse a second energy blast on detonation"},

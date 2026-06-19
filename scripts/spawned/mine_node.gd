@@ -18,6 +18,7 @@ var freeze_dur := 0.0    # >0: completely halts enemies in blast (Glacial Mine);
 var shrapnel_count := 0  # fused Shrapnel Mine: glaive shards fly outward on blast
 var shrapnel_dmg := 0.0
 var shrapnel_radius := 12.0
+var shrapnel_life := 0.0  # Duration: shards shuttle forth/back from the blast point until this expires
 var chain_count := 0     # fused Tesla Mine: lightning chains out from the blast
 var chain_dmg := 0.0
 var chain_range := 0.0
@@ -116,6 +117,7 @@ func _explode() -> void:
 		g.velocity = Vector2.from_angle(TAU * float(i) / shrapnel_count) * 420.0
 		g.damage = shrapnel_dmg
 		g.hit_radius = shrapnel_radius
+		g.shuttle_life = shrapnel_life
 		g.position = global_position
 		get_parent().add_child(g)
 	if chain_count > 0:

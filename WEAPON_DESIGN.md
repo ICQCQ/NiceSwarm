@@ -144,7 +144,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | gravity + lightning | **Storm Vortex** | a vortex that arcs lightning between everything it traps |
 | gravity + mines | **Implosion Mine** | a vortex that seeds mines around its collapsing core |
 | gravity + missiles | **Carpet Bombing** | marks a random foe's spot with a target zone, then calls in a missile barrage on random points inside it (wave rate scales with Haste, missiles per wave scale with level) |
-| glaive + mines | **Shrapnel Mine** | mines that burst into glaive shrapnel on blast |
+| glaive + mines | **Shrapnel Mine** | mines that burst into a spray of glaive shrapnel that shuttles back and forth until it fades |
 | laser + mines | **Beam Mine** | mines that link sustained laser beams to each other; enemy contact arms a long fuse, still beaming, before it detonates |
 | lightning + mines | **Tesla Mine** | mines that chain lightning outward from the blast |
 | mines + nova | **Nova Mine** | mines that pulse a second energy blast on detonation |

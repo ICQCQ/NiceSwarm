@@ -60,6 +60,7 @@ const BASE := {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
 		"trigger_radius": 50.0, "life": 11.0, "cap_base": 3,
 		"shrapnel_count_base": 3, "shrapnel_dmg": 2.0, "shrapnel_growth": 0.08, "shrapnel_radius": 12.0,
+		"shrapnel_life": 3.0,  # Duration: how long each shard shuttles before fading
 	},
 	"fus_teslamine": {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
