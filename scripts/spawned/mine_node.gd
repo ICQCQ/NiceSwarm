@@ -18,13 +18,6 @@ var freeze_dur := 0.0    # >0: completely halts enemies in blast (Glacial Mine);
 var shrapnel_count := 0  # fused Shrapnel Mine: glaive shards fly outward on blast
 var shrapnel_dmg := 0.0
 var shrapnel_radius := 12.0
-var beam_spokes := 0     # fused Beam Mine: spinning laser arms left at the blast site
-var beam_dmg := 0.0
-var beam_len := 0.0
-var beam_burn_dur := 0.0
-var beam_spin_life := 0.0  # how long the laser array keeps spinning before fading
-var beam_spin := 2.2       # rad/s
-var beam_rate := 1.0       # Haste: per-enemy re-hit cooldown on the spinning array
 var chain_count := 0     # fused Tesla Mine: lightning chains out from the blast
 var chain_dmg := 0.0
 var chain_range := 0.0
@@ -125,20 +118,6 @@ func _explode() -> void:
 		g.hit_radius = shrapnel_radius
 		g.position = global_position
 		get_parent().add_child(g)
-	if beam_spokes > 0:
-		var sl := SpinLaser.new()
-		sl.position = global_position
-		sl.spokes = beam_spokes
-		sl.dmg = beam_dmg
-		sl.length = beam_len
-		sl.spin = beam_spin
-		sl.rate_mult = beam_rate
-		sl.life = beam_spin_life
-		sl.burn_dur = beam_burn_dur
-		sl.source_pid = source_pid
-		sl.source_weapon = (source_weapon if is_instance_valid(source_weapon) else null)
-		get_parent().add_child(sl)
-		Sfx.play("laser", global_position)
 	if chain_count > 0:
 		var visited := {}
 		for e in EnemyGrid.near(global_position, blast_radius):

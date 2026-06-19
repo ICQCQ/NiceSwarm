@@ -38,11 +38,18 @@ const BASE := {
 
 	# --- Mine-fusion base stats (FusMineBase, read dynamically by weapon_id) plus each
 	# subclass's bonus-payload numbers (added by its own _load() override). ---
+	# Beam Mine doesn't explode on contact: it links a sustained damaging laser
+	# to every other Beam Mine in range (Area widens link_range). Enemy contact
+	# arms a delayed fuse (`inert_dur`, scales with Duration) instead of an
+	# instant blast -- the baseline runs longer than a normal mine's whole life
+	# (mines.life = 12.0) since it keeps beaming the whole time it's fused. The
+	# fuse then detonates a normal mine-style blast. `life` only matters if a
+	# mine is never triggered (it just fizzles out).
 	"fus_beammine": {
-		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
-		"trigger_radius": 50.0, "life": 11.0, "cap_base": 3,
-		"beam_dmg": 2.4, "beam_growth": 0.08, "beam_len": 170.0, "beam_len_per_count": 16.0,
-		"beam_spin": 2.4, "beam_spin_life": 1.4, "beam_burn_dur": 1.0,
+		"cd": 1.9, "cap_base": 3, "trigger_radius": 50.0, "life": 20.0, "inert_dur": 10.0,
+		"dmg": 17.8, "growth": 0.08, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
+		"link_dmg": 2.0, "link_growth": 0.08, "link_range": 220.0, "link_range_per_count": 20.0,
+		"beam_width": 6.0,
 	},
 	"fus_novamine": {
 		"dmg": 17.8, "growth": 0.08, "cd": 1.9, "blast_radius": 154.0, "blast_radius_per_count": 6.0,
