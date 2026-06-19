@@ -11,9 +11,11 @@ func _init() -> void:
 	display_name = "Flame Cone"
 
 
-## Cone half-angle: fixed up to Lv3, then widens with level (capped ~55 degrees).
+## Cone half-angle: fixed up to Lv3, then widens with level, capped at 90 degrees
+## (180 total coverage) — reached exactly at the Lv7 cap (count_level() == MAX_WEAPON_LEVEL).
 func _half_angle() -> float:
-	return cfg.half_angle * (1.0 + cfg.widen_per_level * maxi(0, count_level() - 3))
+	var half: float = cfg.half_angle * (1.0 + cfg.widen_per_level * maxi(0, count_level() - 3))
+	return minf(half, PI / 2.0)
 
 
 func _physics_process(delta: float) -> void:

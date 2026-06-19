@@ -151,7 +151,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | lightning + missiles | **EMP Missile** | homing rockets that chain lightning on impact |
 | gravity + orbit | **Event Horizon** | blades that hold enemies in a crushing ring |
 | bolt + missiles | **Flak Battery** | rapid homing flak shells that curve toward foes and burst into shrapnel |
-| flame + turret | **Flame Turret** | a deployed turret breathing a fire cone |
+| flame + turret | **Flame Turret** | a deployed turret spraying a fire cone, just like Flame Cone, plus a periodic burning ring-burst |
 | frost + orbit | **Frost Halo** | orbiting blades that freeze on contact |
 | bolt + frost | **Frost Lance** | a piercing volley of chilling lances that shatter already-frozen foes |
 | frost + venom | **Frostbite** | a pool that chills and poisons everything inside |

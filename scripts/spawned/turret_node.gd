@@ -21,6 +21,9 @@ var angle := 0.0       # orbit/beam sweep angle
 var hit_cd := {}       # beam/orbit: per-enemy re-hit cooldown
 var gun_cd := 0.0      # independent timer for the normal bolt gun (GUN_RETAINING_MODES)
 var puddle_cd := 1.2   # venom mode: interval between dropped puddles (config-driven by the deploying weapon)
+var burst_cd := 0.0    # flame mode: independent timer for the periodic ring-burst (see _burst_ring)
+var burn_dps := 0.0    # flame mode: ignite dps, separate config knob from `damage` (set by the deploying fusion)
+var burn_dur := 1.0    # flame mode: ignite duration
 
 # Turret-fusion modes whose effect is NOT a fired bullet (ground deploys + AoE/chain).
 # These KEEP the normal turret bolt gun firing on its own timer, on top of the effect —
@@ -32,6 +35,11 @@ const GUN_RETAINING_MODES := {
 }
 const BOLT_CD := 0.45  # normal turret bolt cadence (matches the default fire mode)
 const GUN_RETAIN_SCALE := 0.35  # retained bolt gun on AoE/deploy modes is a bonus, not a 2nd full weapon
+const FLAME_SPRAY_REACH := 190.0  # Flame Turret: cone spray reach (Area-scaled) — bigger base than the
+# old 140 so an Area pick gains noticeably more range, not just a 1:1 token bump
+const FLAME_BURST_RADIUS := 80.0  # Flame Turret: periodic ring-burst radius (Area-scaled)
+const FLAME_BURST_CD := 2.0       # Flame Turret: ring-burst cadence (Haste-scaled), independent of the spray
+const FLAME_BURST_SCALE := 0.6    # ring-burst is a bonus on top of the cone spray, not a 2nd full hit
 
 
 func _ready() -> void:
@@ -44,6 +52,14 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	queue_redraw()
+	if mode == "flame":
+		# the ring-burst runs on its own clock, independent of the cone spray's aim/fire_cd
+		# below (it needs no target — it just catches whoever is close) so it keeps ticking
+		# even while the turret is busy tracking a far-off target for the spray.
+		burst_cd -= delta
+		if burst_cd <= 0.0:
+			burst_cd = FLAME_BURST_CD * fire_mult
+			_burst_ring(FLAME_BURST_RADIUS * area_mult)
 	if mode == "beam":
 		_run_beam(delta)
 		return
@@ -51,7 +67,10 @@ func _physics_process(delta: float) -> void:
 		_run_orbit(delta)
 		return
 	# Bullet modes fire only on fire_cd; gun-retaining modes ALSO run the bolt gun on gun_cd.
-	var keeps_gun := GUN_RETAINING_MODES.has(mode)
+	# .get(mode, false), not .has(mode) — the dict's value is what matters (nova/lightning/
+	# flame are listed with `false` specifically to opt OUT of the retained gun; .has() would
+	# return true for them too since the key exists, firing bullets they're not supposed to).
+	var keeps_gun: bool = GUN_RETAINING_MODES.get(mode, false)
 	if keeps_gun:
 		gun_cd -= delta
 	fire_cd -= delta
@@ -122,9 +141,9 @@ func _emit(target: Node2D) -> float:
 			Sfx.play("nova", here, -4.0)
 			return 1.6
 		"flame":
-			_cone(dir, (140.0 + 0.0) * area_mult)
+			_spray(dir, FLAME_SPRAY_REACH * area_mult)
 			Sfx.play("flame", here, -6.0)
-			return 0.28
+			return 0.22
 		"mines":
 			var own_mines := 0
 			for m2 in get_tree().get_nodes_in_group("mines"):
@@ -201,13 +220,43 @@ func _pulse(radius: float) -> void:
 			e.apply_push(global_position, 50.0 * area_mult)
 
 
-func _cone(dir: Vector2, reach: float) -> void:
+## Flame Turret: a cone spray toward its target, the same shape as the base Flame
+## Cone weapon (fixed reach + half-angle), plus a lingering burn. Unlike the base
+## Flame Cone's ignite() (burn dps pinned to 0.3x the hit), burn_dps/burn_dur are
+## their own config knob (cfg.burn_dps_ratio/burn_dur on the deploying fusion, see
+## FusSentryBase) — independent of `damage`, tunable on their own.
+func _spray(dir: Vector2, reach: float) -> void:
 	for e in EnemyGrid.near(global_position, reach):
 		var to: Vector2 = e.global_position - global_position
 		if to.length() <= reach + e.radius and absf(dir.angle_to(to)) <= 0.6:
 			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += damage
 			e.take_hit(damage, null, Enemy.DMG_FIRE, source_pid)
+			if burn_dps > 0.0:
+				e.apply_burn(burn_dps, burn_dur, 1.0, source_pid)
+
+
+## Flame Turret: a periodic omnidirectional ring-burst on top of the cone spray —
+## no aim needed, so it catches anyone close by even outside the spray's cone. A
+## bonus on top of the spray, not a second full hit (FLAME_BURST_SCALE), same
+## spirit as the gun-retaining modes' GUN_RETAIN_SCALE — its burn is the same
+## scaled-down fraction of the spray's own (separately configured) burn_dps.
+func _burst_ring(radius: float) -> void:
+	var fx := RingFx.new()
+	fx.position = global_position
+	fx.radius = 10.0
+	fx.max_radius = radius
+	fx.life = 0.3
+	fx.color = Color(1.0, 0.5, 0.15)
+	get_parent().add_child(fx)
+	var burst_dmg := damage * FLAME_BURST_SCALE
+	for e in EnemyGrid.near(global_position, radius):
+		if global_position.distance_to(e.global_position) <= radius + e.radius:
+			if is_instance_valid(source_weapon):
+				source_weapon.damage_dealt += burst_dmg
+			e.take_hit(burst_dmg, global_position, Enemy.DMG_FIRE, source_pid)
+			if burn_dps > 0.0:
+				e.apply_burn(burn_dps * FLAME_BURST_SCALE, burn_dur, 1.0, source_pid)
 
 
 func _chain(first: Node2D) -> void:
@@ -314,6 +363,16 @@ func _draw() -> void:
 		var orbit_r := 55.0 * area_mult
 		for i in 3:
 			draw_circle(Vector2.from_angle(angle + TAU * i / 3.0) * orbit_r, 6.0 * area_mult, Color(0.7, 0.85, 1.0))
+	elif mode == "flame":
+		# a forward spray toward the target — same particle look as the base Flame Cone
+		# weapon (random heat-colored circles in a cone, whiter near the nozzle)
+		var reach := FLAME_SPRAY_REACH * area_mult
+		for i in 5:
+			var ang := aim_angle + randf_range(-0.5, 0.5)
+			var dist := randf_range(reach * 0.25, reach)
+			var p := Vector2.from_angle(ang) * dist
+			var heat := 1.0 - dist / reach
+			draw_circle(p, randf_range(3.0, 8.0), Color(1.0, 0.45 + 0.4 * heat, 0.15, randf_range(0.3, 0.6)))
 	else:
 		draw_line(Vector2.ZERO, Vector2.from_angle(aim_angle) * 14.0, Color(0.7, 0.75, 0.8), 4.0)
 	var blink := fmod(life, 0.6) < 0.3 and life < 1.5

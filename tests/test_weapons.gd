@@ -34,3 +34,25 @@ func run(t) -> void:
 		seen[w.weapon_id] = true
 		w.free()
 	t.eq(seen.size(), IDS.size(), "weapon node ids are all distinct")
+
+	# Flame Cone: the cone widens past Lv3 and is capped at 90 degrees half-angle
+	# (180 total coverage), reached exactly at the Lv7 cap.
+	var flame := WeaponFlame.new()
+	flame.cfg = WeaponConfig.BASE["flame"]
+	flame.level = 3
+	t.approx(flame._half_angle(), WeaponConfig.BASE.flame.half_angle, 0.0001, "no widening at/below Lv3")
+	flame.level = 7
+	t.approx(flame._half_angle(), PI / 2.0, 0.0001, "Lv7 half-angle is 90 degrees (180 total coverage)")
+	flame.free()
+
+	# TurretNode.GUN_RETAINING_MODES: read via .get(mode, false), not .has(mode) — every
+	# key in the dict exists, so .has() would (and once did) return true even for the
+	# AoE-only modes explicitly listed with `false`, making them also fire bullets.
+	for mode in TurretNode.GUN_RETAINING_MODES:
+		var expect: bool = TurretNode.GUN_RETAINING_MODES[mode]
+		var got: bool = TurretNode.GUN_RETAINING_MODES.get(mode, false)
+		t.eq(got, expect, "GUN_RETAINING_MODES['%s'] read via .get() matches its stored value" % mode)
+	t.ok(not TurretNode.GUN_RETAINING_MODES.get("flame", false), "flame mode does not retain the bolt gun")
+	t.ok(not TurretNode.GUN_RETAINING_MODES.get("nova", false), "nova mode does not retain the bolt gun")
+	t.ok(not TurretNode.GUN_RETAINING_MODES.get("lightning", false), "lightning mode does not retain the bolt gun")
+	t.ok(TurretNode.GUN_RETAINING_MODES.get("venom", false), "venom mode does retain the bolt gun")

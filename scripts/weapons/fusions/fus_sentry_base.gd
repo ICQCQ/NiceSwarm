@@ -41,6 +41,9 @@ func _physics_process(delta: float) -> void:
 	t.fire_mult = fuse_rate()
 	if cfg.has("puddle_cd"):
 		t.puddle_cd = cfg.puddle_cd
+	if cfg.has("burn_dps_ratio"):  # Flame Turret: ignite dps/duration, separate config knob from `dmg`
+		t.burn_dps = cfg.burn_dps_ratio * fuse_damage()
+		t.burn_dur = cfg.get("burn_dur", 1.0) * fuse_duration()
 	t.position = player.global_position
 	player.get_parent().add_child(t)
 	Sfx.play("turret_deploy", player.global_position)
