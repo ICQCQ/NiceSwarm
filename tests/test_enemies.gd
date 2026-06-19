@@ -102,3 +102,31 @@ func run(t) -> void:
 	w.take_hit(10.0, null, Enemy.DMG_FIRE)
 	t.approx(w.hp, 62.5, 0.001, "type mult applies before armor resist (10 * 1.5 * 0.5 = 7.5 dmg)")
 	parent.free()
+
+	# apply_vuln (Purgatory mark) rides AfflictTracker: a uniform extra-damage mark on
+	# every DMG_* at once (base +20%, see AfflictConfig), deepened by stat_mult, and
+	# the multi-source "longest remaining wins" stacking rule.
+	var vparent := Node.new()
+	var v := Enemy.new()
+	vparent.add_child(v)
+	v.hp = 100.0
+	v.apply_vuln(1.0, 5.0)  # stat_mult 1.0 = the base bonus unchanged -> 1.2x
+	t.ok(v.afflicts.has("purgatory"), "apply_vuln activates the 'purgatory' afflict")
+	v.take_hit(10.0, null, Enemy.DMG_ICE)
+	t.approx(v.hp, 88.0, 0.001, "vuln's bonus applies uniformly to every DMG_* type (10 * 1.2 = 12)")
+	v.apply_vuln(5.0, 1.0)  # a much stronger mark, but from another source with a shorter duration — dropped entirely
+	v.take_hit(10.0, null, Enemy.DMG_PHYS)
+	t.approx(v.hp, 76.0, 0.001, "the shorter re-application never took effect — still 1.2x")
+	v.apply_vuln(2.5, 999.0)  # stat_mult 2.5 -> 1.0 + 0.2*2.5 = 1.5x, with a much longer duration — wins outright
+	v.take_hit(10.0, null, Enemy.DMG_PHYS)
+	t.approx(v.hp, 61.0, 0.001, "a longer-duration re-application replaces both mult and timer (10 * 1.5 = 15)")
+
+	# Afflict is a category, not a single effect: an enemy can carry several distinct
+	# afflicts at once, each independently tracked, all contributing to the same hit.
+	v.afflicts.apply("scorched", 10.0, {Enemy.DMG_FIRE: 1.5})
+	t.ok(v.afflicts.has("purgatory") and v.afflicts.has("scorched"), "two distinct afflicts coexist")
+	v.take_hit(10.0, null, Enemy.DMG_FIRE)
+	t.approx(v.hp, 38.5, 0.001, "both afflicts' mults apply together (10 * 1.5 purgatory * 1.5 scorched = 22.5)")
+	v.afflicts.remove("scorched")  # only the unrelated afflict drops out
+	t.ok(v.afflicts.has("purgatory") and not v.afflicts.has("scorched"), "removing one leaves the other untouched")
+	vparent.free()
