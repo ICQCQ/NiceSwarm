@@ -446,6 +446,8 @@ func spawn_enemy(cls: String, tier: int = -1) -> void:
 	if cls == "boss" or cls == "elite":
 		var nm: String = EnemyConfig.CLASSES[cls][tier].get("name", cls)
 		main.hud.announce_boss(nm, cls == "boss")
+	if cls == "boss" and main.elapsed >= GameConfig.BOSS_HOVER_TIME:
+		e.apply_hover(INF)  # late-game bosses float clear of lingering ground puddles, indefinitely
 	if cls == "bouncer":
 		bouncer_live += 1
 

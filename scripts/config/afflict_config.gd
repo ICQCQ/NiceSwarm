@@ -27,6 +27,11 @@ const DEFS := {
 		"color": Color(0.7, 0.3, 1.0),
 		"affinity": {"speed": 0.5},  # used directly — Disruptor's slow isn't stat-scaled
 	},
+	"hover": {
+		"name": "Hover",
+		"color": Color(0.55, 0.85, 1.0),
+		"affinity": {},  # no stat multiplier — callers gate ground/puddle effects with afflicts.has("hover") directly
+	},
 }
 
 

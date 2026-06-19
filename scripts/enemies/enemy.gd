@@ -528,7 +528,7 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid
 		burn_source_pid = source_pid
 	if burn_timer > 0.0:
 		burn_dps += dps * stack_mult
-		burn_timer += duration * stack_mult
+		burn_timer = duration * stack_mult
 	else:
 		burn_dps = dps
 		burn_timer = duration
@@ -544,6 +544,14 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid
 func apply_vuln(stat_mult: float, duration: float) -> void:
 	var mods := AfflictConfig.deepened("purgatory", stat_mult)
 	afflicts.apply("purgatory", duration, mods, AfflictConfig.DEFS.purgatory.color)
+
+
+## Hover: while active, this enemy is lifted clear of ground-level hazards — it
+## ignores lingering puddle effects (VenomPuddle: damage/burn/freeze-slow) entirely,
+## as if it were floating above them. No stat multiplier (AfflictConfig.DEFS.hover.affinity
+## is empty); ground effects gate on afflicts.has("hover") directly instead.
+func apply_hover(duration: float) -> void:
+	afflicts.apply("hover", duration, {}, AfflictConfig.DEFS.hover.color)
 
 
 ## A cheap discrete signature of the enemy's current appearance. _physics_process
@@ -571,6 +579,12 @@ func _muted(base: Color) -> Color:
 
 
 func _draw() -> void:
+	if afflicts.has("hover"):  # purely cosmetic float — global_position (and the
+		# CollisionShape2D, which sits at local origin) never move, so the hitbox
+		# is unaffected; only the drawn silhouette bobs. Per-instance phase offset
+		# keeps a field of hovering enemies from bobbing in unison.
+		var bob_t := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.07
+		draw_set_transform(Vector2(0.0, sin(bob_t * 2.2) * 4.0))
 	var c := _muted(color)
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)

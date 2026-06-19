@@ -71,8 +71,8 @@ classes that need more than one matchup at once, e.g.
 
 **Afflict is a category, not a single effect** — `AfflictConfig.DEFS`
 (`scripts/config/afflict_config.gd`) is the catalog of every distinct afflict in the game
-(currently `"purgatory"` and `"disrupt"`; Purgatory mark is one entry among them, not a special
-case). Any number of them can be active on the same enemy or player at once, each tracked and
+(currently `"purgatory"`, `"disrupt"`, and `"hover"`; Purgatory mark is one entry among them, not
+a special case). Any number of them can be active on the same enemy or player at once, each tracked and
 ticking down independently — applying one never disturbs another already active. Each entry
 carries a base `affinity` (`key -> multiplier`, at `stat_mult = 1.0`) — the matchups/effects this
 afflict inflicts and their base strength, tunable in one place (Purgatory's `1.2` = "+20% damage
@@ -97,7 +97,14 @@ back via `afflicts.mult(key)` (the product across every active afflict, so sever
   type), as opposed to `dmg_affinity`'s permanent baseline. `apply_vuln(stat_mult, duration)`
   (Purgatory mark, id `"purgatory"`) is the existing example: its base `affinity` is `1.2` (+20%)
   on all four `DMG_*` keys equally, and `AfflictConfig.deepened("purgatory", stat_mult)` deepens
-  that 20% bonus by `stat_mult` (the caller passes `player.damage_mult` — Power).
+  that 20% bonus by `stat_mult` (the caller passes `player.damage_mult` — Power). `apply_hover(duration)`
+  (id `"hover"`) is a different shape: its `affinity` is empty — there's no multiplier to read back,
+  it's a plain boolean gate. While active, the enemy floats clear of ground-level puddle hazards
+  (`VenomPuddle` — Venom Trail's own trail, and every fusion/mine/missile/turret/on-hit puddle built
+  on it: Incendiary Rounds, Inferno Blade, Plague Blade, Toxic Halo/Nova, Supernova, Cinder Vortex,
+  Corrosive Round, Black Bog) entirely; `VenomPuddle._physics_process` skips any enemy with
+  `afflicts.has("hover")` before its per-tick damage/burn/slow loop. Not yet inflicted by anything
+  in the current roster — the primitive exists for a future flying enemy class or effect to grant.
 - **Player** afflicts use named String keys for their own effects — `apply_disrupt(duration)`
   (Disruptor, id `"disrupt"`) reads its base `affinity` (`{"speed": 0.5}`) straight from the
   catalog, via `afflicts.mult("speed")` in `_local_move`. Player afflicts never touch
@@ -264,6 +271,9 @@ independent of the normal AI, so it interrupts chasing/casting on its own cooldo
 | 0 | Juggernaut | `shield_cycle`/`shield_time` (2.5 s shielded / 1.5 s open) + `cc_imm` (can't be slowed/knocked back) | 3 — grid |
 | 1 | Harbinger | `immune_cycle` (4 s) rotates `immune_type` through PHYS→FIRE→ICE→ENERGY — match your damage type | 4 — massive slow strike |
 | 2 | Eclipse | `enrage_resist` (0.5) — armor ramps up to +50% as hp drops toward 0 + `summon_cls`/`summon_tier`/`summon_count`/`summon_cooldown` calls in 2 Dispersers every 9 s | 5 — explosion ring |
+
+Any boss spawned at/after `GameConfig.BOSS_HOVER_TIME` (5 min elapsed) gets `apply_hover(INF)` —
+indefinite Hover, immune to lingering ground puddles for the rest of the fight (see `EnemySpawner.spawn_enemy`).
 
 Eclipse's summoned Dispersers cast like any other Disperser — a big field on a
 random live enemy, not specifically the boss — see `icast_pattern: 2` in `enemy.gd`.

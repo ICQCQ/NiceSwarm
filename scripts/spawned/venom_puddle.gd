@@ -39,6 +39,8 @@ func _physics_process(delta: float) -> void:
 		return
 	tick = 0.4
 	for e in EnemyGrid.near(global_position, radius):
+		if e.afflicts.has("hover"):  # Hover: floats clear of ground puddles entirely
+			continue
 		if global_position.distance_to(e.global_position) <= radius + e.radius:
 			if is_instance_valid(source_weapon):
 				source_weapon.damage_dealt += damage
