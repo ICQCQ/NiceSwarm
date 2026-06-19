@@ -95,7 +95,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | bolt + nova | **Plasma Burst** | slugs that erupt into an AoE blast on impact |
 | frost + lightning | **Cryoshock** | a chain that freezes (slow) and burns every link |
 | flame + venom | **Purgatory** | an eerie field that burns and marks foes inside it -- marked enemies take extra damage, slow harder, and can't burn out |
-| gravity + nova | **Singularity** | a vortex that collapses into a detonation |
+| gravity + nova | **Singularity** | a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught |
 | mines + missiles | **Cluster Bomb** | mines that spray homing rockets on blast |
 | laser + orbit | **Prism Halo** | prisms drop around you, linked to you and each other by damage beams |
 | frost + glaive | **Glacial Edge** | boomerangs that freeze and bleed |

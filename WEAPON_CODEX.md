@@ -190,7 +190,7 @@ flat all-stat boost is its scaling axis rather than re-leveling each part).
 | bolt + mines | **Sapper Round** | bolts that arm a proximity mine on impact |
 | bolt + orbit | **Scatter Shot** | a ring of bolts fired in all directions |
 | glaive + mines | **Shrapnel Mine** | mines that burst into a spray of glaive shrapnel that shuttles back and forth until it fades |
-| gravity + nova | **Singularity** | a vortex that collapses into a detonation |
+| gravity + nova | **Singularity** | a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught |
 | gravity + turret | **Singularity Turret** | a deployed turret dropping gravity wells |
 | flame + laser | **Solar Lance** | a continuous beam of searing light |
 | glaive + lightning | **Storm Disc** | boomerangs that arc lightning to nearby foes |

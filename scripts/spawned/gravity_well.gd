@@ -9,7 +9,9 @@ var damage := 1.0     # per tick
 var pull := 170.0     # px/s drag, scaled down per-enemy as its pull resistance builds
 var life := 2.5
 var detonate_damage := 0.0  # fused Singularity: collapse blast on expiry
+var detonate_scale_per_enemy := 0.0  # fused Singularity: bonus dmg mult per enemy caught in the blast
 var push_strength := 0.0    # fused Singularity: shockwave push on the collapse blast
+var pull_interval := 0.0    # fused Singularity: >0 = Haste-scaled rhythmic pull instead of a steady drag
 var freeze := false         # fused Glacier: chills everything inside
 var beam_spokes := 0        # fused Accretion Beam: rotating energy beams within the vortex
 var beam_dmg := 0.0
@@ -22,6 +24,7 @@ var beam_angle := 0.0
 var _beam_hit_cd := {}
 var pull_factor := {}       # enemy id -> remaining pull grip (1 → 0 as it resists)
 var _hit_enemies := {}       # enemy id -> true: base `damage` lands once per enemy, not per tick
+var _pull_phase := 0.0
 
 
 func _ready() -> void:
@@ -41,18 +44,28 @@ func _physics_process(delta: float) -> void:
 	var do_damage := tick <= 0.0
 	if do_damage:
 		tick = 0.35
+	var pull_speed := 0.0
+	if pull_interval > 0.0:
+		_pull_phase = fmod(_pull_phase + delta, pull_interval)
+		# smooth surge-and-ease envelope, one swell per pull_interval: zero at the
+		# start/end of each cycle, peaking at the midpoint, so motion is continuous
+		# every frame (a tug) instead of one big per-tick jump (a warp)
+		pull_speed = pull * pow(sin(PI * _pull_phase / pull_interval), 2.0)
 	var inside: Array = []
 	for e in EnemyGrid.near(global_position, radius):
 		var d := global_position.distance_to(e.global_position)
 		if d <= radius + e.radius:
-			# gradual pull, but each enemy builds resistance — grip fades from 1 to 0
-			# over ~1.7 s, so it's drawn in then released rather than held forever
 			if not e.pull_immune:
-				var id := e.get_instance_id()
-				var f: float = pull_factor.get(id, 1.0)
-				if f > 0.0:
-					e.global_position = e.global_position.move_toward(global_position, pull * f * delta)
-				pull_factor[id] = maxf(f - 0.6 * delta, 0.0)
+				if pull_interval > 0.0:
+					e.global_position = e.global_position.move_toward(global_position, pull_speed * delta)
+				else:
+					# gradual pull, but each enemy builds resistance — grip fades from 1 to 0
+					# over ~1.7 s, so it's drawn in then released rather than held forever
+					var id := e.get_instance_id()
+					var f: float = pull_factor.get(id, 1.0)
+					if f > 0.0:
+						e.global_position = e.global_position.move_toward(global_position, pull * f * delta)
+					pull_factor[id] = maxf(f - 0.6 * delta, 0.0)
 			if freeze:
 				e.apply_slow(0.45, 0.5)
 			if damage > 0.0:
@@ -100,21 +113,49 @@ func _physics_process(delta: float) -> void:
 
 
 func _detonate() -> void:
+	var hit: Array = []
+	for e in EnemyGrid.near(global_position, radius):
+		if global_position.distance_to(e.global_position) <= radius + e.radius:
+			hit.append(e)
+	# Singularity payoff: the more enemies caught inside at collapse, the
+	# harder the blast hits -- rewards pulling a crowd together first.
+	var dmg := detonate_damage * (1.0 + detonate_scale_per_enemy * maxf(float(hit.size()) - 1.0, 0.0))
+	_spawn_collapse_fx(hit.size())
+	Sfx.play("boom", global_position, 3.0)  # louder than a normal blast -- this is the big payoff
+	for e in hit:
+		if is_instance_valid(source_weapon):
+			source_weapon.damage_dealt += dmg
+		e.take_hit(dmg, global_position, Enemy.DMG_PHYS, source_pid)
+		if push_strength > 0.0:
+			e.apply_push(global_position, push_strength)
+
+
+## Singularity collapse: a quick white flash core, the main shockwave ring,
+## and a slower violet afterglow -- distinct from a plain mine boom. Bigger
+## and brighter the more enemies the field caught, mirroring the dmg bonus.
+func _spawn_collapse_fx(caught: int) -> void:
+	var punch := clampf(1.0 + 0.12 * float(caught), 1.0, 2.2)
+	var flash := RingFx.new()
+	flash.position = global_position
+	flash.radius = 4.0
+	flash.max_radius = 28.0 * punch
+	flash.life = 0.12
+	flash.color = Color(1.0, 0.95, 1.0)
+	get_parent().add_child(flash)
 	var fx := RingFx.new()
 	fx.position = global_position
 	fx.radius = 20.0
-	fx.max_radius = radius
-	fx.life = 0.35
+	fx.max_radius = radius * punch
+	fx.life = 0.4
 	fx.color = Color(0.8, 0.4, 1.0)
 	get_parent().add_child(fx)
-	Sfx.play("boom", global_position)
-	for e in EnemyGrid.near(global_position, radius):
-		if global_position.distance_to(e.global_position) <= radius + e.radius:
-			if is_instance_valid(source_weapon):
-				source_weapon.damage_dealt += detonate_damage
-			e.take_hit(detonate_damage, global_position, Enemy.DMG_PHYS, source_pid)
-			if push_strength > 0.0:
-				e.apply_push(global_position, push_strength)
+	var glow := RingFx.new()
+	glow.position = global_position
+	glow.radius = radius * 0.6
+	glow.max_radius = radius * 1.25 * punch
+	glow.life = 0.6
+	glow.color = Color(0.55, 0.2, 0.8)
+	get_parent().add_child(glow)
 
 
 func _draw() -> void:

@@ -12,7 +12,7 @@ const INFO := {
 	"bolt|nova": {"name": "Plasma Burst", "desc": "slugs that erupt into a blast on impact"},
 	"frost|lightning": {"name": "Cryoshock", "desc": "a chain that freezes and burns every link"},
 	"flame|venom": {"name": "Purgatory", "desc": "an eerie field that burns and marks foes inside it -- marked enemies take extra damage, slow harder, and can't burn out"},
-	"gravity|nova": {"name": "Singularity", "desc": "a vortex that collapses into a detonation"},
+	"gravity|nova": {"name": "Singularity", "desc": "a vortex that yanks enemies inward every second, then collapses into a detonation that hits harder the more enemies it caught"},
 	"mines|missiles": {"name": "Cluster Bomb", "desc": "mines that spray homing rockets on blast"},
 	"laser|orbit": {"name": "Prism Halo", "desc": "prisms drop around you, linked to you and each other by damage beams"},
 	"frost|glaive": {"name": "Glacial Edge", "desc": "boomerangs that freeze and bleed"},

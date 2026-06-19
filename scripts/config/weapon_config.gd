@@ -150,7 +150,11 @@ const BASE := {
 	"fus_rotormissile": {"dmg": 6.1, "growth": 0.08, "cd": 2.6, "range": 800.0, "count_base": 1, "splash": 60.0, "splash_per_level": 8.0, "life": 4.0, "speed": 280.0, "shrapnel_count_base": 2, "shrapnel_dmg": 1.0, "shrapnel_radius": 12.0},
 	"fus_sapper": {"dmg": 4.1, "growth": 0.08, "cd": 0.9, "range": 650.0, "spread_deg": 10.0, "speed": 500.0, "radius": 5.0, "life": 1.6, "mine_dmg": 17.8, "blast_radius": 90.0, "blast_radius_per_level": 12.0, "trigger_radius": 50.0, "mine_life": 8.0},
 	"fus_scatter": {"dmg": 4.1, "growth": 0.08, "cd": 2.2, "count_base": 6, "count_per_level": 2, "speed": 480.0, "radius": 5.5, "life": 1.5},
-	"fus_singularity": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 212.0, "radius_per_count": 8.0, "pull": 210.0, "life": 2.5, "detonate_dmg": 8.9, "push": 70.0},
+	# pull_interval: Haste-scaled, how often (s) the field yanks enemies inward (was
+	# continuous; now a periodic pulse). detonate_scale_per_enemy: bonus dmg mult per
+	# enemy caught in the field at collapse, beyond the first -- rewards grouping a crowd.
+	"fus_singularity": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 212.0, "radius_per_count": 8.0,
+		"pull": 250.0, "pull_interval": 1.0, "life": 2.5, "detonate_dmg": 8.9, "detonate_scale_per_enemy": 0.2, "push": 70.0},
 	"fus_solarlance": {"dmg": 3.0, "growth": 0.08, "length": 380.0, "length_per_count": 10.0, "width": 16.0, "burn_dps_ratio": 0.6, "burn_dur": 1.2},
 	"fus_storm": {"dmg": 5.1, "growth": 0.08, "cd": 1.6, "range": 650.0, "count_base": 1, "spread_deg": 24.0, "speed": 430.0, "dmg_ratio": 0.6, "burn_dps_ratio": 0.3, "hit_radius": 14.0, "arc_dmg_ratio": 0.6, "arc_range": 150.0},
 	"fus_stormvortex": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 202.0, "radius_per_count": 8.0, "pull": 190.0, "life": 2.8, "chain_dmg": 5.0},
