@@ -17,7 +17,7 @@ const BASE := {
 	"nova":      {"dmg": 2.5, "growth": 0.25, "cd": 3.5, "radius_base": 130.0, "radius_per_level": 10.0, "echo_gap": 0.22},
 	"glaive":    {"dmg": 2.5, "growth": 0.345, "cd": 1.6, "range": 650.0, "spread_deg": 25.0, "speed": 430.0, "speed_growth": 0.10, "hit_radius": 14.0},
 	"lightning": {"dmg": 2.0, "growth": 0.46, "cd": 2.2, "range": 520.0, "chain_base": 2, "jump": 200.0},
-	"flame":     {"dmg": 0.75, "growth": 0.46, "cd": 0.15, "reach_base": 150.0, "reach_per_level": 12.0, "half_angle": 0.61, "widen_per_level": 0.12, "burn_stack": 1.6},  # cd = tick interval
+	"flame":     {"dmg": 0.75, "growth": 0.46, "cd": 0.15, "reach_base": 150.0, "reach_per_level": 12.0, "half_angle": 0.61, "widen_per_level": 0.394, "burn_stack": 1.6},  # cd = tick interval; widen_per_level reaches the 90-degree (180 total) cap exactly at Lv7
 	"mines":     {"dmg": 6.0, "growth": 0.575, "cd": 2.0, "cap_base": 3, "blast_radius_base": 100.0, "blast_radius_per_level": 15.0, "trigger_radius": 55.0, "life": 12.0},
 	"missiles":  {"dmg": 3.0, "growth": 0.345, "cd": 2.4, "range": 800.0, "count_base": 1, "splash": 70.0, "life": 4.0, "speed": 300.0},
 	"laser":     {"dmg": 1.2, "growth": 0.46, "cd": 0.3, "length_base": 240.0, "length_per_level": 30.0, "spin": 1.4, "beam_width": 6.0},   # cd = per-enemy re-hit

@@ -34,3 +34,13 @@ func run(t) -> void:
 		seen[w.weapon_id] = true
 		w.free()
 	t.eq(seen.size(), IDS.size(), "weapon node ids are all distinct")
+
+	# Flame Cone: the cone widens past Lv3 and is capped at 90 degrees half-angle
+	# (180 total coverage), reached exactly at the Lv7 cap.
+	var flame := WeaponFlame.new()
+	flame.cfg = WeaponConfig.BASE["flame"]
+	flame.level = 3
+	t.approx(flame._half_angle(), WeaponConfig.BASE.flame.half_angle, 0.0001, "no widening at/below Lv3")
+	flame.level = 7
+	t.approx(flame._half_angle(), PI / 2.0, 0.0001, "Lv7 half-angle is 90 degrees (180 total coverage)")
+	flame.free()
