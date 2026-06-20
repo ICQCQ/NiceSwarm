@@ -17,6 +17,9 @@ var warn := 1.3
 var damage := 2
 var effect := EFFECT_DAMAGE
 var life := 1.0  # EFFECT_INTERCEPT only: how long the field lingers once active
+var rect := false  # EFFECT_INTERCEPT only: Overseer's single long field — a
+                    # rotated rectangle (local x-axis = `rotation`) instead of a circle
+var rect_half_len := 0.0  # EFFECT_INTERCEPT + rect only: half-length along local x
 var t := 0.0
 var puppet := false
 var net_id := 0
@@ -36,6 +39,16 @@ func _ready() -> void:
 ## field is actively destroying projectiles. Checked by EnemyGrid.in_interceptor_zone.
 func is_intercept_active() -> bool:
 	return effect == EFFECT_INTERCEPT and t >= warn
+
+
+## EFFECT_INTERCEPT only: true if `p` (global) falls inside the field. Circle:
+## plain distance check. Rect (Overseer): rotate into local space and test the
+## half-extents box.
+func contains(p: Vector2) -> bool:
+	if rect:
+		var local := to_local(p)
+		return absf(local.x) <= rect_half_len and absf(local.y) <= radius
+	return p.distance_to(global_position) <= radius
 
 
 func _physics_process(delta: float) -> void:
@@ -107,8 +120,13 @@ func _draw() -> void:
 		var a := 0.30
 		if t > warn + life - 0.6:  # fade out as it expires
 			a *= clampf((warn + life - t) / 0.6, 0.0, 1.0)
-		draw_circle(Vector2.ZERO, radius, Color(col.r, col.g, col.b, a))
-		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(col.r, col.g, col.b, 0.8), 2.5)
+		if rect:
+			var rr := Rect2(-rect_half_len, -radius, rect_half_len * 2.0, radius * 2.0)
+			draw_rect(rr, Color(col.r, col.g, col.b, a))
+			draw_rect(rr, Color(col.r, col.g, col.b, 0.8), false, 2.5)
+		else:
+			draw_circle(Vector2.ZERO, radius, Color(col.r, col.g, col.b, a))
+			draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(col.r, col.g, col.b, 0.8), 2.5)
 		return
 	# Instant strikes (DAMAGE/DISRUPT) vanish the moment they fire — don't keep rendering the
 	# circle on the client puppet during the ~sync-latency window before the removal diff frees
@@ -116,6 +134,17 @@ func _draw() -> void:
 	if t >= warn:
 		return
 	var p := clampf(t / warn, 0.0, 1.0)
+	if rect:
+		var rr := Rect2(-rect_half_len, -radius, rect_half_len * 2.0, radius * 2.0)
+		# danger fill grows as the strike nears
+		draw_rect(rr, Color(col.r, col.g, col.b, 0.10 + 0.22 * p))
+		# pulsing outline
+		draw_rect(rr, Color(col.r, col.g, col.b, 0.85), false, 3.0)
+		# closing inner box counts down the dodge window
+		var hl := rect_half_len * (1.0 - p)
+		var hw := radius * (1.0 - p)
+		draw_rect(Rect2(-hl, -hw, hl * 2.0, hw * 2.0), col.lightened(0.2), false, 2.0)
+		return
 	# danger fill grows as the strike nears
 	draw_circle(Vector2.ZERO, radius, Color(col.r, col.g, col.b, 0.10 + 0.22 * p))
 	# pulsing outline

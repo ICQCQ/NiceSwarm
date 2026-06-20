@@ -1791,6 +1791,27 @@ func cast_intercept_zone(pos: Vector2, radius: float, life: float) -> void:
 	Sfx.play("telegraph", pos)
 
 
+## Host only: an Overseer (Interceptor T2, rare) casts ONE long rectangular
+## jamming field spanning the arena at a random angle — a single big no-fire
+## lane, rather than a chain of overlapping circular fields.
+func cast_intercept_line(pos: Vector2, half_width: float, life: float) -> void:
+	var tz := TelegraphZone.new()
+	tz.radius = half_width
+	tz.rect = true
+	tz.rect_half_len = ARENA.size.length() * 0.5
+	tz.rotation = randf() * TAU
+	tz.warn = TELEGRAPH_WARN
+	tz.life = life
+	tz.effect = TelegraphZone.EFFECT_INTERCEPT
+	tz.main_ref = self
+	tz.net_id = item_seq
+	item_seq += 1
+	tz.position = pos
+	telegraphs_by_id[tz.net_id] = tz
+	world.add_child(tz)
+	Sfx.play("telegraph", pos)
+
+
 # --- host: drops, pickups, revives -------------------------------------------
 
 func _on_enemy_killed(enemy: Enemy) -> void:
@@ -2639,14 +2660,25 @@ func _apply_state(kind: int, data: PackedByteArray) -> void:
 					tz = TelegraphZone.new()
 					tz.puppet = true
 					tz.net_id = id
-					# f bit-packs the zone: radius (bits 0-8), effect (9-10), warn in
-					# 0.25s units (11-15). Syncing warn keeps the puppet's red circle on
-					# screen for the true countdown — boss slams (e.g. Harbinger, warn 3.0)
-					# used to vanish at the default 1.5s and detonate later, hitting players
-					# after the warning was already gone.
+					# f bit-packs the zone: radius (bits 0-8), effect (9-10). Bits 11-15
+					# are warn in 0.25s units for most effects — keeps the puppet's red
+					# circle on screen for the true countdown (boss slams like Harbinger,
+					# warn 3.0, used to vanish at the default 1.5s and detonate later,
+					# hitting players after the warning was already gone) — except
+					# EFFECT_INTERCEPT, whose warn is always the TELEGRAPH_WARN constant,
+					# so those bits carry Overseer's rect flag + rotation instead (see
+					# _send_state).
 					tz.radius = float(f & 0x1FF)
 					tz.effect = (f >> 9) & 0x3
-					tz.warn = float((f >> 11) & 0x1F) * 0.25
+					var tail := (f >> 11) & 0x1F
+					if tz.effect == TelegraphZone.EFFECT_INTERCEPT:
+						tz.warn = TELEGRAPH_WARN
+						tz.rect = (tail & 16) != 0
+						tz.rotation = (tail & 15) * (TAU / 16.0)
+						if tz.rect:
+							tz.rect_half_len = ARENA.size.length() * 0.5
+					else:
+						tz.warn = float(tail) * 0.25
 					tz.position = pos
 					telegraphs_by_id[id] = tz
 					world.add_child(tz)
@@ -2794,13 +2826,24 @@ func _send_state(kind: int) -> void:
 				if not is_instance_valid(tz) or tz.is_queued_for_deletion():
 					telegraphs_by_id.erase(id)
 					continue
-				# Pack radius (bits 0-8), effect (9-10), warn in 0.25s units (11-15)
-				# into the u16 f field. Syncing warn fixes boss-slam telegraphs whose
-				# puppets used to disappear before the host detonated (see _apply_state).
+				# Pack radius (bits 0-8) and effect (9-10) into the u16 f field for
+				# every telegraph. Bits 11-15 differ by effect: every effect but
+				# EFFECT_INTERCEPT syncs warn in 0.25s units there (fixes boss-slam
+				# telegraphs whose puppets used to disappear before the host
+				# detonated — see _apply_state); EFFECT_INTERCEPT's warn is always
+				# the TELEGRAPH_WARN constant (cast_intercept_zone/_line never take
+				# a custom warn), so those bits are free there and instead carry
+				# Overseer's rect flag (bit 15) + quantized rotation (bits 11-14).
+				var tail: int
+				if tz.effect == TelegraphZone.EFFECT_INTERCEPT:
+					tail = clampi(int(round(fposmod(tz.rotation, TAU) / TAU * 16.0)), 0, 15) \
+						| (16 if tz.rect else 0)
+				else:
+					tail = clampi(int(round(tz.warn / 0.25)), 0, 31)
 				_put_entity(buf, id, tz.global_position,
 					clampi(int(round(tz.radius)), 0, 511) \
 					| (tz.effect << 9) \
-					| (clampi(int(round(tz.warn / 0.25)), 0, 31) << 11))
+					| (tail << 11))
 	tick_counter += 1
 	var data := buf.data_array
 	var per := 80 * ENT_BYTES  # 80 entries per chunk keeps packets under typical MTU

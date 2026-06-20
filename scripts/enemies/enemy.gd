@@ -98,7 +98,7 @@ var summon_tier := -1     # -1 = normal class_tier roll, >=0 = always this tier
 # Interceptor: periodically casts a jamming field via main.cast_intercept_zone.
 # icast_pattern: 4 = on itself (Jammer, has down time between casts), 1 = random
 # spot nearby (sized by THREAT), 2 = lingering fields on N random enemies,
-# 3 = a single long line of fields across the arena (random angle)
+# 3 = a single long rectangular field across the arena (random angle)
 var icast_pattern := 0
 var icast_radius := 0.0
 var icast_life := 1.0
@@ -327,37 +327,20 @@ func _physics_process(delta: float) -> void:
 					var r: float = icast_radius * (1.0 + main_ref.spawner.diff() / 40.0)
 					var p := global_position + Vector2.from_angle(randf() * TAU) * randf_range(80.0, 260.0)
 					main_ref.cast_intercept_zone(p, r, icast_life)
-				2:  # lingering fields on a handful of other live enemies — prefer
-					# Bouncers (their ricochet path drags the field around
-					# unpredictably); fall back to Bosses if none are alive.
-					# Bosses always get an extra field on top, regardless — their
-					# slams are dangerous enough that the jamming denial should
-					# always be in play during a boss fight.
-					var bouncers: Array[Enemy] = []
-					var bosses: Array[Enemy] = []
+				2:  # lingering field(s) on a handful of random live enemies — no
+					# type preference, so it's unpredictable which one drags the
+					# field around; the radius is bigger to compensate for not
+					# being able to target reliably.
+					var others: Array[Enemy] = []
 					for e in EnemyGrid.all():
-						if e == self:
-							continue
-						match main_ref.spawner.types[e.type_id].cls:
-							"bouncer":
-								bouncers.append(e)
-							"boss":
-								bosses.append(e)
-					var targets := bouncers if not bouncers.is_empty() else bosses
-					targets.shuffle()
-					for i in mini(icast_count, targets.size()):
-						main_ref.cast_intercept_zone(targets[i].global_position, icast_radius, icast_life)
-					if not bosses.is_empty() and targets != bosses:
-						for b in bosses:
-							main_ref.cast_intercept_zone(b.global_position, icast_radius, icast_life)
-				3:  # a single long line of fields across the arena, random angle
-					var dir := Vector2.from_angle(randf() * TAU)
-					var span := arena.size.length()
-					var step := icast_radius * 1.6
-					var count := int(span / step) + 1
-					var start := global_position - dir * span * 0.5
-					for i in count:
-						main_ref.cast_intercept_zone(start + dir * step * i, icast_radius, icast_life)
+						if e != self:
+							others.append(e)
+					others.shuffle()
+					for i in mini(icast_count, others.size()):
+						main_ref.cast_intercept_zone(others[i].global_position, icast_radius, icast_life)
+				3:  # ONE long rectangular field across the arena, random angle —
+					# a single big no-fire lane instead of a chain of circles.
+					main_ref.cast_intercept_line(global_position, icast_radius, icast_life)
 	# burn DoT (host-authoritative) — Duration extends it, Power feeds its dps.
 	# Re-igniting an active burn stacks onto it: hotter (dps) AND longer (time).
 	if burn_timer > 0.0:
@@ -545,7 +528,7 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid
 		burn_source_pid = source_pid
 	if burn_timer > 0.0:
 		burn_dps += dps * stack_mult
-		burn_timer += duration * stack_mult
+		burn_timer = duration * stack_mult
 	else:
 		burn_dps = dps
 		burn_timer = duration
@@ -561,6 +544,14 @@ func apply_burn(dps: float, duration: float, stack_mult: float = 1.0, source_pid
 func apply_vuln(stat_mult: float, duration: float) -> void:
 	var mods := AfflictConfig.deepened("purgatory", stat_mult)
 	afflicts.apply("purgatory", duration, mods, AfflictConfig.DEFS.purgatory.color)
+
+
+## Hover: while active, this enemy is lifted clear of ground-level hazards — it
+## ignores lingering puddle effects (VenomPuddle: damage/burn/freeze-slow) entirely,
+## as if it were floating above them. No stat multiplier (AfflictConfig.DEFS.hover.affinity
+## is empty); ground effects gate on afflicts.has("hover") directly instead.
+func apply_hover(duration: float) -> void:
+	afflicts.apply("hover", duration, {}, AfflictConfig.DEFS.hover.color)
 
 
 ## A cheap discrete signature of the enemy's current appearance. _physics_process
@@ -588,6 +579,12 @@ func _muted(base: Color) -> Color:
 
 
 func _draw() -> void:
+	if afflicts.has("hover"):  # purely cosmetic float — global_position (and the
+		# CollisionShape2D, which sits at local origin) never move, so the hitbox
+		# is unaffected; only the drawn silhouette bobs. Per-instance phase offset
+		# keeps a field of hovering enemies from bobbing in unison.
+		var bob_t := Time.get_ticks_msec() * 0.001 + (get_instance_id() % 100) * 0.07
+		draw_set_transform(Vector2(0.0, sin(bob_t * 2.2) * 4.0))
 	var c := _muted(color)
 	if slow_timer > 0.0:
 		c = c.lerp(Color(0.5, 0.75, 1.0), 0.45)

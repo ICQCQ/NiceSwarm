@@ -164,6 +164,8 @@ const BOSS_FIGHT_SECONDS := 10.0  # boss hp ~= recent_dps * this (target single-
 const BOSS_HP_PER_LEVEL := 0.02 # boss hp x(1 + this*(party_level-1))
 const BOSS_HP_PER_PLAYER := 0.5  # boss hp x(1 + this*(player_count-1))
 const BOSS_HP_PER_PROGRESS := 0.02  # boss hp x(1 + this*run_progress): 1× at start, 3× at end
+const BOSS_HOVER_TIME := 300.0  # bosses spawned at/after this elapsed time (s, 5 min) get
+                                 # indefinite Hover — immune to lingering ground puddles
 
 
 ## Boss HP from the three factors the design calls for: the party's recent DPS (so the
