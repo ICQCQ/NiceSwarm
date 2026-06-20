@@ -172,7 +172,7 @@ pool (`main._build_choice_pool`) and the model (`player.merge_weapons`).
 | mines + nova | **Nova Mine** | mines that pulse a second energy blast on detonation |
 | mines + venom | **Toxic Mine** | mines that leave a toxic pool on blast |
 | flame + glaive | **Inferno Blade** | boomerangs that ignite foes and leave fire pools where they strike |
-| flame + laser | **Solar Lance** | a continuous beam of searing light |
+| flame + laser | **Solar Beam** | a reticle that slowly tracks your aim, then calls down a scorching beam of sunlight that hits harder the longer a foe stays in it |
 | flame + missiles | **Phoenix Rocket** | homing rockets that leave a burning crater on impact |
 | flame + orbit | **Blaze Halo** | orbiting blades that ignite on contact and pulse a ring of fire |
 | glaive + laser | **Photon Disc** | boomerangs that fire a piercing beam from every hit |

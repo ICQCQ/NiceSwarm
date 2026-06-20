@@ -166,7 +166,18 @@ const BASE := {
 	# enemy caught in the field at collapse, beyond the first -- rewards grouping a crowd.
 	"fus_singularity": {"dmg": 3.0, "growth": 0.08, "cd": 5.5, "range": 700.0, "radius": 212.0, "radius_per_count": 8.0,
 		"pull": 250.0, "pull_interval": 1.0, "life": 2.5, "detonate_dmg": 8.9, "detonate_scale_per_enemy": 0.2, "push": 70.0},
-	"fus_solarlance": {"dmg": 3.0, "growth": 0.08, "length": 380.0, "length_per_count": 10.0, "width": 16.0, "burn_dps_ratio": 0.6, "burn_dur": 1.2},
+	# uptime_ratio_base is the field's uptime SHARE of `cycle` at duration_mult=1.0 (0.3 ->
+	# ~1.2s beaming / 2.8s tracking); Duration scales the share, not the 4s period itself, so
+	# downtime shrinks exactly as much as uptime grows (see FusSolarBeam._uptime_ratio). Haste
+	# then ALSO compresses the resulting downtime on top (more frequent beams, same as it
+	# speeds up any other cooldown) -- downtime_min floors it so heavy Haste can't remove the
+	# telegraph window entirely. radius_per_step: applied every 2 levels (see
+	# FusSolarBeam._radius), not per level -- 70 -> 95 -> 120 -> 145 across Lv1..7, a much
+	# bigger jump than a smooth per-level ramp.
+	"fus_solarbeam": {"dmg": 2.2, "growth": 0.08, "radius_base": 70.0, "radius_per_step": 25.0,
+		"tick": 0.2, "cycle": 4.0, "uptime_ratio_base": 0.3, "uptime_ratio_min": 0.12, "uptime_ratio_max": 0.85,
+		"downtime_min": 0.5, "ramp_per_sec": 2.0, "ramp_cap": 20.0, "burn_dps_ratio": 2.5, "burn_dur": 1.0,
+		"track_reach": 300.0, "track_speed": 160.0},  # track_speed: Haste-scaled (/ fuse_rate())
 	# recall_grace/recall_cd_penalty: touching the player does nothing before the grace window;
 	# after it, contact recalls the shuriken and delays the next throw. fly_back_speed_mult sets
 	# the starting comet "perihelion" speed (vs. speed) on the first return to the player;

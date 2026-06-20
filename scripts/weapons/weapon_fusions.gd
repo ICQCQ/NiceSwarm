@@ -74,7 +74,7 @@ const INFO := {
 	"mines|nova": {"name": "Nova Mine", "desc": "mines that pulse a second energy blast on detonation"},
 	"mines|venom": {"name": "Toxic Mine", "desc": "mines that leave a toxic pool on blast"},
 	"flame|glaive": {"name": "Inferno Blade", "desc": "boomerangs that ignite foes and leave fire pools where they strike"},
-	"flame|laser": {"name": "Solar Lance", "desc": "a continuous beam of searing light"},
+	"flame|laser": {"name": "Solar Beam", "desc": "a reticle that slowly tracks your aim, then calls down a scorching beam of sunlight that hits harder the longer a foe stays in it"},
 	"flame|missiles": {"name": "Phoenix Rocket", "desc": "homing rockets that leave a burning crater on impact"},
 	"flame|orbit": {"name": "Blaze Halo", "desc": "orbiting blades that ignite on contact and pulse a ring of fire"},
 	"glaive|laser": {"name": "Photon Disc", "desc": "boomerangs that fire a piercing beam from every hit"},
@@ -180,7 +180,7 @@ static func make(a: String, b: String) -> WeaponBase:
 		"mines|nova": return FusNovaMine.new()
 		"mines|venom": return FusToxicMine.new()
 		"flame|glaive": return FusInfernoBlade.new()
-		"flame|laser": return FusSolarLance.new()
+		"flame|laser": return FusSolarBeam.new()
 		"flame|missiles": return FusPhoenixRocket.new()
 		"flame|orbit": return FusBlazeHalo.new()
 		"glaive|laser": return FusPhotonDisc.new()

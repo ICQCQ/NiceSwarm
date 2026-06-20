@@ -13,7 +13,7 @@ direct DPS if it brings strong AoE/CC/DoT.
 | Weapon | Eff. DPS | Why |
 |---|---|---|
 | **Turret family** (VERIFIED below) | ~7–21 | Whole family above yardstick; 5 modes stack a free full-damage bolt gun. |
-| **Solar Lance** | ~9 | Continuous hitscan line, no cooldown gate. |
+| ~~Solar Lance~~ | ~9 | Continuous hitscan line, no cooldown gate. **[Redesigned 2026-06-20 -> Solar Beam: tracking reticle + telegraphed uptime/downtime cycle — see WEAPON_DESIGN.md — re-audit once played.]** |
 | **Photon Disc** | ~7.3 | Fast 1.1s glaives, each fires a piercing beam. |
 | **Plasma Storm** | ~6.6 | 160r cone every 0.14s **+** chain bolts. |
 | **Pulsar / Rocket Halo** | ~6.3 / ~5.9 | Top of the orbit class, no offsetting weakness. |
