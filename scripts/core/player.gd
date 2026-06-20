@@ -53,6 +53,9 @@ var dash_cooldown := 2.5
 var stat_levels := {}    # stat-upgrade id ("st_power"…) -> times picked, for the HUD icons
 
 var facing := Vector2.RIGHT
+## Local-only world-space mouse target (drives `facing`; never networked — weapons
+## that want to aim at the cursor should read `facing`, which IS synced, instead).
+var aim_point := Vector2.ZERO
 var has_crown := false  # set by game_hud when this player holds rank 1 by damage
 var has_poop := false   # set by game_hud when this player holds last place by damage
 var invuln := 0.0
@@ -134,6 +137,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if is_local:
+		_update_aim()
 		_local_move(delta)
 	else:
 		var to := net_target - global_position
@@ -149,6 +153,19 @@ func _physics_process(delta: float) -> void:
 	_update_cam(delta)
 
 
+## Registers the mouse cursor's world position and points `facing` at it every
+## physics tick. `get_global_mouse_position()` already unprojects through this
+## player's own active camera, so no manual viewport math is needed. `facing` is
+## the only piece that travels the network (see `_physics_process` in main.gd,
+## 20 Hz unreliable) — raw mouse coordinates stay purely local, which keeps this
+## "aim" feature free on the wire and immune to the other side's window size/DPI.
+func _update_aim() -> void:
+	aim_point = get_global_mouse_position()
+	var to_aim := aim_point - global_position
+	if to_aim.length() > 1.0:
+		facing = to_aim.normalized()
+
+
 func _local_move(delta: float) -> void:
 	var dir := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -159,8 +176,6 @@ func _local_move(delta: float) -> void:
 		dir.y -= 1.0
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
 		dir.y += 1.0
-	if dir != Vector2.ZERO:
-		facing = dir.normalized()
 
 	dash_timer = maxf(dash_timer - delta, 0.0)
 	afflicts.tick(delta)
